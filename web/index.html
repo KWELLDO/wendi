@@ -110,6 +110,38 @@
   .icard .ikeys span{border:1px solid var(--line);border-radius:6px;padding:2px 8px}
   .icard .inote{font-size:12.5px;color:var(--dim);line-height:1.9;margin-bottom:22px}
   .icard button{font-size:15px;padding:8px 28px;background:var(--gold);color:#161513;font-weight:600;border:none}
+  .icard .ibtns{display:flex;gap:10px;justify-content:center}
+  .icard button.ghost{background:none;color:var(--gold);border:1px solid var(--gold-dim)}
+
+  /* 账户 / 配额 / 引导 */
+  .hidden{display:none !important}
+  .qbadge{font-size:11.5px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:2px 8px}
+  #authModal{position:fixed;inset:0;background:#0e0e10cc;z-index:210;display:flex;align-items:center;justify-content:center}
+  .acard{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+  .acard .atabs{display:flex;gap:14px;align-items:center;margin-bottom:14px;font-size:15px}
+  .acard .atabs span{cursor:pointer;color:var(--dim)}
+  .acard .atabs span.on{color:var(--text);font-weight:600}
+  .acard .atabs .x{margin-left:auto;font-size:20px;line-height:1;color:var(--dim)}
+  .acard input{width:100%;background:#17171a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+               padding:9px 12px;font-size:14px;margin-bottom:10px}
+  .acard input:focus{outline:none;border-color:var(--gold-dim)}
+  .acard .primary{width:100%;background:var(--gold);color:#161513;font-weight:600;border:none;padding:9px;font-size:14.5px}
+  .acard .amsg{color:var(--err);font-size:12.5px;min-height:18px;margin-bottom:6px}
+  .acard .afoot{margin-top:12px;font-size:12.5px;color:var(--dim);text-align:center}
+  .acard .afoot span{cursor:pointer;text-decoration:underline dotted}
+  .acard .mine{font-size:13.5px;margin-bottom:12px}
+  #redeemBox{display:flex;gap:8px}
+  #redeemBox input{margin-bottom:0}
+  #redeemBox button{flex:0 0 auto;padding:0 14px}
+  #coach{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:150;
+         background:#2a2620;border:1px solid var(--gold-dim);border-radius:12px;padding:12px 16px;
+         display:flex;align-items:center;gap:12px;max-width:80vw;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #coach .ctext{font-size:14px;line-height:1.7}
+  #coach .cx{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+  #toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:220;background:#2a2a2e;
+         border:1px solid var(--line);border-radius:10px;padding:8px 16px;font-size:13.5px;
+         opacity:0;transition:opacity .25s;pointer-events:none}
+  #toast.show{opacity:1}
 
   /* 气泡 */
   #bubble{position:absolute;z-index:100;display:none}
@@ -138,6 +170,9 @@
   <button id="exportBtn">导出 md</button>
   <button id="resetBtn">重来</button>
   <button id="aboutBtn" title="关于问底">?</button>
+  <span id="quotaBadge" class="qbadge hidden" title="今日用量"></span>
+  <button id="syncBtn" class="hidden" title="把本地数据备份到云端">同步↑</button>
+  <button id="authBtn">登录</button>
 </header>
 <div id="intro" class="hidden">
   <div class="icard">
@@ -149,9 +184,32 @@
       数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
       测试期限量：每台设备每天 80 次。
     </div>
-    <button id="introGo">开始</button>
+    <div class="ibtns"><button id="introTour" class="ghost">30 秒试试</button><button id="introGo">开始</button></div>
   </div>
 </div>
+<div id="authModal" class="hidden">
+  <div class="acard">
+    <div class="atabs"><span data-tab="login" class="on">登录</span><span data-tab="reg">注册</span><span class="x" id="authClose">×</span></div>
+    <div id="authForm">
+      <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
+      <input id="authPw" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password">
+      <div id="authMsg" class="amsg"></div>
+      <button id="authSubmit" class="primary">登录</button>
+      <div class="afoot"><span id="authSwitch">还没有账号？点这里注册</span></div>
+    </div>
+    <div id="authMine" class="hidden">
+      <div class="mine">已登录：<b id="mineEmail"></b> <span id="minePlan"></span></div>
+      <div id="redeemBox">
+        <input id="redeemCode" placeholder="兑换码（WD-XXXX-XXXX-XXXX）">
+        <button id="redeemBtn">兑换</button>
+      </div>
+      <div id="authMsg2" class="amsg"></div>
+      <div class="afoot"><span id="logoutBtn">退出登录</span></div>
+    </div>
+  </div>
+</div>
+<div id="coach" class="hidden"><div class="ctext"></div><button class="cx" id="coachClose">×</button></div>
+<div id="toast"></div>
 <div id="stage"></div>
 <div id="bubble"><button id="explainBtn">解释</button></div>
 <div id="closedList"></div>
@@ -199,7 +257,7 @@ function focusOn(path){
   state.focusPath = path; save();
   lastNav = "zin"; render();
 }
-function enter(node){ focusOn([...state.focusPath, node.id]); }
+function enter(node){ focusOn([...state.focusPath, node.id]); tourAfterEnter(); }
 function goBack(){ if(state.focusPath.length > 1){ state.focusPath.pop(); save(); lastNav="zout"; render(); } }
 function selectedChild(node){
   const sel = state.selected[node.id];
@@ -401,10 +459,9 @@ function bindAll(){
       input.value = "";
       node.followups.push({ q, a: "…" }); save(); render();
       try{
-        const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({mode:"followup",term:node.term,previous:node.text,question:q})});
-        const d = await r.json();
-        node.followups[node.followups.length-1].a = r.ok ? d.text : ("[失败] "+(d.error||""));
+        const r = await api("/api/explain", "POST", {mode:"followup",term:node.term,previous:node.text,question:q});
+        node.followups[node.followups.length-1].a = r.ok ? r.data.text : ("[失败] "+(r.data.error||""));
+        if (r.data && r.data.quota) renderQuota(r.data.quota);
       }catch(e){ node.followups[node.followups.length-1].a = "[失败] "+e.message; }
       save(); render();
     };
@@ -424,6 +481,9 @@ function enterById(id){
 document.addEventListener("keydown", e => {
   const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
   if(tag === "input" || tag === "textarea" || tag === "select") return;
+  if(e.key === "Escape" && !$("#authModal").classList.contains("hidden")) {
+    $("#authModal").classList.add("hidden"); return;
+  }
   const node = currentNode();
   if(e.key === "Escape"){ goBack(); return; }
   if(!node.children.length) return;
@@ -488,17 +548,17 @@ async function addExplain(node, term, context){
   state.selected[node.id] = exp.id;
   save(); render();
   await requestExplain(exp);
+  tourAfterExplain();
 }
 
 /* ================= API ================= */
 async function requestExplain(card){
   card.loading = true; card.error = null; save(); render();
   try{
-    const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({mode:"explain",term:card.term,context:card.context,style:card.style})});
-    const d = await r.json();
-    if(!r.ok) throw new Error(d.error || "API error");
-    card.text = d.text; card.loading = false;
+    const r = await api("/api/explain", "POST", {mode:"explain",term:card.term,context:card.context,style:card.style});
+    if(!r.ok) throw new Error(r.data.error || "API error");
+    card.text = r.data.text; card.loading = false;
+    if (r.data.quota) renderQuota(r.data.quota);
   }catch(e){ card.loading = false; card.error = String(e.message||e); }
   save(); render();
 }
@@ -508,11 +568,10 @@ async function sendChat(node, text){
   save(); render();
   const pending = node.messages[node.messages.length-1];
   try{
-    const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({mode:"chat", messages:[...history, {role:"user", content:text}]})});
-    const d = await r.json();
+    const r = await api("/api/explain", "POST", {mode:"chat", messages:[...history, {role:"user", content:text}]});
     pending.loading = false;
-    pending.text = r.ok ? d.text : ("[失败] "+(d.error||""));
+    pending.text = r.ok ? r.data.text : ("[失败] "+(r.data.error||""));
+    if (r.data && r.data.quota) renderQuota(r.data.quota);
   }catch(e){ pending.loading = false; pending.text = "[失败] "+e.message; }
   save(); render();
 }
@@ -566,6 +625,155 @@ const intro = $("#intro");
 if(!localStorage.getItem("wendi-intro")) intro.classList.remove("hidden");
 $("#introGo").onclick = () => { intro.classList.add("hidden"); localStorage.setItem("wendi-intro", "1"); };
 $("#aboutBtn").onclick = () => intro.classList.remove("hidden");
+
+/* ================= 账户 / 引导 · 事件绑定 ================= */
+$("#introTour").onclick = startTour;
+$("#authBtn").onclick = openAuth;
+$("#authClose").onclick = () => $("#authModal").classList.add("hidden");
+$("#authModal").onclick = e => { if (e.target.id === "authModal") $("#authModal").classList.add("hidden"); };
+$("#authSubmit").onclick = doAuth;
+$("#authSwitch").onclick = () => { authMode = authMode === "login" ? "reg" : "login"; updateAuthUI(); };
+document.querySelectorAll("#authModal .atabs span[data-tab]").forEach(sp => {
+  sp.onclick = () => { authMode = sp.dataset.tab; updateAuthUI(); };
+});
+$("#redeemBtn").onclick = doRedeem;
+$("#logoutBtn").onclick = doLogout;
+$("#syncBtn").onclick = syncUp;
+$("#coachClose").onclick = coachHide;
+(async () => {
+  if (TOKEN) {
+    const r = await api("/api/me");
+    if (r.ok) { ME = { email: r.data.email, plan: r.data.plan, plan_until: r.data.plan_until }; renderQuota(r.data.quota); }
+    else { TOKEN = ""; localStorage.removeItem("wendi-token"); }
+  }
+  renderAccount();
+})();
+
+/* ================= 账户 / 配额 ================= */
+let TOKEN = localStorage.getItem("wendi-token") || "";
+let ME = null;
+let authMode = "login";
+
+function apiHeaders(){
+  const h = { "Content-Type": "application/json" };
+  if (TOKEN) h["Authorization"] = "Bearer " + TOKEN;
+  return h;
+}
+async function api(path, method, body){
+  const opts = { method: method || "GET", headers: apiHeaders() };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  let d = {};
+  try { d = await r.json(); } catch(e){}
+  return { ok: r.ok, status: r.status, data: d };
+}
+function toast(t){
+  const el = $("#toast");
+  el.textContent = t;
+  el.classList.add("show");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("show"), 2800);
+}
+function renderQuota(q){
+  const el = $("#quotaBadge");
+  if (!q) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const plan = q.plan === "pro" ? "Pro" : q.plan === "anon" ? "未登录" : "免费";
+  el.textContent = q.used + "/" + q.limit;
+  el.title = plan + " · 今日 " + q.used + "/" + q.limit + " 次";
+}
+function renderAccount(){
+  if (ME) {
+    $("#authBtn").textContent = (ME.email || "").split("@")[0];
+    $("#syncBtn").classList.remove("hidden");
+  } else {
+    $("#authBtn").textContent = "登录";
+    $("#syncBtn").classList.add("hidden");
+  }
+}
+function openAuth(){ $("#authModal").classList.remove("hidden"); authMode = "login"; updateAuthUI(); }
+function updateAuthUI(){
+  const logged = !!ME;
+  $("#authForm").classList.toggle("hidden", logged);
+  $("#authMine").classList.toggle("hidden", !logged);
+  if (logged) {
+    $("#mineEmail").textContent = ME.email;
+    $("#minePlan").textContent = ME.plan === "pro" ? "（Pro）" : "（免费）";
+    return;
+  }
+  const isLogin = authMode === "login";
+  $("#authSubmit").textContent = isLogin ? "登录" : "注册";
+  $("#authSwitch").textContent = isLogin ? "还没有账号？点这里注册" : "已有账号？点这里登录";
+  $("#authMsg").textContent = "";
+  document.querySelectorAll("#authModal .atabs span[data-tab]").forEach(sp =>
+    sp.classList.toggle("on", sp.dataset.tab === authMode));
+}
+function setMsg(t){ const el = ME ? $("#authMsg2") : $("#authMsg"); if (el) el.textContent = t; }
+async function doAuth(){
+  const email = $("#authEmail").value.trim();
+  const password = $("#authPw").value;
+  if (!email || !password) { setMsg("请填邮箱和密码"); return; }
+  const r = await api("/api/auth/" + (authMode === "login" ? "login" : "register"), "POST", { email, password });
+  if (!r.ok) { setMsg(r.data.error || "请求失败"); return; }
+  TOKEN = r.data.token;
+  localStorage.setItem("wendi-token", TOKEN);
+  ME = { email: r.data.email, plan: r.data.plan, plan_until: r.data.plan_until };
+  renderQuota(r.data.quota); renderAccount(); updateAuthUI();
+  toast("已登录：" + ME.email);
+  const s = await api("/api/sync");
+  if (s.ok && s.data && s.data.data) {
+    if (confirm("云端有你的数据（" + s.data.updated_at + "）。\n\n载入云端数据？（取消 = 保留本地，之后可用「同步↑」把本地覆盖上去）")) {
+      try { state = JSON.parse(s.data.data); save(); render(); toast("已载入云端数据"); }
+      catch(e){ toast("云端数据解析失败"); }
+    }
+  }
+}
+async function doRedeem(){
+  const code = $("#redeemCode").value.trim();
+  if (!code) return;
+  const r = await api("/api/redeem", "POST", { code });
+  setMsg(r.ok ? (r.data.message || "兑换成功") : (r.data.error || "兑换失败"));
+  if (r.ok) { renderQuota(r.data.quota); ME.plan = "pro"; updateAuthUI(); }
+}
+async function syncUp(){
+  if (!ME) { openAuth(); return; }
+  const r = await api("/api/sync", "POST", { data: JSON.stringify(state) });
+  toast(r.ok ? ("已同步到云端 · " + (r.data.updated_at || "")) : ("同步失败：" + (r.data.error || "")));
+}
+async function doLogout(){
+  await api("/api/auth/logout", "POST", {});
+  TOKEN = ""; ME = null;
+  localStorage.removeItem("wendi-token");
+  renderAccount(); updateAuthUI();
+  toast("已退出登录（本地数据保留）");
+}
+
+/* ================= 引导教程 ================= */
+let tourStep = 0;
+function coach(text){
+  $("#coach").querySelector(".ctext").textContent = text;
+  $("#coach").classList.remove("hidden");
+}
+function coachHide(){ $("#coach").classList.add("hidden"); }
+async function startTour(){
+  localStorage.setItem("wendi-intro", "1");
+  $("#intro").classList.add("hidden");
+  coachHide();
+  focusOn([state.root.id]);
+  tourStep = 1;
+  await sendChat(state.root, "我想学量子力学。先给我讲讲最基本的几个概念？");
+  coach("👆 用鼠标划选上面回答里的任意一个词（比如「叠加态」），看看发生什么");
+}
+function tourAfterExplain(){
+  if (tourStep === 1) { tourStep = 2; coach("这就是解释。点右下角的预览或「进入 ▸」，可以钻进这个词里看更深一层"); }
+}
+function tourAfterEnter(){
+  if (tourStep === 2) {
+    tourStep = 3;
+    coach("按 Esc 就回到上一层，内容都不会丢。就这样——开始你自己的问题吧");
+    setTimeout(coachHide, 8000);
+  }
+}
 
 /* ================= 启动 ================= */
 load();
