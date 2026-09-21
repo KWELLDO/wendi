@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>问底 WenDi · get to the bottom of it</title>
+<style>
+  :root{
+    --bg:#141416; --panel:#1d1d20; --panel2:#222226; --panel3:#191919;
+    --line:#303035; --text:#e8e6e1; --dim:#94918a; --gold:#c9a55c; --gold-dim:#6b5a34;
+    --ok:#7fb069; --err:#d07b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+       font:14.5px/1.7 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;overflow:hidden}
+  header{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--line);
+         background:var(--panel);flex:0 0 auto;z-index:10;flex-wrap:wrap}
+  header .title{font-weight:600}
+  header .sub{color:var(--dim);font-size:12px;margin-left:6px}
+  header .grow{flex:1}
+  #crumbs{display:flex;align-items:center;gap:2px;font-size:12.5px;color:var(--dim);max-width:46vw;overflow:hidden}
+  #crumbs span.cr{padding:1px 7px;border-radius:6px;cursor:pointer;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  #crumbs span.cr:hover{background:#2a2a2e;color:var(--text)}
+  #crumbs span.cr.cur{color:var(--gold)}
+  #crumbs .sep{opacity:.5}
+  select,button{background:#2a2a2e;color:var(--text);border:1px solid var(--line);border-radius:7px;
+       padding:4px 9px;font-size:12.5px;cursor:pointer}
+  button:hover{border-color:var(--gold-dim)}
+  button.mini{padding:1px 6px;font-size:11.5px;color:var(--dim)}
+
+  /* ============ 房间 ============ */
+  #stage{flex:1;min-height:0;display:flex;padding:6px}
+  .room{display:flex;flex:1;min-width:0;min-height:0;gap:8px}
+  .room.enter{animation:zin .24s ease-out}
+  .room.back{animation:zout .2s ease-out}
+  @keyframes zin{from{opacity:0;transform:scale(.985) translateY(3px)}to{opacity:1;transform:none}}
+  @keyframes zout{from{opacity:0;transform:scale(1.008)}to{opacity:1;transform:none}}
+
+  .mainpane{flex:1.7;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line);
+            border-radius:10px;background:var(--panel);overflow:hidden}
+  .side{flex:1;min-width:230px;display:flex;flex-direction:column;gap:8px}
+  .lists{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;
+         background:var(--panel);overflow:hidden}
+  .lists .lhead{flex:0 0 auto;padding:6px 10px;font-size:11.5px;color:var(--dim);letter-spacing:.05em;
+                border-bottom:1px solid var(--line);background:var(--panel2)}
+  .lists .lbody{flex:1;overflow-y:auto;padding:6px}
+  .litem{display:flex;align-items:baseline;gap:7px;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .litem:hover{background:#26262b}
+  .litem.sel{background:#2a2620;border-color:var(--gold-dim)}
+  .litem .lt{font-weight:600;font-size:13.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .litem .lm{font-size:10.5px;color:var(--dim)}
+  .litem .k{font-size:10px;color:#161513;background:var(--gold);border-radius:4px;padding:0 4px;font-weight:700}
+  .litem .k.l2{background:var(--ok)} .litem .k.l3{background:#8fb8d0} .litem .k.l4{background:#c39bd0}
+  .litem .dot{color:var(--dim);font-size:11px}
+  .lists .lempty{color:var(--dim);font-size:12.5px;padding:12px;line-height:2}
+
+  .preview{flex:1.35;min-height:0;border:1px solid var(--line);border-radius:10px;background:var(--panel3);
+           overflow:hidden;display:flex;flex-direction:column}
+  .preview .phead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--line);
+                  background:var(--panel2);font-size:11.5px;color:var(--dim)}
+  .preview .phead .grow{flex:1}
+  .preview .pbody{flex:1;min-height:0;overflow:hidden}
+
+  /* ============ mini（同构缩小版，可点击进入） ============ */
+  .mini{height:100%;display:flex;gap:5px;padding:7px;cursor:zoom-in;position:relative}
+  .mini:hover{background:#1f1f23}
+  .mini .m-main{flex:1.65;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+  .mini .m-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .mini .m-text{font-size:11.5px;line-height:1.65;white-space:pre-wrap;overflow:hidden;color:#d8d5cd;
+                mask-image:linear-gradient(to bottom,#000 72%,transparent)}
+  .mini .m-text.serif{font-family:"Noto Serif CJK SC",Georgia,serif}
+  .mini .m-list{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;background:#1b1b1f;padding:4px 6px;overflow:hidden}
+  .mini .m-list .t{font-size:10px;color:var(--dim);margin-bottom:2px}
+  .mini .m-list .i{font-size:10.5px;color:#c9c6bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .m-deeper{flex:0 0 auto;border:1px dashed var(--line);border-radius:7px;padding:4px 6px;
+                  font-size:10px;color:var(--dim);line-height:1.5}
+  .mini .m-enter{position:absolute;right:10px;bottom:8px;background:var(--gold);color:#161513;border:none;
+                 border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;opacity:0;transition:opacity .15s}
+  .mini:hover .m-enter{opacity:1}
+
+  /* ============ 内容（主对话 / 解释） ============ */
+  .content{flex:1;min-height:0;display:flex;flex-direction:column}
+  .content .ctext{flex:1;min-height:0;overflow-y:auto;padding:14px 18px}
+  .content .ctext.serif{font-family:"Noto Serif CJK SC","Source Han Serif SC",Georgia,serif;font-size:15.3px}
+  .msg{margin:0 0 13px}
+  .msg .who{font-size:11px;color:var(--dim);margin-bottom:1px}
+  .msg.user .who{color:var(--ok)}
+  .msg .txt{white-space:pre-wrap;line-height:1.85;font-size:15px}
+  .msg .txt.loading{color:var(--dim)}
+  .expbody{white-space:pre-wrap;line-height:1.85;font-size:14.6px}
+  .expbody.loading{color:var(--dim)} .expbody.err{color:var(--err)}
+  .qa{border-left:2px solid var(--gold-dim);margin:8px 0 0;padding:2px 0 2px 10px;font-size:13.3px}
+  .qa .q{color:var(--gold)} .qa .a{white-space:pre-wrap;color:#d5d2ca}
+  .inputrow{flex:0 0 auto;display:flex;gap:7px;padding:9px 11px;border-top:1px solid var(--line);background:var(--panel2)}
+  .inputrow input{flex:1;background:#17171a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+                  padding:7px 11px;font-size:13.5px}
+  .inputrow input:focus{outline:none;border-color:var(--gold-dim)}
+  mark.hl{background:#c9a55c22;border-bottom:1.5px solid var(--gold);border-radius:2px}
+
+  /* 介绍页 */
+  #intro{position:fixed;inset:0;background:#0e0e10ee;z-index:200;display:flex;align-items:center;justify-content:center}
+  #intro.hidden{display:none}
+  .icard{max-width:520px;padding:34px 40px;border:1px solid var(--line);border-radius:18px;background:var(--panel);text-align:center}
+  .icard h1{margin:0 0 2px;font-size:34px}
+  .icard h1 span{font-size:14px;color:var(--dim);font-weight:400;margin-left:10px}
+  .icard .slogan{color:var(--gold);font-style:italic;margin-bottom:22px}
+  .icard .irow{font-size:15px;line-height:2;margin-bottom:14px}
+  .icard .ikeys{display:flex;gap:10px;justify-content:center;font-size:12px;color:var(--dim);margin-bottom:16px}
+  .icard .ikeys span{border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+  .icard .inote{font-size:12.5px;color:var(--dim);line-height:1.9;margin-bottom:22px}
+  .icard button{font-size:15px;padding:8px 28px;background:var(--gold);color:#161513;font-weight:600;border:none}
+
+  /* 气泡 */
+  #bubble{position:absolute;z-index:100;display:none}
+  #bubble button{background:var(--gold);color:#141414;border:none;border-radius:7px;padding:5px 12px;
+       font-weight:600;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  #closedList{position:absolute;top:42px;right:12px;z-index:60;background:var(--panel2);border:1px solid var(--line);
+              border-radius:10px;padding:8px 10px;display:none;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #closedList .item{display:flex;gap:8px;align-items:center;padding:3px 2px}
+  #closedList .item span{color:var(--dim);font-size:12.5px;flex:1}
+  .hint{color:var(--dim);font-size:12.5px;padding:14px;line-height:2}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">问底<span class="sub">WenDi · get to the bottom of it</span></div>
+  <div id="crumbs"></div>
+  <div class="grow"></div>
+  <select id="styleSel" title="新解释的档位">
+    <option value="casual">说人话</option>
+    <option value="standard" selected>标准</option>
+    <option value="rigorous">严谨</option>
+  </select>
+  <button id="backBtn" title="返回上一层（Esc）">← 返回</button>
+  <button id="closedBtn">已移除 <span id="closedCount">0</span></button>
+  <button id="sampleBtn">示例问题</button>
+  <button id="exportBtn">导出 md</button>
+  <button id="resetBtn">重来</button>
+  <button id="aboutBtn" title="关于问底">?</button>
+</header>
+<div id="intro" class="hidden">
+  <div class="icard">
+    <h1>问底<span>WenDi</span></h1>
+    <div class="slogan">Get to the bottom of it.</div>
+    <div class="irow">遇到不懂的词 → <b>划它</b> → 得到解释；<br>解释里还有不懂的 → <b>继续划</b>，一层层到底。</div>
+    <div class="ikeys"><span>Esc 返回上一层</span><span>↑ ↓ 切换</span><span>Enter 进入</span></div>
+    <div class="inote">
+      数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
+      测试期限量：每台设备每天 80 次。
+    </div>
+    <button id="introGo">开始</button>
+  </div>
+</div>
+<div id="stage"></div>
+<div id="bubble"><button id="explainBtn">解释</button></div>
+<div id="closedList"></div>
+
+<script>
+"use strict";
+const SKEY = "explainer-proto-v2";
+const $ = s => document.querySelector(s);
+const uid = () => "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function hhmm(t){ const d=new Date(t); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+function styleName(s){ return {casual:"说人话",standard:"标准",rigorous:"严谨"}[s]||s; }
+function div(c){ const d=document.createElement("div"); if(c) d.className=c; return d; }
+
+/* ================= 数据 =================
+   node = { id, kind:'conv'|'exp', children:[node...],
+            conv: messages[] / exp: term,context,text,style,followups,createdAt,parentTerm,loading,error }
+   state = { root, focusPath:[id...]（根=root.id）, selected:{nodeId:childId}, removed:[] } */
+let state = null;
+let lastNav = "zin";
+function newConv(){ return { id: uid(), kind:"conv", children: [], messages: [] }; }
+function newExp(term, context, parentTerm){
+  return { id: uid(), kind:"exp", children: [], term, context, parentTerm: parentTerm||null,
+           style: state.defaultStyle, text:"", loading:true, error:null, followups:[], createdAt: Date.now() };
+}
+function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); }
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(SKEY)||"null"); if(d && d.root){ state=d; return; } }catch(e){}
+  state = { root: newConv(), focusPath: [], selected: {}, removed: [], defaultStyle: "standard" };
+  state.focusPath = [state.root.id];
+}
+
+/* ================= 树与视野 ================= */
+function findByPath(root, path){
+  let n = root;
+  for(let i=1;i<path.length;i++){
+    const c = n.children.find(x => x.id === path[i]);
+    if(!c) return null;
+    n = c;
+  }
+  return n;
+}
+function currentNode(){ return findByPath(state.root, state.focusPath) || state.root; }
+function focusOn(path){
+  state.focusPath = path; save();
+  lastNav = "zin"; render();
+}
+function enter(node){ focusOn([...state.focusPath, node.id]); }
+function goBack(){ if(state.focusPath.length > 1){ state.focusPath.pop(); save(); lastNav="zout"; render(); } }
+function selectedChild(node){
+  const sel = state.selected[node.id];
+  return node.children.find(c => c.id === sel) || node.children[node.children.length-1] || null;
+}
+function selectChild(node, child){ state.selected[node.id] = child.id; save(); render(); }
+function depthOf(path){ return path.length - 1; }
+
+/* ================= 渲染 ================= */
+function render(){
+  const stage = $("#stage");
+  stage.innerHTML = "";
+  const node = currentNode();
+  stage.appendChild(renderRoom(node, "0", lastNav));
+  renderCrumbs();
+  $("#closedCount").textContent = state.removed.length;
+  $("#backBtn").disabled = state.focusPath.length <= 1;
+  bindAll();
+  requestAnimationFrame(() => { const c = document.querySelector(".content .ctext"); if(c && node.kind==="conv") c.scrollTop = c.scrollHeight; });
+}
+
+function renderRoom(node, key, anim){
+  const room = div("room " + (anim==="zout" ? "back" : "enter"));
+  const depth = state.focusPath.length - 1;
+  room.append(renderMain(node, depth), renderSide(node, key));
+  return room;
+}
+
+/* 左大：当前节点内容（可划词） */
+function renderMain(node, depth){
+  const main = div("mainpane content");
+  const body = div("ctext" + (node.kind==="exp" ? " serif" : ""));
+  body.dataset.scrollKey = "main-" + node.id;
+  if(node.kind === "conv"){
+    for(const m of node.messages || []){
+      const el = div("msg " + m.role);
+      el.innerHTML = `<div class="who">${m.role==="user" ? "你" : "AI"}</div>
+        <div class="txt ${m.loading?"loading":""}" data-quote-scope="1">${esc(m.text || (m.loading?"…":""))}</div>`;
+      body.appendChild(el);
+    }
+    if(!(node.messages||[]).length)
+      body.insertAdjacentHTML("beforeend", `<div class="hint">问点什么——问题意识从这里开始。<br>AI 的回答会被划词、被继续切开。</div>`);
+    main.appendChild(body);
+    const row = div("inputrow");
+    row.innerHTML = `<input data-input-key="conv-${node.id}" placeholder="输入问题，回车发送…"><button data-send>发送</button>`;
+    main.appendChild(row);
+  } else {
+    const head = `<div class="expbody ${node.loading?"loading":node.error?"err":""}" data-quote-scope="1">${
+      esc(node.error ? ("[失败] "+node.error) : (node.text || "解释中…"))}</div>`;
+    body.innerHTML = head;
+    for(const f of node.followups || []){
+      body.insertAdjacentHTML("beforeend",
+        `<div class="qa"><div class="q">追问：${esc(f.q)}</div><div class="a">${esc(f.a)}</div></div>`);
+    }
+    main.appendChild(body);
+    const row = div("inputrow");
+    row.innerHTML = `<input data-input-key="ask-${node.id}" placeholder="追问（还是不懂 / 举例 / 区别）…">
+      <button data-ask>问</button><button class="mini" data-rexplain title="按当前档位重讲">↻</button>`;
+    main.appendChild(row);
+  }
+  return main;
+}
+
+/* 右列：列表（上）+ 预览（下） */
+function renderSide(node, key){
+  const side = div("side");
+  // —— 列表 ——
+  const lists = div("lists");
+  const lhead = div("lhead");
+  lhead.innerHTML = `解释列表 <span style="opacity:.6">(${node.children.length})</span> · 划词产生新的`;
+  const lbody = div("lbody");
+  lbody.dataset.scrollKey = "list-" + node.id;
+  if(!node.children.length){
+    lbody.innerHTML = `<div class="lempty">这里还是空的。<br>在左侧正文里<b>划词</b>，就会长出第一块解释。</div>`;
+  } else {
+    const sel = selectedChild(node);
+    for(const c of node.children){
+      const it = div("litem" + (sel && c.id===sel.id ? " sel" : ""));
+      const d = Math.min(depthOf([...state.focusPath, c.id]), 4);
+      it.innerHTML = `<span class="k ${d>1?"l"+d:""}">L${d}</span>
+        <span class="lt">${esc(c.term)}</span>
+        <span class="lm">${c.loading ? "…" : (c.text ? "✓" : "")} ${hhmm(c.createdAt)}</span>
+        <button class="mini" data-del="${c.id}" title="移除（可恢复）">×</button>
+        <button class="mini" data-enter="${c.id}" title="进入（Enter）">▸</button>`;
+      it.dataset.child = c.id;
+      lbody.appendChild(it);
+    }
+  }
+  lists.append(lhead, lbody);
+
+  // —— 预览 ——
+  const preview = div("preview");
+  const sel = selectedChild(node);
+  const phead = div("phead");
+  phead.innerHTML = sel
+    ? `<span>下一层预览</span><span class="grow"></span><button class="mini" data-enter="${sel.id}">进入 ▸</button>`
+    : `<span>预览</span><span class="grow"></span>`;
+  const pbody = div("pbody");
+  if(sel){
+    pbody.appendChild(renderMini(sel));
+  } else {
+    pbody.innerHTML = `<div class="lempty" style="padding:16px;color:var(--dim);font-size:12.5px;line-height:2">
+      选中列表里的解释，这里显示它的内容；<br>点「进入」或直接点它，视野就切换进去。</div>`;
+  }
+  preview.append(phead, pbody);
+  side.append(lists, preview);
+  return side;
+}
+
+/* mini：同构缩小版（可点击进入；内容可划词=进入后继续解释） */
+function renderMini(node){
+  const mini = div("mini");
+  mini.dataset.miniOf = node.id;
+  const main = div("m-main");
+  if(node.kind === "conv"){
+    main.innerHTML = `<div class="m-text serif">${esc((node.messages||[]).slice(-2).map(m => `${m.role==="user"?"你":"AI"}：${m.text||""}`).join("\n\n"))}</div>`;
+  } else {
+    main.innerHTML = `<div class="m-text" data-quote-scope="1">${esc(node.error ? ("[失败] "+node.error) : (node.text || "解释中…"))}</div>`;
+  }
+  const side = div("m-side");
+  const list = div("m-list");
+  const n = node.children.length;
+  list.innerHTML = `<div class="t">子解释 ${n}</div>` +
+    node.children.slice(0,3).map(c => `<div class="i">· ${esc(c.term)}</div>`).join("") +
+    (n > 3 ? `<div class="i" style="opacity:.6">… 还有 ${n-3} 条</div>` : "") +
+    (n === 0 ? `<div class="i" style="opacity:.6">（空）</div>` : "");
+  const deeper = div("m-deeper");
+  deeper.textContent = n ? "里面还有更深的层" : "进入后可继续划词";
+  side.append(list, deeper);
+  const btn = document.createElement("button");
+  btn.className = "m-enter"; btn.textContent = "进入 ▸";
+  mini.append(main, side, btn);
+  return mini;
+}
+
+function renderCrumbs(){
+  const c = $("#crumbs");
+  c.innerHTML = "";
+  state.focusPath.forEach((id, i) => {
+    if(i > 0){ const s = div("sep"); s.textContent = "›"; c.appendChild(s); }
+    const node = i === 0 ? state.root : findByPath(state.root, state.focusPath.slice(0, i+1));
+    const label = i === 0 ? "主对话" : (node ? node.term : "?");
+    const sp = document.createElement("span");
+    sp.className = "cr" + (i === state.focusPath.length-1 ? " cur" : "");
+    sp.textContent = label;
+    sp.onclick = () => focusOn(state.focusPath.slice(0, i+1));
+    c.appendChild(sp);
+  });
+}
+
+/* ================= 事件 ================= */
+function bindAll(){
+  // 列表项：单击选中 / 双击进入 / ▸ 进入 / × 移除
+  document.querySelectorAll(".litem").forEach(it => {
+    const cid = it.dataset.child;
+    it.onclick = e => {
+      if(e.target.dataset.del || e.target.dataset.enter) return;
+      const node = currentNode();
+      const child = node.children.find(x => x.id === cid);
+      if(child) selectChild(node, child);
+    };
+    it.ondblclick = e => { if(!e.target.dataset.del) enterById(cid); };
+    const de = it.querySelector("[data-enter]");
+    if(de) de.onclick = e => { e.stopPropagation(); enterById(cid); };
+    const dl = it.querySelector("[data-del]");
+    if(dl) dl.onclick = e => {
+      e.stopPropagation();
+      const node = currentNode();
+      const idx = node.children.findIndex(x => x.id === cid);
+      if(idx >= 0){ state.removed.push(node.children[idx]); node.children.splice(idx, 1); save(); render(); }
+    };
+  });
+  // 预览 mini：点击进入
+  document.querySelectorAll(".mini").forEach(m => {
+    m.onclick = e => {
+      if(e.target.closest("[data-quote-scope]") && window.getSelection() && !window.getSelection().isCollapsed) return; // 正在划词
+      enterById(m.dataset.miniOf);
+    };
+  });
+  // 预览头部「进入」按钮
+  document.querySelectorAll(".phead [data-enter]").forEach(b => {
+    b.onclick = () => enterById(b.dataset.enter);
+  });
+  // 主对话输入
+  const node = currentNode();
+  if(node.kind === "conv"){
+    const input = document.querySelector(`[data-input-key="conv-${node.id}"]`);
+    const send = document.querySelector("[data-send]");
+    if(input && send){
+      const fire = () => { const t = input.value.trim(); if(t) { input.value=""; sendChat(node, t); } };
+      send.onclick = fire;
+      input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
+    }
+  } else {
+    const input = document.querySelector(`[data-input-key="ask-${node.id}"]`);
+    const ask = document.querySelector("[data-ask]");
+    const fire = async () => {
+      const q = input.value.trim(); if(!q || node.loading) return;
+      input.value = "";
+      node.followups.push({ q, a: "…" }); save(); render();
+      try{
+        const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({mode:"followup",term:node.term,previous:node.text,question:q})});
+        const d = await r.json();
+        node.followups[node.followups.length-1].a = r.ok ? d.text : ("[失败] "+(d.error||""));
+      }catch(e){ node.followups[node.followups.length-1].a = "[失败] "+e.message; }
+      save(); render();
+    };
+    if(ask) ask.onclick = fire;
+    if(input) input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
+    const rx = document.querySelector("[data-rexplain]");
+    if(rx) rx.onclick = async () => { node.style = state.defaultStyle; await requestExplain(node); };
+  }
+}
+function enterById(id){
+  const node = currentNode();
+  const child = node.children.find(x => x.id === id);
+  if(child) enter(child);
+}
+
+/* 键盘：Esc 返回 / Enter 进入选中 / ↑↓ 切换选中 */
+document.addEventListener("keydown", e => {
+  const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
+  if(tag === "input" || tag === "textarea" || tag === "select") return;
+  const node = currentNode();
+  if(e.key === "Escape"){ goBack(); return; }
+  if(!node.children.length) return;
+  const sel = selectedChild(node);
+  const idx = Math.max(0, node.children.findIndex(c => c.id === (sel||{}).id));
+  if(e.key === "Enter"){ if(sel) enter(sel); }
+  else if(e.key === "ArrowDown"){ selectChild(node, node.children[Math.min(idx+1, node.children.length-1)]); }
+  else if(e.key === "ArrowUp"){ selectChild(node, node.children[Math.max(idx-1, 0)]); }
+});
+
+/* ================= 划词 ================= */
+let bubbleInfo = null;
+function extractSentence(text, idx, len){
+  const st = "。！？!?；;\n";
+  let a = idx; while(a>0 && !st.includes(text[a-1])) a--;
+  let b = idx+len; while(b<text.length && !st.includes(text[b])) b++;
+  return text.slice(a, Math.min(text.length, b+1)).trim();
+}
+document.addEventListener("mouseup", () => {
+  setTimeout(() => {
+    const sel = window.getSelection();
+    const bub = $("#bubble");
+    const hide = () => { bub.style.display = "none"; bubbleInfo = null; };
+    if(!sel || sel.isCollapsed){ hide(); return; }
+    const term = sel.toString().trim();
+    if(!term || term.length > 80){ hide(); return; }
+    let el = sel.anchorNode; el = el.nodeType===1 ? el : el.parentElement;
+    const scope = el && el.closest("[data-quote-scope]");
+    const mini = el && el.closest(".mini");
+    const main = el && el.closest(".mainpane");
+    if(!scope || (!mini && !main)){ hide(); return; }
+    const text = scope.innerText || "";
+    const idx = Math.max(0, text.indexOf(term));
+    bubbleInfo = { term, context: extractSentence(text, idx, term.length),
+                   fromMini: mini ? mini.dataset.miniOf : null };
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    bub.style.display = "block";
+    bub.style.left = (window.scrollX + rect.left + rect.width/2 - 34) + "px";
+    bub.style.top  = (window.scrollY + rect.bottom + 8) + "px";
+  }, 10);
+});
+$("#explainBtn").addEventListener("click", async () => {
+  if(!bubbleInfo) return;
+  const { term, context, fromMini } = bubbleInfo;
+  $("#bubble").style.display = "none";
+  window.getSelection().removeAllRanges();
+  if(fromMini){
+    // 在预览里划词 = 先进入那层，再在那层划
+    const target = findByPath(state.root, [...state.focusPath, fromMini]);
+    if(!target) return;
+    state.focusPath = [...state.focusPath, fromMini];
+    state.selected[target.id] = (target.children[0]||{}).id;
+    save();
+    await addExplain(target, term, context);
+  } else {
+    await addExplain(currentNode(), term, context);
+  }
+});
+async function addExplain(node, term, context){
+  const exp = newExp(term, context, node.kind === "conv" ? null : node.term);
+  node.children.push(exp);
+  state.selected[node.id] = exp.id;
+  save(); render();
+  await requestExplain(exp);
+}
+
+/* ================= API ================= */
+async function requestExplain(card){
+  card.loading = true; card.error = null; save(); render();
+  try{
+    const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({mode:"explain",term:card.term,context:card.context,style:card.style})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error || "API error");
+    card.text = d.text; card.loading = false;
+  }catch(e){ card.loading = false; card.error = String(e.message||e); }
+  save(); render();
+}
+async function sendChat(node, text){
+  const history = (node.messages||[]).filter(m => !m.loading).map(m => ({role:m.role, content:m.text}));
+  node.messages.push({role:"user", text, at:Date.now()}, {role:"assistant", text:"", loading:true, at:Date.now()});
+  save(); render();
+  const pending = node.messages[node.messages.length-1];
+  try{
+    const r = await fetch("/api/explain", {method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({mode:"chat", messages:[...history, {role:"user", content:text}]})});
+    const d = await r.json();
+    pending.loading = false;
+    pending.text = r.ok ? d.text : ("[失败] "+(d.error||""));
+  }catch(e){ pending.loading = false; pending.text = "[失败] "+e.message; }
+  save(); render();
+}
+
+/* ================= 顶栏 ================= */
+$("#styleSel").onchange = e => { state.defaultStyle = e.target.value; save(); };
+$("#backBtn").onclick = goBack;
+$("#sampleBtn").onclick = () => {
+  focusOn([state.root.id]);
+  sendChat(state.root, "我想学量子力学。先给我讲讲最基本的几个概念？");
+};
+$("#resetBtn").onclick = () => { if(confirm("清空全部？")){ localStorage.removeItem(SKEY); location.reload(); } };
+$("#closedBtn").onclick = () => {
+  const box = $("#closedList");
+  if(box.style.display === "block"){ box.style.display = "none"; return; }
+  box.innerHTML = state.removed.length ? "" : `<div class="item"><span>（空）</span></div>`;
+  state.removed.forEach((c, i) => {
+    const it = div("item");
+    it.innerHTML = `<span>${esc(c.term)}（${hhmm(c.createdAt)}）</span>`;
+    const re = document.createElement("button"); re.className="mini"; re.textContent="恢复";
+    re.onclick = () => { state.removed.splice(i,1); currentNode().children.push(JSON.parse(JSON.stringify(c))); save(); render(); $("#closedBtn").onclick(); };
+    const de = document.createElement("button"); de.className="mini"; de.textContent="彻底删";
+    de.onclick = () => { state.removed.splice(i,1); save(); $("#closedBtn").onclick(); };
+    it.append(re, de); box.appendChild(it);
+  });
+  box.style.display = "block";
+};
+$("#exportBtn").onclick = () => {
+  const lines = ["# 解释场 · 导出", "", "导出时间：" + new Date().toLocaleString(), ""];
+  (function walk(n, depth){
+    if(n.kind === "conv"){
+      lines.push("## 主对话", "");
+      for(const m of n.messages||[]){ if(m.loading) continue; lines.push(`**${m.role==="user"?"你":"AI"}**：${m.text}`, ""); }
+    } else {
+      lines.push(`${"#".repeat(Math.min(3+depth,6))} L${depth} ${n.term}（${styleName(n.style)} · ${new Date(n.createdAt).toLocaleString()}）`, "");
+      lines.push(n.text||"", "");
+      for(const f of n.followups||[]) lines.push(`> 追问：${f.q}`, `> 答：${f.a}`, "");
+    }
+    for(const c of n.children||[]) walk(c, depth+1);
+  })(state.root, 0);
+  if(state.removed.length){ lines.push("## 已移除", ""); for(const c of state.removed) lines.push(`- ${c.term}`); }
+  const blob = new Blob([lines.join("\n")], {type:"text/markdown"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "解释场-" + new Date().toISOString().slice(0,10) + ".md";
+  a.click();
+};
+
+/* ================= 介绍页 ================= */
+const intro = $("#intro");
+if(!localStorage.getItem("wendi-intro")) intro.classList.remove("hidden");
+$("#introGo").onclick = () => { intro.classList.add("hidden"); localStorage.setItem("wendi-intro", "1"); };
+$("#aboutBtn").onclick = () => intro.classList.remove("hidden");
+
+/* ================= 启动 ================= */
+load();
+if(!state.focusPath || !state.focusPath.length) state.focusPath = [state.root.id];
+render();
+$("#styleSel").value = state.defaultStyle;
+</script>
+</body>
+</html>
