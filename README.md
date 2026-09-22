@@ -61,6 +61,8 @@ python3 server.py        # → http://127.0.0.1:8899
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |
+| `WENDI_MAX_TOKENS` | 800 | 划词解释/追问的单次输出上限 |
+| `WENDI_MAX_TOKENS_CHAT` | 2000 | 主对话的单次输出上限 |
 
 ### 部署
 
@@ -76,7 +78,7 @@ web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像
 deploy/          部署件（systemd / nginx / 部署脚本）
 ```
 
-前端交互要点：划词气泡、`Esc` 返回上层、`↑↓` 切换子解释、`Enter` 进入、导出 Markdown。
+前端交互要点：划词气泡、`Esc` 返回上层、`↑↓` 切换子解释、`Enter` 进入、SSE 流式输出（边生成边显示）、导出 Markdown。
 
 ## 形态
 

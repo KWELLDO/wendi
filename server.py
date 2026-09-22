@@ -38,6 +38,10 @@ BASE_URL = os.environ.get("WENDI_BASE_URL", "https://api.deepseek.com")
 TIMEOUT = float(os.environ.get("WENDI_TIMEOUT", "90"))
 WEB_DIR = HERE / "web"
 
+# —— 输出长度（主对话更容易被截断，给得宽些） ——
+MAX_TOKENS = int(os.environ.get("WENDI_MAX_TOKENS", "800"))
+MAX_TOKENS_CHAT = int(os.environ.get("WENDI_MAX_TOKENS_CHAT", "2000"))
+
 # —— 限流 ——
 LIMIT_ANON_PER_MIN = int(os.environ.get("WENDI_ANON_PER_MIN", "6"))
 LIMIT_GLOBAL_DAY = int(os.environ.get("WENDI_LIMIT_GLOBAL_DAY", "4000"))
@@ -112,14 +116,18 @@ def _existing_keys() -> list[tuple[str, str]]:
     return out
 
 
-def _request_once(key: str, messages: list[dict]) -> str:
+def _llm_request(key: str, messages: list[dict], max_tokens: int, stream: bool) -> urllib.request.Request:
     payload = {"model": MODEL, "messages": messages, "temperature": 0.4,
-               "max_tokens": 800, "stream": False}
-    req = urllib.request.Request(
+               "max_tokens": max_tokens, "stream": stream}
+    return urllib.request.Request(
         f"{BASE_URL.rstrip('/')}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         method="POST")
+
+
+def _request_once(key: str, messages: list[dict], max_tokens: int) -> str:
+    req = _llm_request(key, messages, max_tokens, stream=False)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -135,7 +143,7 @@ def _request_once(key: str, messages: list[dict]) -> str:
         raise RuntimeError("LLM 响应异常") from e
 
 
-def call_llm(messages: list[dict]) -> str:
+def call_llm(messages: list[dict], max_tokens: int = MAX_TOKENS) -> str:
     global _ACTIVE_KEY
     keys = _existing_keys()
     if _ACTIVE_KEY:
@@ -143,7 +151,7 @@ def call_llm(messages: list[dict]) -> str:
     errors: list[str] = []
     for name, key in keys:
         try:
-            text = _request_once(key, messages)
+            text = _request_once(key, messages, max_tokens)
             if not _ACTIVE_KEY or _ACTIVE_KEY[0] != name:
                 print(f"[key] 使用: {name}")
                 _ACTIVE_KEY = (name, key)
@@ -152,6 +160,58 @@ def call_llm(messages: list[dict]) -> str:
             errors.append(f"{name}: {e}")
             continue
     raise RuntimeError("所有候选 key 均不可用 → " + "; ".join(errors))
+
+
+# —— 流式（SSE） ——
+def _open_stream(key: str, messages: list[dict], max_tokens: int):
+    """建立上游流式连接。401/403 抛 AuthError（此时还没给客户端发任何字节，可整体退款）。"""
+    req = _llm_request(key, messages, max_tokens, stream=True)
+    try:
+        return urllib.request.urlopen(req, timeout=TIMEOUT)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise AuthError(f"key 不可用 (HTTP {e.code})") from e
+        raise RuntimeError(f"LLM HTTP {e.code}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"LLM 网络错误: {e.reason}") from e
+
+
+def call_llm_stream(messages: list[dict], max_tokens: int):
+    """同 call_llm 的多 key 轮换，但返回已建立的上游响应（迭代其行即得到 SSE 流）。"""
+    global _ACTIVE_KEY
+    keys = _existing_keys()
+    if _ACTIVE_KEY:
+        keys = [_ACTIVE_KEY] + [k for k in keys if k[0] != _ACTIVE_KEY[0]]
+    errors: list[str] = []
+    for name, key in keys:
+        try:
+            resp = _open_stream(key, messages, max_tokens)
+            if not _ACTIVE_KEY or _ACTIVE_KEY[0] != name:
+                print(f"[key] 使用: {name}")
+                _ACTIVE_KEY = (name, key)
+            return resp
+        except AuthError as e:
+            errors.append(f"{name}: {e}")
+            continue
+    raise RuntimeError("所有候选 key 均不可用 → " + "; ".join(errors))
+
+
+def sse_deltas(resp):
+    """解析上游 OpenAI 兼容 SSE：`data: {"choices":[{"delta":{"content":…}}]}`，产出文本增量。"""
+    for raw in resp:
+        line = raw.decode("utf-8", "replace").strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if data == "[DONE]":
+            break
+        try:
+            obj = json.loads(data)
+            delta = obj["choices"][0].get("delta", {}).get("content")
+        except (json.JSONDecodeError, KeyError, IndexError, AttributeError):
+            continue
+        if delta:
+            yield delta
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -342,6 +402,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return
 
         mode = body.get("mode", "explain")
+        stream = bool(body.get("stream"))
+        max_tokens = MAX_TOKENS
         try:
             if mode == "explain":
                 msgs = explain_messages(body.get("term", ""), body.get("context", ""),
@@ -351,16 +413,57 @@ class Handler(SimpleHTTPRequestHandler):
                                          body.get("question", ""))
             elif mode == "chat":
                 msgs = chat_messages(body.get("messages", []))
+                max_tokens = MAX_TOKENS_CHAT
             else:
                 self._json(400, {"error": f"unknown mode: {mode}"})
                 return
-            text = call_llm(msgs)
+            if stream:
+                return self._explain_stream(user, msgs, max_tokens)
+            text = call_llm(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
             if user:
                 db.refund_quota(user["id"])
             self._json(500, {"error": str(e)})
             return
         self._json(200, {"text": text, "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+
+    def _explain_stream(self, user, msgs: list[dict], max_tokens: int):
+        """SSE 流式解释。事件：data: {"delta": "…"} … data: {"done": true, "quota": {…}} / {"error": "…"}"""
+        try:
+            resp = call_llm_stream(msgs, max_tokens)
+        except Exception as e:  # noqa: BLE001
+            if user:
+                db.refund_quota(user["id"])
+            self._json(500, {"error": str(e)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")  # 让 nginx 不缓冲，逐块透传
+        self.end_headers()
+
+        def emit(obj: dict):
+            self.wfile.write(("data: " + json.dumps(obj, ensure_ascii=False) + "\n\n").encode("utf-8"))
+            self.wfile.flush()
+
+        sent = 0
+        try:
+            for delta in sse_deltas(resp):
+                sent += 1
+                emit({"delta": delta})
+            emit({"done": True,
+                  "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+        except (BrokenPipeError, ConnectionResetError):
+            return  # 客户端中途离开
+        except Exception as e:  # noqa: BLE001
+            try:
+                emit({"error": str(e)})
+                if not sent and user:  # 一个字都没出就失败 → 退款
+                    db.refund_quota(user["id"])
+            except OSError:
+                pass
+        finally:
+            resp.close()
 
 
 def main():
