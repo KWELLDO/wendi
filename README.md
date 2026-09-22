@@ -73,9 +73,11 @@ python3 server.py        # → http://127.0.0.1:8899
 
 ```
 server.py        薄代理：转发 LLM 调用 + 限流（防滥用/成本闸）
+kernel.py        内核：事件总线 + 服务注册 + 作用域生命周期（借鉴 cordis，MIT）
 prompts.py       解释器人格：划词解释 / 卡内追问 / 主对话 三个提示词
 web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像机 + 键盘导航
 deploy/          部署件（systemd / nginx / 部署脚本）
+tests/           内核测试（python3 -m unittest discover -s tests）
 ```
 
 前端交互要点：划词气泡、`Esc` 返回上层、`↑↓` 切换子解释、`Enter` 进入、SSE 流式输出（边生成边显示）、导出 Markdown。

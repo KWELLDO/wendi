@@ -30,6 +30,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 import db  # noqa: E402
 from auth import hash_password, new_token, verify_password  # noqa: E402
+from kernel import Kernel  # noqa: E402
 from prompts import chat_messages, explain_messages, followup_messages  # noqa: E402
 
 PORT = int(os.environ.get("WENDI_PORT", "8899"))
@@ -47,6 +48,9 @@ LIMIT_ANON_PER_MIN = int(os.environ.get("WENDI_ANON_PER_MIN", "6"))
 LIMIT_GLOBAL_DAY = int(os.environ.get("WENDI_LIMIT_GLOBAL_DAY", "4000"))
 MAX_BODY = 64 * 1024
 MAX_SYNC_BYTES = 1024 * 1024  # 云同步单用户上限 1MB
+
+# —— 内核（kernel.py：事件 + 服务 + 作用域；graph/notes/share 模块的挂载点） ——
+kernel = Kernel()
 
 _anon: dict[str, dict] = defaultdict(lambda: {"minute": [], "day": 0, "daykey": ""})
 _global = {"day": 0, "daykey": ""}
@@ -403,13 +407,15 @@ class Handler(SimpleHTTPRequestHandler):
 
         mode = body.get("mode", "explain")
         stream = bool(body.get("stream"))
+        term = str(body.get("term", ""))
         max_tokens = MAX_TOKENS
+        t0 = time.time()
         try:
             if mode == "explain":
-                msgs = explain_messages(body.get("term", ""), body.get("context", ""),
+                msgs = explain_messages(term, body.get("context", ""),
                                         body.get("style", "standard"))
             elif mode == "followup":
-                msgs = followup_messages(body.get("term", ""), body.get("previous", ""),
+                msgs = followup_messages(term, body.get("previous", ""),
                                          body.get("question", ""))
             elif mode == "chat":
                 msgs = chat_messages(body.get("messages", []))
@@ -418,16 +424,22 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {"error": f"unknown mode: {mode}"})
                 return
             if stream:
-                return self._explain_stream(user, msgs, max_tokens)
+                return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0)
             text = call_llm(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
             if user:
                 db.refund_quota(user["id"])
+            kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
+                        term=term, error=str(e))
             self._json(500, {"error": str(e)})
             return
+        kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
+                    term=term, parent_term=None, style=body.get("style", "standard"),
+                    ms=round((time.time() - t0) * 1000), stream=False, chunks=1)
         self._json(200, {"text": text, "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
 
-    def _explain_stream(self, user, msgs: list[dict], max_tokens: int):
+    def _explain_stream(self, user, msgs: list[dict], max_tokens: int,
+                        mode: str = "explain", term: str = "", t0: float = 0.0):
         """SSE 流式解释。事件：data: {"delta": "…"} … data: {"done": true, "quota": {…}} / {"error": "…"}"""
         try:
             resp = call_llm_stream(msgs, max_tokens)
@@ -453,9 +465,14 @@ class Handler(SimpleHTTPRequestHandler):
                 emit({"delta": delta})
             emit({"done": True,
                   "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+            kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
+                        term=term, parent_term=None, style="standard",
+                        ms=round((time.time() - t0) * 1000), stream=True, chunks=sent)
         except (BrokenPipeError, ConnectionResetError):
             return  # 客户端中途离开
         except Exception as e:  # noqa: BLE001
+            kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
+                        term=term, error=str(e))
             try:
                 emit({"error": str(e)})
                 if not sent and user:  # 一个字都没出就失败 → 退款
