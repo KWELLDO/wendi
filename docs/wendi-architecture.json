@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "问底 WenDi · 内核与子系统架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "wendi-architecture.html",
+    "views": [
+      { "id": "request-path", "label": "请求主干", "focus": ["web", "server", "llm"], "note": "划词或提问从浏览器经 server.py 流式到达 LLM，SSE 逐块回传。" },
+      { "id": "kernel-seam", "label": "内核扩展缝", "focus": ["server", "kernel", "graph", "notes", "share"], "note": "server 只在解释成败处 emit 事件；子系统以模块身份订阅事件、注册路由。" },
+      { "id": "data-foundation", "label": "数据地基", "focus": ["graph", "notes", "share", "cards", "db"], "note": "三个子系统都吃同一份地基：带 UUID 的术语卡与只追加的解释事件流。" }
+    ]
+  },
+  "components": [
+    { "id": "web", "type": "frontend", "label": "问底 前端", "sublabel": "web/index.html · 零构建单文件", "pos": [40, 300], "size": [160, 64], "tag": "划词 · SSE 渲染" },
+    { "id": "server", "type": "backend", "label": "server.py HTTP 服务", "sublabel": "路由 · 限流 · 配额 · SSE 下发", "pos": [280, 300], "size": [170, 64], "tag": "stdlib only" },
+    { "id": "llm", "type": "external", "label": "LLM 上游", "sublabel": "DeepSeek · OpenAI 兼容", "pos": [540, 300], "size": [150, 64], "tag": "/chat/completions" },
+    { "id": "prompts", "type": "backend", "label": "prompts.py 提示词资产", "sublabel": "解释 · 追问 · 主对话", "pos": [40, 130], "size": [170, 60] },
+    { "id": "db", "type": "database", "label": "db.py SQLite", "sublabel": "users · sessions · codes · syncs", "pos": [280, 130], "size": [170, 60] },
+    { "id": "kernel", "type": "messagebus", "label": "kernel.py 内核", "sublabel": "on/emit · service/use · scope · plugin", "pos": [260, 470], "size": [210, 70], "tag": "cordis 语义" },
+    { "id": "graph", "type": "backend", "label": "graph 模块", "sublabel": "订阅 explain.done → 术语网", "pos": [60, 630], "size": [160, 60], "tag": "规划中" },
+    { "id": "notes", "type": "backend", "label": "notes 模块", "sublabel": "卡片批注", "pos": [290, 630], "size": [150, 60], "tag": "规划中" },
+    { "id": "share", "type": "backend", "label": "share 模块", "sublabel": "只读 permalink · 分享卡片", "pos": [520, 630], "size": [160, 60], "tag": "规划中" },
+    { "id": "cards", "type": "database", "label": "术语卡 / 事件流", "sublabel": "cards(UUID) · explain_events", "pos": [260, 780], "size": [210, 60], "tag": "规划中" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "已实现 · v0.2+", "wraps": ["web", "server", "prompts", "db", "kernel"] },
+    { "kind": "region", "label": "规划中 · 依赖数据地基", "wraps": ["graph", "notes", "share", "cards"] }
+  ],
+  "connections": [
+    { "id": "web-to-server", "from": "web", "to": "server", "label": "fetch /api/* · SSE 读流", "variant": "emphasis", "labelDy": 56 },
+    { "id": "server-to-llm", "from": "server", "to": "llm", "label": "stream:true 转发", "variant": "emphasis" },
+    { "id": "server-to-prompts", "from": "server", "to": "prompts", "label": "组装 messages", "fromSide": "left", "toSide": "right", "via": [[240, 332], [240, 160]] },
+    { "id": "server-to-db", "from": "server", "to": "db", "label": "配额 · 会话 · 同步", "fromSide": "top", "toSide": "bottom", "labelDx": 40 },
+    { "id": "server-to-kernel", "from": "server", "to": "kernel", "label": "emit explain.done / explain.error", "variant": "emphasis", "labelDy": 40 },
+    { "id": "kernel-to-graph", "from": "kernel", "to": "graph", "label": "on(explain.done)", "variant": "dashed", "fromSide": "left", "toSide": "top", "via": [[140, 505]] },
+    { "id": "kernel-to-notes", "from": "kernel", "to": "notes", "label": "route(/api/notes)", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelDy": 24 },
+    { "id": "kernel-to-share", "from": "kernel", "to": "share", "label": "route(/api/share)", "variant": "dashed", "fromSide": "right", "toSide": "top", "via": [[600, 505]] },
+    { "id": "graph-to-cards", "from": "graph", "to": "cards", "label": "聚合术语卡/边", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "via": [[140, 810]] },
+    { "id": "notes-to-cards", "from": "notes", "to": "cards", "label": "批注挂卡片 UUID", "variant": "dashed", "labelDy": 40 },
+    { "id": "share-to-cards", "from": "share", "to": "cards", "label": "permalink 只读", "variant": "dashed", "fromSide": "bottom", "toSide": "right", "via": [[600, 810]] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "请求主干", "items": ["划词/提问 → server.py → DeepSeek（stream:true）", "SSE 逐块回传，前端只更新已有 DOM 节点"] },
+    { "dot": "emerald", "title": "内核缝", "items": ["kernel.py 只做事件总线 / 服务注册 / 作用域（cordis 语义）", "server 在解释成败处 emit 两个事件，订阅者异常被隔离"] },
+    { "dot": "amber", "title": "规划子系统", "items": ["graph 聚合术语网 · notes 批注 · share 只读分享", "共同前提：术语卡 UUID 化 + explain_events 只追加事件流"] }
+  ]
+}

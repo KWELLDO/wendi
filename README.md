@@ -78,6 +78,7 @@ prompts.py       解释器人格：划词解释 / 卡内追问 / 主对话 三�
 web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像机 + 键盘导航
 deploy/          部署件（systemd / nginx / 部署脚本）
 tests/           内核测试（python3 -m unittest discover -s tests）
+docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 ```
 
 前端交互要点：划词气泡、`Esc` 返回上层、`↑↓` 切换子解释、`Enter` 进入、SSE 流式输出（边生成边显示）、导出 Markdown。
