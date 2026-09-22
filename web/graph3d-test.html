@@ -5,32 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>问底 · 图谱实验室（3D 测试页）</title>
 <style>
-  :root{ --bg:#141416; --panel:#1d1d20; --line:#303035; --text:#e8e6e1; --dim:#94918a; --gold:#c9a55c; }
+  :root{ --bg:#141416; --panel:#1d1d20; --line:#303035; --text:#e8e6e1; --dim:#94918a; --gold:#c9a55c;
+         --lfs:12px; --lfw:400; --lfc:#d8d5cd; }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--text);overflow:hidden;
        font:14px/1.6 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif}
-  header{position:fixed;inset:0 0 auto 0;display:flex;align-items:center;gap:10px;padding:8px 14px;
+  header{position:fixed;inset:0 0 auto 0;display:flex;align-items:center;gap:8px;padding:8px 14px;
          background:#1d1d20e6;border-bottom:1px solid var(--line);z-index:20;flex-wrap:wrap}
   header .title{font-weight:600}
   header .title span{font-size:11.5px;color:var(--dim);font-weight:400;margin-left:8px}
   .badge{font-size:11.5px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:2px 9px}
   .badge.real{color:var(--gold);border-color:#6b5a34}
   input[type=search]{background:#17171a;border:1px solid var(--line);border-radius:8px;color:var(--text);
-        padding:5px 10px;font-size:12.5px;width:170px}
+        padding:5px 10px;font-size:12.5px;width:160px}
   input[type=search]:focus{outline:none;border-color:#6b5a34}
   button{background:#2a2a2e;color:var(--text);border:1px solid var(--line);border-radius:7px;
         padding:4px 10px;font-size:12.5px;cursor:pointer}
   button:hover{border-color:#6b5a34}
   button.gold{background:var(--gold);color:#161513;font-weight:600;border:none}
+  #views button.on{background:var(--gold);color:#161513;border:none}
   #timeCtl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
-  #timeSlider{width:170px;accent-color:var(--gold)}
+  #timeSlider{width:150px;accent-color:var(--gold)}
   #hint{font-size:11.5px;color:var(--dim)}
   #stage{position:fixed;inset:0}
   #stage canvas{display:block}
 
-  #legend{position:fixed;left:12px;bottom:12px;z-index:15;background:#1d1d20e6;border:1px solid var(--line);
-          border-radius:10px;padding:9px 12px;font-size:11.5px;color:var(--dim);line-height:1.9;max-width:270px}
+  /* 标签层（每球一个，可开关） */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
+  .lbl{position:absolute;left:0;top:0;white-space:nowrap;font-size:var(--lfs);font-weight:var(--lfw);
+       color:var(--lfc);text-shadow:0 1px 4px #000d;will-change:transform;display:none}
+  .lbl.sel{color:#fff;font-weight:700}
+
+  /* 调参面板 */
+  #cfg{position:fixed;left:10px;top:52px;width:236px;max-height:calc(100vh - 190px);overflow-y:auto;
+       background:#1b1b1ff2;border:1px solid var(--line);border-radius:10px;padding:10px 12px;z-index:22;display:none}
+  #cfg.open{display:block}
+  #cfg h3{margin:10px 0 6px;font-size:11.5px;color:var(--gold);letter-spacing:.08em;font-weight:600}
+  #cfg h3:first-child{margin-top:0}
+  #cfg .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0;font-size:12px}
+  #cfg .row label{color:#c9c6bf;flex:1}
+  #cfg .row output{color:var(--dim);font-size:11px;min-width:34px;text-align:right}
+  #cfg input[type=range]{width:110px;accent-color:var(--gold)}
+  #cfg input[type=color]{width:34px;height:22px;border:none;background:none;padding:0;cursor:pointer}
+  #cfg select{background:#17171a;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:12px}
+  #cfg .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  #cfg .btns button{flex:1;font-size:11.5px;padding:4px 6px}
+
+  #stats{position:fixed;right:12px;bottom:12px;z-index:15;background:#1d1d20cc;border:1px solid var(--line);
+         border-radius:8px;padding:5px 10px;font-size:11px;color:var(--dim);display:none;white-space:pre;line-height:1.7}
+  #legend{position:fixed;left:10px;bottom:12px;z-index:14;background:#1d1d20cc;border:1px solid var(--line);
+          border-radius:10px;padding:8px 12px;font-size:11px;color:var(--dim);line-height:1.8;max-width:250px}
   #legend b{color:var(--text);font-weight:600}
   #legend .g{color:var(--gold)}
 
@@ -46,16 +71,15 @@
 
   #tip{position:fixed;z-index:30;background:#2a2a2e;border:1px solid var(--line);border-radius:8px;
        padding:4px 9px;font-size:12px;pointer-events:none;display:none;white-space:nowrap}
-  #tip small{color:var(--dim)}
-
   #banner{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:40;background:#2a2620;
           border:1px solid #6b5a34;color:var(--gold);border-radius:9px;padding:7px 16px;font-size:12.5px;display:none}
 </style>
 </head>
 <body>
 <header>
-  <div class="title">问底 · 图谱实验室<span>3D 测试页 · 不属于产品功能</span></div>
+  <div class="title">问底 · 图谱实验室<span>3D 测试页</span></div>
   <span id="srcBadge" class="badge">读取中…</span>
+  <button id="cfgBtn" class="gold">⚙ 调参</button>
   <input id="q" type="search" placeholder="搜索词…">
   <div id="timeCtl">
     <button id="playBtn" class="gold">▶ 播放</button>
@@ -64,24 +88,31 @@
   </div>
   <span id="views">
     <button data-v="all" class="gold">全貌</button>
-    <button data-v="side">侧·时间×深度</button>
+    <button data-v="side">侧·时间深度</button>
     <button data-v="front">正·塔列</button>
     <button data-v="top">俯·塔位</button>
   </span>
+  <button id="snapBtn">📸 截图</button>
+  <button id="expBtn">导出投影</button>
   <a id="backLink" href="/" style="font-size:12.5px;color:var(--dim)">← 返回应用</a>
-  <span id="hint">拖转 · 滚轮缩放 · 右键平移 · 双击卡片聚焦 · Esc 关闭</span>
+  <span id="hint">WASD 平移 · Q/E 升降 · Shift 加速 · 拖转 · 滚轮 · 双击聚焦 · Esc</span>
 </header>
 <div id="stage"></div>
+<div id="labels"></div>
+
+<div id="cfg"></div>
+
 <div id="legend">
   <b>细节 = 意义</b><br>
   球半径 = <b>追问数</b>（困惑的重量）<br>
   球色相 = <b>所属塔</b>（第一层划词开启的问底）<br>
   纵向 Y = <b>递归深度</b>（越深越低，问底=下坠）<br>
-  横向 Z = <b>学习场次</b>（带=日期，非连续时间）<br>
+  横向 Z = <b>学习场次</b>（带=日期）<br>
   下坠线 = 在该卡解释里划出了下层卡<br>
   <span class="g">金色横桥</span> = <b>同一个词</b>在别的塔也被划过<br>
   播放 = 沿时间回放困惑如何长成网
 </div>
+<div id="stats"></div>
 <aside id="drawer">
   <h2 id="dTerm">—</h2>
   <div class="meta" id="dMeta"></div>
@@ -100,7 +131,7 @@
 globalThis.WD = (function(){
   "use strict";
   const SKEY = "explainer-proto-v2";
-  const SESSION_GAP_MS = 30 * 60 * 1000;   // 超 30 分钟算新场次
+  const SESSION_GAP_MS = 30 * 60 * 1000;
 
   const norm = s => (s || "").normalize("NFKC").toLowerCase()
                      .replace(/\s+/g, "").replace(/[。．.，,、；;：:！!？?'"“”‘’()\[\]（）【】]/g, "");
@@ -113,14 +144,13 @@ globalThis.WD = (function(){
     return { state: mockState(), real: false };
   }
 
-  /* 收集：塔=L1子树；卡=每张语境卡；记录 塔/深度/父卡/DFS 序 */
   function collect(state){
     const cards = [], towers = [];
     const root = state.root;
     const l1 = [...(root.children || [])].filter(c => c.kind === "exp")
               .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     l1.forEach((c1, i) => towers.push({ id: c1.id, term: c1.term, first: c1.createdAt || 0 }));
-    const planeOrder = new Map();   // "tower:depth" -> dfs 序
+    const planeOrder = new Map();
     function walk(node, depth, towerIdx, parentCard, path){
       for (const ch of (node.children || [])){
         if (ch.kind !== "exp" || !ch.term) continue;
@@ -150,7 +180,6 @@ globalThis.WD = (function(){
     return { cards, towers };
   }
 
-  /* 场次：按时间排序，间隔>30min 切带 */
   function sessions(cards){
     const sorted = [...cards].sort((a, b) => a.createdAt - b.createdAt);
     const list = [];
@@ -160,42 +189,40 @@ globalThis.WD = (function(){
         list.push({ start: c.createdAt, end: c.createdAt, idx: list.length });
       else last.end = c.createdAt;
     }
-    for (const c of sorted){
+    for (const c of sorted)
       c.sessionIdx = list.findIndex(s => c.createdAt >= s.start && c.createdAt <= s.end);
-    }
     return list;
   }
 
-  /* 布局：X=塔分区+层内兄弟序；Y=-深度；Z=场次带+带内序 */
-  function layout(cards, towers, sessions){
-    const COL_PAD = 24, NODE_GAP = 7, ROW_H = 14, BAND_GAP = 40;
+  /* 布局：间距全部可由 opts 覆盖（调参面板实时重排） */
+  function layout(cards, towers, sessions, opts){
+    const o = Object.assign({ COL_PAD: 24, NODE_GAP: 7, ROW_H: 14, BAND_GAP: 40 }, opts || {});
     const planeN = new Map();
     for (const c of cards){
       const k = c.towerIdx + ":" + c.depth;
       planeN.set(k, (planeN.get(k) || 0) + 1);
     }
     const towerWidth = towers.map((_, i) => {
-      let w = 3 * NODE_GAP;
-      for (const [k, n] of planeN) if (k.startsWith(i + ":")) w = Math.max(w, n * NODE_GAP);
+      let w = 3 * o.NODE_GAP;
+      for (const [k, n] of planeN) if (k.startsWith(i + ":")) w = Math.max(w, n * o.NODE_GAP);
       return w;
     });
-    let acc = 0; const towerX = towerWidth.map(w => { const cx = acc + w / 2; acc += w + COL_PAD; return cx; });
+    let acc = 0; const towerX = towerWidth.map(w => { const cx = acc + w / 2; acc += w + o.COL_PAD; return cx; });
     const orderInBand = new Map();
     for (const c of cards){
       const n = planeN.get(c.towerIdx + ":" + c.depth);
-      c.x = towerX[c.towerIdx] + (c.planeOrder - (n - 1) / 2) * NODE_GAP;
-      c.y = -c.depth * ROW_H;
+      c.x = towerX[c.towerIdx] + (c.planeOrder - (n - 1) / 2) * o.NODE_GAP;
+      c.y = -c.depth * o.ROW_H;
       const ob = orderInBand.get(c.sessionIdx) || 0; orderInBand.set(c.sessionIdx, ob + 1);
-      c.z = c.sessionIdx * BAND_GAP + (ob % 12) * 2.5;
-      c.r = 1 + Math.min(c.followups, 6) * 0.5;
+      c.z = c.sessionIdx * o.BAND_GAP + (ob % 12) * 2.5;
     }
-    return { towerX, extent: { minX: 0, maxX: acc, minZ: 0, maxZ: Math.max(1, sessions.length - 1) * BAND_GAP,
-                               depthMax: Math.max(1, ...cards.map(c => c.depth)) } };
+    return { towerX,
+             extent: { minX: 0, maxX: acc, minZ: 0,
+                       maxZ: Math.max(1, sessions.length - 1) * o.BAND_GAP,
+                       depthMax: Math.max(1, ...cards.map(c => c.depth)) } };
   }
 
-  /* 边：递归边（父卡→子卡，weight=同词对出现次数）+ 同词桥（跨塔才画） */
   function edges(cards){
-    const byId = new Map(cards.map(c => [c.id, c]));
     const weight = new Map();
     for (const c of cards) if (c.parentCard){
       const k = c.parentCard.norm + "→" + c.norm;
@@ -218,50 +245,48 @@ globalThis.WD = (function(){
     return { rec, bridge };
   }
 
-  /* ---------- mock（真实数据缺失时兜底） ---------- */
   function mockState(){
     const DAY = 86400000, now = Date.now();
     let seq = 0;
-    const at = (day, min) => now - day * DAY + min * 60000 + (seq++);   // day=几天前（字面值）
+    const at = (day, min) => now - day * DAY + min * 60000 + (seq++);
     let nid = 0; const id = () => "m" + (nid++);
-    function card(term, context, depth, dayIdx, minute, fu){
+    function card(term, context, day, minute, fu){
       return { id: id(), kind: "exp", term, context, text: "（mock 解释）" + term + "：在这句话里指……",
-               followups: Array.from({length: fu}, () => ({})), createdAt: at(dayIdx, minute),
+               followups: Array.from({length: fu}, () => ({})), createdAt: at(day, minute),
                style: "standard", children: [] };
     }
     function link(parent, child){ child.parentTerm = parent.term; parent.children.push(child); return child; }
     const root = { id: id(), kind: "conv", messages: [], children: [] };
-    const t = (day, min, term, ctx, depth, fu) => card(term, ctx, depth, day, min, fu);
+    const t = (day, min, term, ctx, fu) => card(term, ctx, day, min, fu);
 
-    // 塔1 量子力学（跨 5 场次，最深 4）
-    const q = t(0, 2, "量子力学", "我想学量子力学，先讲讲最基本的框架。", 1, 2);
-    const s1 = link(q, t(0, 6, "叠加态", "电子处于叠加态。", 2, 3));
-    link(s1, t(0, 11, "波函数", "叠加态由波函数描述。", 3, 1));
-    const c1 = link(s1, t(3, 5, "测量问题", "测量会使叠加态坍缩。", 3, 2));
-    link(c1, t(9, 8, "波函数坍缩", "测量问题引出波函数坍缩。", 4, 0));
-    link(q, t(10, 3, "不确定性原理", "量子力学有不确定性原理。", 2, 1));
-    // 塔2 机器学习（与塔1共享“概率”）
-    const m = t(1, 4, "机器学习", "模型是怎么训练出来的？", 1, 1);
-    link(m, t(1, 8, "梯度下降", "训练就是梯度下降。", 2, 2));
-    link(m, t(4, 6, "概率分布", "输出是一个概率分布。", 2, 0));
-    // 塔3 统计学（共享“概率分布”“测量”）
-    const st = t(9, 2, "统计学", "读报告里的统计口径看不懂。", 1, 1);
-    link(st, t(9, 7, "概率分布", "数据服从某概率分布。", 2, 1));
-    link(st, t(10, 9, "测量误差", "测量误差分系统与随机。", 2, 2));
-    // 塔4 经济学
-    const e = t(24, 3, "通货膨胀", "新闻说通货膨胀超预期。", 1, 2);
-    link(e, t(24, 9, "CPI", "CPI 是衡量通货膨胀的指标。", 2, 1));
-    link(e, t(25, 5, "实际利率", "通胀影响实际利率。", 2, 0));
-    // 塔5 神经科学（共享“概率分布”）
-    const n = t(41, 4, "神经科学", "大脑怎么处理不确定性？", 1, 1);
-    link(n, t(41, 9, "贝叶斯脑", "有观点认为大脑做贝叶斯推断。", 2, 2));
-    link(n, t(59, 6, "概率分布", "神经元编码概率分布。", 3, 0));
-    // 塔6 语言學（最深塔）
-    const li = t(60, 2, "语言学", "乔姆斯基的语言学革命是什么？", 1, 1);
-    const ug = link(li, t(60, 7, "普遍语法", "乔姆斯基提出普遍语法。", 2, 2));
-    link(ug, t(74, 4, "语言习得装置", "儿童靠语言习得装置学话。", 3, 1));
-    link(li, t(74, 9, "生成语法", "生成语法是形式化系统。", 2, 0));
-    root.children.push(q, m, st, e, n, li);          // 六座塔挂上根
+    const q = t(0, 2, "量子力学", "我想学量子力学，先讲讲最基本的框架。", 2);
+    const s1 = link(q, t(0, 6, "叠加态", "电子处于叠加态。", 3));
+    link(s1, t(0, 11, "波函数", "叠加态由波函数描述。", 1));
+    const c1 = link(s1, t(3, 5, "测量问题", "测量会使叠加态坍缩。", 2));
+    link(c1, t(9, 8, "波函数坍缩", "测量问题引出波函数坍缩。", 0));
+    link(q, t(10, 3, "不确定性原理", "量子力学有不确定性原理。", 1));
+
+    const m = t(1, 4, "机器学习", "模型是怎么训练出来的？", 1);
+    link(m, t(1, 8, "梯度下降", "训练就是梯度下降。", 2));
+    link(m, t(4, 6, "概率分布", "输出是一个概率分布。", 0));
+
+    const st = t(9, 2, "统计学", "读报告里的统计口径看不懂。", 1);
+    link(st, t(9, 7, "概率分布", "数据服从某概率分布。", 1));
+    link(st, t(10, 9, "测量误差", "测量误差分系统与随机。", 2));
+
+    const e = t(24, 3, "通货膨胀", "新闻说通货膨胀超预期。", 2);
+    link(e, t(24, 9, "CPI", "CPI 是衡量通货膨胀的指标。", 1));
+    link(e, t(25, 5, "实际利率", "通胀影响实际利率。", 0));
+
+    const n = t(41, 4, "神经科学", "大脑怎么处理不确定性？", 1);
+    link(n, t(41, 9, "贝叶斯脑", "有观点认为大脑做贝叶斯推断。", 2));
+    link(n, t(59, 6, "概率分布", "神经元编码概率分布。", 0));
+
+    const li = t(60, 2, "语言学", "乔姆斯基的语言学革命是什么？", 1);
+    const ug = link(li, t(60, 7, "普遍语法", "乔姆斯基提出普遍语法。", 2));
+    link(ug, t(74, 4, "语言习得装置", "儿童靠语言习得装置学话。", 1));
+    link(li, t(74, 9, "生成语法", "生成语法是形式化系统。", 0));
+    root.children.push(q, m, st, e, n, li);
     return { root, focusPath: [root.id], selected: {}, removed: [], defaultStyle: "standard" };
   }
 
@@ -284,49 +309,63 @@ window.__booted = true;
 const $ = s => document.querySelector(s);
 const banner = t => { const b = $("#banner"); b.textContent = t; b.style.display = "block"; };
 
-/* ---------- 数据 ---------- */
+/* ================= 参数中枢（调参面板的单一事实来源） ================= */
+const P = {
+  showLabels: true, labelMode: "all", lblSize: 12, lblWeight: 400, lblColor: "#d8d5cd",
+  nodeScale: 1.15, fuScale: 0.5,
+  recOpacity: 0.85, bridgeOpacity: 0.5, edgeBright: 1.0,
+  showRec: true, showBridge: true, showSpine: true,
+  rowH: 14, bandGap: 40, nodeGap: 7, colPad: 24,
+  fogK: 1.0, moveSpeed: 40, playMsPer: 800,
+  showFps: false,
+};
+
+/* ================= 数据 ================= */
 const { state, real } = WD.loadState();
 let { cards, towers } = WD.collect(state);
 let mockForced = false;
-if (!cards.length){ const ms = WD.mockState(); ({ cards, towers } = WD.collect(ms)); mockForced = true; }
+if (!cards.length){ ({ cards, towers } = WD.collect(WD.mockState())); mockForced = true; }
 const DATA = { cards, towers, mockForced };
+const N = DATA.cards.length;
 const sessionList = WD.sessions(DATA.cards);
 WD.layout(DATA.cards, DATA.towers, sessionList);
 const { rec, bridge } = WD.edges(DATA.cards);
 
 const fmtDate = t => { const d = new Date(t); return (d.getMonth()+1) + "月" + d.getDate() + "日"; };
-$("#srcBadge").textContent = (DATA.mockForced || !real) ? "MOCK 数据" : `真实数据 · ${DATA.cards.length} 卡 / ${DATA.towers.length} 塔 / ${sessionList.length} 场次`;
-if (DATA.mockForced || !real) banner("本浏览器没有可用的真实对话树，当前展示 mock 数据。");
-if (DATA.cards.length > 1500) banner(`卡数 ${DATA.cards.length} 超出测试页舒适区，可能掉帧。`);
+$("#srcBadge").textContent = (mockForced || !real) ? "MOCK 数据" : `真实数据 · ${N} 卡 / ${DATA.towers.length} 塔 / ${sessionList.length} 场次`;
+if (mockForced || !real) banner("本浏览器没有可用的真实对话树，当前展示 mock 数据。");
+if (N > 1500) banner(`卡数 ${N} 超出测试页舒适区，可能掉帧。`);
 
-/* ---------- 场景 ---------- */
-const stage = $("#stage");
+/* ================= 场景 ================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-stage.appendChild(renderer.domElement);
+$("#stage").appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x141416);
 scene.fog = new THREE.FogExp2(0x141416, 0.0035);
-const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 4000);
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 6000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 
-const hueOf = i => new THREE.Color().setHSL((0.07 + i * 0.115) % 1, 0.52, 0.6);
-const towerColor = DATA.towers.map((_, i) => hueOf(i));
+const towerColor = DATA.towers.map((_, i) => new THREE.Color().setHSL((0.07 + i * 0.115) % 1, 0.52, 0.6));
 const GOLD = new THREE.Color(0xc9a55c);
 
-/* ---------- 节点（InstancedMesh） ---------- */
-const N = DATA.cards.length;
+/* ================= 节点 ================= */
 const nodeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 18, 14),
   new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.1 }), N);
 nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
 function writeNode(i, visible){
   const c = DATA.cards[i];
-  const sc = visible ? c.r * 1.15 : 0.0001;
-  _m.compose(_v.set(c.x, c.y, c.z), _q, _s.set(sc, sc, sc));
+  const r = visible ? (1 + Math.min(c.followups, 6) * P.fuScale) * P.nodeScale : 0.0001;
+  _m.compose(_v.set(c.x, c.y, c.z), _q, _s.set(r, r, r));
   nodeMesh.setMatrixAt(i, _m);
+}
+function writeAllNodes(){
+  const cut = +$("#timeSlider").value;
+  for (let i = 0; i < N; i++) writeNode(i, DATA.cards[i].sessionIdx <= cut);
+  nodeMesh.instanceMatrix.needsUpdate = true;
 }
 const baseColor = DATA.cards.map(c => towerColor[c.towerIdx].clone());
 for (let i = 0; i < N; i++) nodeMesh.setColorAt(i, baseColor[i]);
@@ -334,136 +373,189 @@ scene.add(nodeMesh);
 scene.add(new THREE.AmbientLight(0xffffff, 1.4));
 const dl = new THREE.DirectionalLight(0xfff2dd, 1.1); dl.position.set(80, 120, 60); scene.add(dl);
 
-/* ---------- 边 ---------- */
-function edgeGeometry(list, colored){
-  const pos = new Float32Array(list.length * 6), col = new Float32Array(list.length * 6);
-  list.forEach((e, i) => {
-    const { a, b } = e, o = i * 6;
-    pos[o] = a.x; pos[o+1] = a.y; pos[o+2] = a.z;
-    pos[o+3] = b.x; pos[o+4] = b.y; pos[o+5] = b.z;
-    if (colored){
-      const br = 0.4 + 0.22 * Math.min(e.w || 1, 3);
-      const c1 = towerColor[a.towerIdx].clone().multiplyScalar(br);
-      const c2 = towerColor[b.towerIdx].clone().multiplyScalar(br);
-      col[o] = c1.r; col[o+1] = c1.g; col[o+2] = c1.b;
-      col[o+3] = c2.r; col[o+4] = c2.g; col[o+5] = c2.b;
-    }
-  });
+/* ================= 边 ================= */
+function buildEdgeGeo(list){
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  if (colored) g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  g.userData.base = pos.slice(); g.userData.list = list;
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(list.length * 6), 3));
+  g.userData.list = list;
   return g;
 }
-const recGeo = edgeGeometry(rec, true);
+const recGeo = buildEdgeGeo(rec);
+const recCol = new Float32Array(rec.length * 6);
+recGeo.setAttribute("color", new THREE.BufferAttribute(recCol, 3));
 const recLines = new THREE.LineSegments(recGeo, new THREE.LineBasicMaterial({
-  vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+  vertexColors: true, transparent: true, opacity: P.recOpacity,
+  blending: THREE.AdditiveBlending, depthWrite: false }));
 scene.add(recLines);
-const brGeo = edgeGeometry(bridge, false);
+const brGeo = buildEdgeGeo(bridge);
 const bridgeLines = new THREE.LineSegments(brGeo, new THREE.LineBasicMaterial({
-  color: GOLD, transparent: true, opacity: 0.5 }));
+  color: GOLD, transparent: true, opacity: P.bridgeOpacity }));
 scene.add(bridgeLines);
 
-function applyTimeToEdges(cut){
-  const hide = e => (Math.min(e.a.sessionIdx, e.b.sessionIdx) > cut);
-  [[recGeo, rec], [brGeo, bridge]].forEach(([geo, list]) => {
+function refreshEdges(){
+  const cut = +$("#timeSlider").value;
+  [[recGeo, rec, true], [brGeo, bridge, false]].forEach(([geo, list, colored]) => {
     const pos = geo.attributes.position.array;
     list.forEach((e, i) => {
-      const o = i * 6, h = hide(e);
+      const o = i * 6, h = Math.min(e.a.sessionIdx, e.b.sessionIdx) > cut;
       pos[o]   = h ? 0 : e.a.x; pos[o+1] = h ? -99999 : e.a.y; pos[o+2] = h ? 0 : e.a.z;
       pos[o+3] = h ? 0 : e.b.x; pos[o+4] = h ? -99999 : e.b.y; pos[o+5] = h ? 0 : e.b.z;
+      if (colored){
+        const br = (0.4 + 0.22 * Math.min(e.w || 1, 3)) * P.edgeBright;
+        const c1 = towerColor[e.a.towerIdx].clone().multiplyScalar(br);
+        const c2 = towerColor[e.b.towerIdx].clone().multiplyScalar(br);
+        recCol[o] = c1.r; recCol[o+1] = c1.g; recCol[o+2] = c1.b;
+        recCol[o+3] = c2.r; recCol[o+4] = c2.g; recCol[o+5] = c2.b;
+      }
     });
     geo.attributes.position.needsUpdate = true;
+    if (colored) geo.attributes.color.needsUpdate = true;
   });
 }
 
-/* ---------- 塔脊线 + 场次日期 + 轴提示 ---------- */
-{
+/* ================= 装饰（塔脊线 / 场次日期 / 轴提示），随空间参数重建 ================= */
+const deco = new THREE.Group(); scene.add(deco);
+function textSprite(txt, scale = 1){
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
+  const cx = cv.getContext("2d");
+  cx.font = "28px sans-serif"; cx.fillStyle = "#94918a"; cx.textAlign = "center";
+  cx.fillText(txt, 128, 42);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, opacity: 0.9, depthTest: false }));
+  sp.scale.set(16 * scale, 4 * scale, 1); sp.renderOrder = 10;
+  return sp;
+}
+function buildDeco(){
+  deco.children.slice().forEach(ch => {
+    if (ch.material && ch.material.map) ch.material.map.dispose();
+    if (ch.material) ch.material.dispose();
+    deco.remove(ch);
+  });
   const spine = [];
   DATA.towers.forEach((_, i) => {
     const top = DATA.cards.find(c => c.towerIdx === i);
-    if (top) spine.push(top.x, 4, -20, top.x, 4, sessionList.length * 40);
+    if (top) spine.push(top.x, 4, -20, top.x, 4, sessionList.length * P.bandGap);
   });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(spine), 3));
-  scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.14 })));
-
-  function textSprite(txt, scale = 1){
-    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
-    const cx = cv.getContext("2d");
-    cx.font = "28px sans-serif"; cx.fillStyle = "#94918a"; cx.textAlign = "center";
-    cx.fillText(txt, 128, 42);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(cv), transparent: true, opacity: 0.9, depthTest: false }));
-    sp.scale.set(16 * scale, 4 * scale, 1); sp.renderOrder = 10;
-    return sp;
-  }
+  deco.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.14 })));
   const minX = Math.min(...DATA.cards.map(c => c.x));
-  const depthTop = 6;
   sessionList.forEach(s => {
     const sp = textSprite(`${fmtDate(s.start)} · 场次${s.idx + 1}`);
-    sp.position.set(minX - 26, depthTop, s.idx * 40);
-    scene.add(sp);
+    sp.position.set(minX - 26, 6, s.idx * P.bandGap);
+    deco.add(sp);
   });
-  const ax1 = textSprite("场次 / 时间 →", 1.2); ax1.position.set(minX - 26, depthTop, sessionList.length * 40 + 16); scene.add(ax1);
-  const ax2 = textSprite("← 塔（第一层划词） →", 1.2); ax2.position.set(minX + 60, depthTop + 12, -30); scene.add(ax2);
-  const ax3 = textSprite("深度：越低越深 ↓", 1.2);
-  ax3.position.set(minX - 26, -DATA.cards.reduce((m, c) => Math.max(m, c.depth), 0) * 14 - 12, -30);
-  scene.add(ax3);
+  const ax1 = textSprite("场次 / 时间 →", 1.2); ax1.position.set(minX - 26, 6, sessionList.length * P.bandGap + 16); deco.add(ax1);
+  const ax2 = textSprite("← 塔（第一层划词） →", 1.2); ax2.position.set(minX + 60, 18, -30); deco.add(ax2);
+  const dMax = Math.max(1, ...DATA.cards.map(c => c.depth));
+  const ax3 = textSprite("深度：越低越深 ↓", 1.2); ax3.position.set(minX - 26, -dMax * P.rowH - 12, -30); deco.add(ax3);
 }
+buildDeco();
 
-/* ---------- 相机：包围盒取景 + 平滑飞行 ---------- */
+/* ================= 标签层（每球一个，HTML） ================= */
+const labelBox = $("#labels"), labelEls = [];
+for (let i = 0; i < N; i++){
+  const el = document.createElement("div");
+  el.className = "lbl"; el.textContent = DATA.cards[i].term;
+  labelBox.appendChild(el); labelEls.push(el);
+}
+function applyLabelStyle(){
+  document.documentElement.style.setProperty("--lfs", P.lblSize + "px");
+  document.documentElement.style.setProperty("--lfw", P.lblWeight);
+  document.documentElement.style.setProperty("--lfc", P.lblColor);
+}
+function updateLabels(){
+  const w = innerWidth, h = innerHeight;
+  for (let i = 0; i < N; i++){
+    const el = labelEls[i];
+    if (!P.showLabels || P.labelMode === "off" ||
+        (P.labelMode === "hover" && i !== hovered && i !== selected)){ el.style.display = "none"; continue; }
+    const c = DATA.cards[i];
+    _v.set(c.x, c.y, c.z).project(camera);
+    if (_v.z > 1){ el.style.display = "none"; continue; }
+    el.style.display = "block";
+    el.style.transform = `translate(${((_v.x + 1) / 2 * w).toFixed(1)}px, ${((-_v.y + 1) / 2 * h).toFixed(1)}px) translate(-50%,-135%)`;
+    el.classList.toggle("sel", i === selected);
+  }
+}
+applyLabelStyle();
+
+/* ================= 相机：包围盒取景 + 平滑飞行 ================= */
 let camAnim = null;
 function animateCamera(toPos, toTarget, dur = 750){
   camAnim = { t0: performance.now(), dur,
               p0: camera.position.clone(), p1: toPos.clone(),
               g0: controls.target.clone(), g1: toTarget.clone() };
 }
+let lastRadius = 100;
 function sceneBounds(){
   const b = new THREE.Box3();
   for (const c of DATA.cards) b.expandByPoint(_v.set(c.x, c.y, c.z));
-  b.expandByPoint(new THREE.Vector3(b.min.x, 6, sessionList.length * 40 + 16));
+  b.expandByPoint(new THREE.Vector3(b.min.x, 6, sessionList.length * P.bandGap + 16));
   return b;
 }
 function frameView(kind, animate = true){
   const b = sceneBounds();
   const c = b.getCenter(new THREE.Vector3());
   const radius = Math.max(1, b.getSize(new THREE.Vector3()).length() / 2);
+  lastRadius = radius;
   const fovV = camera.fov * Math.PI / 180;
   const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect);
   const dist = Math.max(1.12 * radius / Math.sin(fovV / 2),
                         1.12 * radius / Math.sin(fovH / 2));
   const dirs = {
-    all:   new THREE.Vector3(0.50, 0.42, 1.00),   // 3/4 全貌
-    side:  new THREE.Vector3(-1,   0.12, 0.001),  // 侧看时间×深度剖面
-    front: new THREE.Vector3(0,    0.28, 1.00),   // 正看塔列
-    top:   new THREE.Vector3(0.001,1,    0.001),  // 俯看塔位平面
+    all:   new THREE.Vector3(0.50, 0.42, 1.00),
+    side:  new THREE.Vector3(-1,   0.12, 0.001),
+    front: new THREE.Vector3(0,    0.28, 1.00),
+    top:   new THREE.Vector3(0.001,1,    0.001),
   };
   const dir = (dirs[kind] || dirs.all).clone().normalize();
   const toPos = c.clone().add(dir.multiplyScalar(dist));
-  scene.fog.density = Math.min(0.0035, 1 / (3.2 * radius));   // 雾随场景尺寸自适应
+  applyFog(radius);
   if (animate) animateCamera(toPos, c);
   else { camera.position.copy(toPos); controls.target.copy(c); camAnim = null; }
 }
-document.querySelectorAll("#views button").forEach(b => b.onclick = () => frameView(b.dataset.v));
-frameView("all", false);   // 启动即全貌
-renderer.domElement.addEventListener("dblclick", ev => {
-  const i = pick(ev);
-  if (i < 0) return;
-  const c = DATA.cards[i], p = new THREE.Vector3(c.x, c.y, c.z);
-  const dir = camera.position.clone().sub(controls.target).normalize();
-  animateCamera(p.clone().add(dir.multiplyScalar(38)), p, 500);
-  openDrawer(i);
+function applyFog(radius = lastRadius){
+  scene.fog.density = P.fogK === 0 ? 0 : Math.min(0.02, P.fogK / (3.2 * Math.max(1, radius)));
+}
+document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#views button").forEach(x => x.classList.toggle("on", x === b));
+  frameView(b.dataset.v);
 });
+frameView("all", false);
 
-/* ---------- 时间 ---------- */
+/* ================= 飞行移动（WASD + QE） ================= */
+const keys = {};
+const isTyping = () => { const t = document.activeElement; return t && /^(input|textarea|select)$/i.test(t.tagName); };
+addEventListener("keydown", ev => {
+  if (isTyping()) return;
+  keys[ev.key.toLowerCase()] = true;
+});
+addEventListener("keyup", ev => keys[ev.key.toLowerCase()] = false);
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _move = new THREE.Vector3();
+function fly(dt){
+  if (isTyping()) return;
+  camera.getWorldDirection(_fwd);
+  _right.crossVectors(_fwd, _up).normalize();
+  _move.set(0, 0, 0);
+  if (keys.w) _move.add(_fwd);
+  if (keys.s) _move.sub(_fwd);
+  if (keys.d) _move.add(_right);
+  if (keys.a) _move.sub(_right);
+  if (keys.e) _move.y += 1;
+  if (keys.q) _move.y -= 1;
+  if (_move.lengthSq() === 0) return;
+  _move.normalize().multiplyScalar(P.moveSpeed * (keys.shift ? 3 : 1) * dt);
+  camera.position.add(_move); controls.target.add(_move); camAnim = null;
+}
+
+/* ================= 时间 ================= */
 const slider = $("#timeSlider"), timeLabel = $("#timeLabel");
 slider.max = sessionList.length - 1; slider.value = sessionList.length - 1;
 let playing = false, playRaf = 0;
 function applyTime(cut){
-  for (let i = 0; i < N; i++) writeNode(i, DATA.cards[i].sessionIdx <= cut);
-  nodeMesh.instanceMatrix.needsUpdate = true;
-  applyTimeToEdges(cut);
+  writeAllNodes(); refreshEdges();
   timeLabel.textContent = `第 ${cut + 1} / ${sessionList.length} 场 · ${fmtDate(sessionList[cut].start)}`;
 }
 slider.addEventListener("input", () => { stopPlay(); applyTime(+slider.value); });
@@ -472,7 +564,7 @@ $("#playBtn").onclick = () => {
   if (playing) return stopPlay();
   playing = true; $("#playBtn").textContent = "⏸ 暂停";
   let v = 0; slider.value = 0; applyTime(0);
-  const t0 = performance.now(), dur = sessionList.length * 800;
+  const t0 = performance.now(), dur = sessionList.length * P.playMsPer;
   (function step(t){
     if (!playing) return;
     v = Math.min(sessionList.length - 1, Math.floor(((t - t0) / dur) * sessionList.length));
@@ -483,7 +575,7 @@ $("#playBtn").onclick = () => {
 };
 applyTime(sessionList.length - 1);
 
-/* ---------- 拾取 / 抽屉 / 搜索 ---------- */
+/* ================= 拾取 / 抽屉 / 搜索 ================= */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 const tip = $("#tip"); let hovered = -1, selected = -1;
 function pick(ev){
@@ -516,13 +608,21 @@ function closeDrawer(){ $("#drawer").classList.remove("open"); selected = -1; }
 $("#closeBtn").onclick = closeDrawer;
 let downXY = null;
 renderer.domElement.addEventListener("pointerdown", ev => {
-  downXY = [ev.clientX, ev.clientY]; camAnim = null;   // 用户接管镜头，中断飞行
+  downXY = [ev.clientX, ev.clientY]; camAnim = null;
 });
 renderer.domElement.addEventListener("click", ev => {
   if (ev.target !== renderer.domElement) return;
-  if (downXY && Math.hypot(ev.clientX - downXY[0], ev.clientY - downXY[1]) > 5) return; // 拖转不算点击
+  if (downXY && Math.hypot(ev.clientX - downXY[0], ev.clientY - downXY[1]) > 5) return;
   const i = pick(ev);
   if (i >= 0) openDrawer(i); else closeDrawer();
+});
+renderer.domElement.addEventListener("dblclick", ev => {
+  const i = pick(ev);
+  if (i < 0) return;
+  const c = DATA.cards[i], p = new THREE.Vector3(c.x, c.y, c.z);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  animateCamera(p.clone().add(dir.multiplyScalar(38)), p, 500);
+  openDrawer(i);
 });
 $("#jumpBtn").onclick = () => {
   if (selected < 0 || !real) return;
@@ -530,7 +630,7 @@ $("#jumpBtn").onclick = () => {
   try{
     const st = JSON.parse(localStorage.getItem(WD.SKEY));
     if (!st || !st.root) throw 0;
-    st.focusPath = c.path;                       // 根→…→该卡的完整路径
+    st.focusPath = c.path;
     localStorage.setItem(WD.SKEY, JSON.stringify(st));
     location.href = "/";
   }catch(e){ banner("跳回失败：本地状态不可写"); }
@@ -543,24 +643,160 @@ $("#q").addEventListener("input", ev => {
   }
   nodeMesh.instanceColor.needsUpdate = true;
 });
-
 addEventListener("keydown", ev => { if (ev.key === "Escape") closeDrawer(); });
 addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
-(function loop(){
+/* ================= 导出 / 截图 ================= */
+$("#expBtn").onclick = () => {
+  const data = {
+    cards: DATA.cards.map(c => ({ term: c.term, depth: c.depth, tower: c.towerIdx + 1,
+      session: c.sessionIdx + 1, date: fmtDate(c.createdAt), followups: c.followups,
+      x: +c.x.toFixed(1), y: +c.y.toFixed(1), z: +c.z.toFixed(1) })),
+    recEdges: rec.length, bridges: bridge.length,
+  };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = "问底图谱投影.json"; a.click();
+};
+$("#snapBtn").onclick = () => {
+  renderer.render(scene, camera);
+  const a = document.createElement("a");
+  a.href = renderer.domElement.toDataURL("image/png");
+  a.download = "问底图谱.png"; a.click();
+};
+
+/* ================= 调参面板（schema 生成） ================= */
+const CTL = [
+  ["sec", "标签"],
+  ["bool", "showLabels", "显示全部标签"],
+  ["sel", "labelMode", "模式", { all: "全部", hover: "悬停/选中", off: "关" }],
+  ["range", "lblSize", "字号", 9, 26, 1],
+  ["range", "lblWeight", "字重", 300, 700, 100],
+  ["color", "lblColor", "颜色"],
+  ["sec", "节点 / 边"],
+  ["range", "nodeScale", "球半径倍率", 0.3, 3, 0.05],
+  ["range", "fuScale", "追问→半径系数", 0, 1.5, 0.05],
+  ["range", "recOpacity", "递归边透明度", 0.1, 1, 0.05],
+  ["range", "edgeBright", "递归边亮度", 0.3, 2, 0.05],
+  ["range", "bridgeOpacity", "同词桥透明度", 0, 1, 0.05],
+  ["bool", "showRec", "显示递归边"],
+  ["bool", "showBridge", "显示同词桥"],
+  ["bool", "showSpine", "塔脊 / 日期"],
+  ["sec", "空间（改即重排）"],
+  ["range", "rowH", "深度行高", 6, 30, 1],
+  ["range", "bandGap", "场次带间距", 15, 90, 1],
+  ["range", "nodeGap", "层内卡间距", 3, 16, 0.5],
+  ["range", "colPad", "塔间距", 8, 80, 1],
+  ["sec", "环境 / 移动"],
+  ["range", "fogK", "雾系数", 0, 2, 0.05],
+  ["range", "moveSpeed", "飞行速度", 5, 120, 5],
+  ["range", "playMsPer", "播放 ms/场", 200, 2000, 50],
+  ["bool", "showFps", "FPS / 相机读数"],
+];
+const apply = {
+  showLabels: updateLabels, labelMode: updateLabels,
+  lblSize: applyLabelStyle, lblWeight: applyLabelStyle, lblColor: applyLabelStyle,
+  nodeScale: writeAllNodes, fuScale: writeAllNodes,
+  recOpacity: () => recLines.material.opacity = P.recOpacity,
+  bridgeOpacity: () => bridgeLines.material.opacity = P.bridgeOpacity,
+  edgeBright: refreshEdges,
+  showRec: () => recLines.visible = P.showRec,
+  showBridge: () => bridgeLines.visible = P.showBridge,
+  showSpine: () => deco.visible = P.showSpine,
+  rowH: rebuild, bandGap: rebuild, nodeGap: rebuild, colPad: rebuild,
+  fogK: () => applyFog(),
+  showFps: () => $("#stats").style.display = P.showFps ? "block" : "none",
+};
+function rebuild(){
+  WD.layout(DATA.cards, DATA.towers, sessionList,
+    { COL_PAD: P.colPad, NODE_GAP: P.nodeGap, ROW_H: P.rowH, BAND_GAP: P.bandGap });
+  writeAllNodes(); refreshEdges(); buildDeco();
+}
+function buildCfg(){
+  const box = $("#cfg");
+  for (const c of CTL){
+    if (c[0] === "sec"){ const h = document.createElement("h3"); h.textContent = c[1]; box.appendChild(h); continue; }
+    const [type, key, label, a1, a2, a3] = c;
+    const row = document.createElement("div"); row.className = "row";
+    if (type === "bool"){
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = P[key]; cb.style.accentColor = "var(--gold)";
+      cb.onchange = () => { P[key] = cb.checked; (apply[key] || (() => {}))(); };
+      const lb = document.createElement("label"); lb.textContent = label;
+      row.append(lb, cb);
+    } else if (type === "range"){
+      const lb = document.createElement("label"); lb.textContent = label;
+      const r = document.createElement("input");
+      r.type = "range"; r.min = a1; r.max = a2; r.step = a3; r.value = P[key];
+      const out = document.createElement("output"); out.textContent = P[key];
+      r.oninput = () => { P[key] = +r.value; out.textContent = r.value; (apply[key] || (() => {}))(); };
+      row.append(lb, r, out);
+    } else if (type === "color"){
+      const lb = document.createElement("label"); lb.textContent = label;
+      const r = document.createElement("input"); r.type = "color"; r.value = P[key];
+      r.oninput = () => { P[key] = r.value; (apply[key] || (() => {}))(); };
+      row.append(lb, r);
+    } else if (type === "sel"){
+      const lb = document.createElement("label"); lb.textContent = label;
+      const sel = document.createElement("select");
+      for (const [val, txt] of Object.entries(a1)){
+        const op = document.createElement("option"); op.value = val; op.textContent = txt; sel.appendChild(op);
+      }
+      sel.value = P[key];
+      sel.onchange = () => { P[key] = sel.value; (apply[key] || (() => {}))(); };
+      row.append(lb, sel);
+    }
+    box.appendChild(row);
+  }
+  const btns = document.createElement("div"); btns.className = "btns";
+  const reset = document.createElement("button");
+  reset.textContent = "↻ 恢复默认（刷新生效）";
+  reset.onclick = () => location.reload();
+  btns.appendChild(reset);
+  box.appendChild(btns);
+}
+buildCfg();
+$("#cfgBtn").onclick = () => $("#cfg").classList.toggle("open");
+
+/* ================= FPS / 相机读数 ================= */
+let frames = 0, lastStat = performance.now();
+const statsEl = $("#stats");
+function stat(now){
+  frames++;
+  if (now - lastStat >= 500){
+    if (P.showFps){
+      const fps = Math.round(frames * 1000 / (now - lastStat));
+      statsEl.textContent =
+        `FPS ${fps}\n` +
+        `相机 (${camera.position.x.toFixed(0)}, ${camera.position.y.toFixed(0)}, ${camera.position.z.toFixed(0)})\n` +
+        `目标 (${controls.target.x.toFixed(0)}, ${controls.target.y.toFixed(0)}, ${controls.target.z.toFixed(0)})\n` +
+        `卡 ${N} · 塔 ${DATA.towers.length} · 场次 ${sessionList.length} · 递归边 ${rec.length} · 桥 ${bridge.length}`;
+    }
+    frames = 0; lastStat = now;
+  }
+}
+
+/* ================= 主循环 ================= */
+let lastT = performance.now();
+(function loop(now){
   requestAnimationFrame(loop);
+  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  fly(dt);
   if (camAnim){
-    const k = Math.min(1, (performance.now() - camAnim.t0) / camAnim.dur);
-    const e = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;   // easeInOutCubic
+    const k = Math.min(1, (now - camAnim.t0) / camAnim.dur);
+    const e = k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
     camera.position.lerpVectors(camAnim.p0, camAnim.p1, e);
     controls.target.lerpVectors(camAnim.g0, camAnim.g1, e);
     if (k >= 1) camAnim = null;
   }
-  controls.update(); renderer.render(scene, camera);
-})();
+  controls.update();
+  updateLabels();
+  renderer.render(scene, camera);
+  stat(now);
+})(lastT);
 </script>
 <script>
   setTimeout(() => { if (!window.__booted){ const b = document.getElementById("banner");
