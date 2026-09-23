@@ -58,11 +58,46 @@ def init() -> None:
             data TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS meter_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            day_key TEXT NOT NULL,
+            user_id INTEGER,
+            plan TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            style TEXT,
+            stream INTEGER NOT NULL,
+            prompt_tokens INTEGER NOT NULL,
+            prompt_cache_hit_tokens INTEGER NOT NULL,
+            prompt_cache_miss_tokens INTEGER NOT NULL,
+            completion_tokens INTEGER NOT NULL,
+            cost_cents INTEGER NOT NULL,
+            ok INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_meter_requests_day ON meter_requests(day_key);
+        CREATE INDEX IF NOT EXISTS idx_meter_requests_user_day ON meter_requests(user_id, day_key);
+        CREATE TABLE IF NOT EXISTS meter_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         """)
         try:
             c.execute("ALTER TABLE users ADD COLUMN day_key TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass
+        # —— 经济测算默认单价（美元/百万 token，来自 docs/plans/2026-09-23-usage-pricing-probe.md） ——
+        defaults = {
+            "flash_in_hit_offpeak": "0.003",
+            "flash_in_hit_peak": "0.006",
+            "flash_in_miss_offpeak": "0.15",
+            "flash_in_miss_peak": "0.30",
+            "flash_out_offpeak": "0.60",
+            "flash_out_peak": "1.20",
+            "usd_to_cny": "7.2",
+            "cost_cents_cap": "3000",  # ¥30/天
+        }
+        c.executemany("INSERT OR IGNORE INTO meter_config (key, value) VALUES (?,?)",
+                      list(defaults.items()))
 
 
 def today() -> str:
@@ -207,3 +242,81 @@ def sync_put(uid: int, data: str) -> str:
                   "ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at",
                   (uid, data, ts))
     return ts
+
+
+# ================= 经济测算（metering） =================
+def meter_record(user_id, plan: str, mode: str, style, stream: bool,
+                 prompt_cache_hit_tokens: int, prompt_cache_miss_tokens: int,
+                 completion_tokens: int, cost_cents: int, ok: bool) -> None:
+    """记一笔 LLM 调用的真实 token 消耗与折算成本。只观测，不阻断。"""
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO meter_requests (ts, day_key, user_id, plan, mode, style, stream, "
+            "prompt_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, "
+            "completion_tokens, cost_cents, ok) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (now(), today(), user_id, plan, mode, style,
+             1 if stream else 0,
+             prompt_cache_hit_tokens + prompt_cache_miss_tokens,
+             prompt_cache_hit_tokens, prompt_cache_miss_tokens,
+             completion_tokens, cost_cents, 1 if ok else 0))
+
+
+def meter_set(key: str, value: str) -> None:
+    with _conn() as c:
+        c.execute("INSERT INTO meter_config (key, value) VALUES (?,?) "
+                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+
+def meter_get(key: str) -> str | None:
+    with _conn() as c:
+        row = c.execute("SELECT value FROM meter_config WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+
+
+def meter_totals(day: str) -> dict:
+    """全局某天的总账：总次数、token、成本，按 plan / mode 分组。"""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS n, "
+            "COALESCE(SUM(prompt_cache_hit_tokens),0) AS hit, "
+            "COALESCE(SUM(prompt_cache_miss_tokens),0) AS miss, "
+            "COALESCE(SUM(completion_tokens),0) AS comp, "
+            "COALESCE(SUM(cost_cents),0) AS cost "
+            "FROM meter_requests WHERE day_key=?", (day,)).fetchone()
+        by_plan = {r["plan"]: r["n"] for r in c.execute(
+            "SELECT plan, COUNT(*) AS n FROM meter_requests WHERE day_key=? GROUP BY plan", (day,))}
+        by_mode = {r["mode"]: r["n"] for r in c.execute(
+            "SELECT mode, COUNT(*) AS n FROM meter_requests WHERE day_key=? GROUP BY mode", (day,))}
+    return {"day": day, "requests": row["n"], "hit_tokens": row["hit"],
+            "miss_tokens": row["miss"], "completion_tokens": row["comp"],
+            "cost_cents": row["cost"], "by_plan": by_plan, "by_mode": by_mode}
+
+
+def meter_user_day(uid: int, day: str) -> dict:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS n, "
+            "COALESCE(SUM(prompt_cache_hit_tokens),0) AS hit, "
+            "COALESCE(SUM(prompt_cache_miss_tokens),0) AS miss, "
+            "COALESCE(SUM(completion_tokens),0) AS comp, "
+            "COALESCE(SUM(cost_cents),0) AS cost "
+            "FROM meter_requests WHERE user_id=? AND day_key=?", (uid, day)).fetchone()
+    return {"day": day, "requests": row["n"], "hit_tokens": row["hit"],
+            "miss_tokens": row["miss"], "completion_tokens": row["comp"],
+            "cost_cents": row["cost"]}
+
+
+def meter_user_ndays(uid: int, n: int) -> list[dict]:
+    """单用户近 n 天的逐日账（定价 drill-down）。返回按 day_key 升序。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT day_key, COUNT(*) AS n, "
+            "COALESCE(SUM(prompt_cache_hit_tokens),0) AS hit, "
+            "COALESCE(SUM(prompt_cache_miss_tokens),0) AS miss, "
+            "COALESCE(SUM(completion_tokens),0) AS comp, "
+            "COALESCE(SUM(cost_cents),0) AS cost "
+            "FROM meter_requests WHERE user_id=? "
+            "GROUP BY day_key ORDER BY day_key DESC LIMIT ?", (uid, n)).fetchall()
+    return [{"day": r["day_key"], "requests": r["n"], "hit_tokens": r["hit"],
+             "miss_tokens": r["miss"], "completion_tokens": r["comp"],
+             "cost_cents": r["cost"]} for r in rows]
