@@ -153,6 +153,20 @@
   #closedList .item{display:flex;gap:8px;align-items:center;padding:3px 2px}
   #closedList .item span{color:var(--dim);font-size:12.5px;flex:1}
   .hint{color:var(--dim);font-size:12.5px;padding:14px;line-height:2}
+
+  /* 分享卡片 */
+  #shareModal{position:fixed;inset:0;background:#0e0e10dd;z-index:230;display:flex;align-items:center;justify-content:center}
+  #shareModal.hidden{display:none}
+  .sbox{display:flex;flex-direction:column;gap:10px;max-height:94vh;padding:14px;background:var(--panel);
+        border:1px solid var(--line);border-radius:14px}
+  .sbox canvas{max-height:60vh;max-width:100%;width:auto;height:auto;border-radius:10px;border:1px solid var(--line)}
+  .sopts{display:flex;gap:14px;font-size:12.5px;color:var(--dim);align-items:center;flex-wrap:wrap}
+  .sopts label{cursor:pointer;display:flex;gap:4px;align-items:center}
+  .sopts input{accent-color:var(--gold)}
+  .srow{display:flex;gap:8px}
+  .srow .primary{background:var(--gold);color:#161513;font-weight:600;border:none;border-radius:7px;padding:6px 18px;cursor:pointer}
+  #shareJson{width:420px;max-height:130px;overflow:auto;background:#17171a;color:#9ad1a2;border:1px solid var(--line);
+             border-radius:8px;font:11px/1.5 ui-monospace,monospace;padding:8px;display:none;white-space:pre;margin:0}
 </style>
 </head>
 <body>
@@ -211,6 +225,23 @@
 </div>
 <div id="coach" class="hidden"><div class="ctext"></div><button class="cx" id="coachClose">×</button></div>
 <div id="toast"></div>
+<div id="shareModal" class="hidden">
+  <div class="sbox">
+    <canvas id="shareCanvas"></canvas>
+    <div class="sopts">
+      <label><input type="checkbox" id="optPath" checked> 问底路径</label>
+      <label><input type="checkbox" id="optCtx" checked> 语境句</label>
+      <label><input type="checkbox" id="optFu" checked> 追问</label>
+      <span style="flex:1"></span>
+      <button class="mini" id="shareJsonBtn">查看 JSON</button>
+    </div>
+    <pre id="shareJson"></pre>
+    <div class="srow">
+      <button id="shareDl" class="primary">下载 PNG</button>
+      <button id="shareClose">关闭</button>
+    </div>
+  </div>
+</div>
 <div id="stage"></div>
 <div id="bubble"><button id="explainBtn">解释</button></div>
 <div id="closedList"></div>
@@ -316,7 +347,7 @@ function renderMain(node, depth){
     main.appendChild(body);
     const row = div("inputrow");
     row.innerHTML = `<input data-input-key="ask-${node.id}" placeholder="追问（还是不懂 / 举例 / 区别）…">
-      <button data-ask>问</button><button class="mini" data-rexplain title="按当前档位重讲">↻</button>`;
+      <button data-ask>问</button><button class="mini" data-rexplain title="按当前档位重讲">↻</button><button class="mini" data-share title="分享这张卡">⤴</button>`;
     main.appendChild(row);
   }
   return main;
@@ -475,6 +506,8 @@ function bindAll(){
     if(input) input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
     const rx = document.querySelector("[data-rexplain]");
     if(rx) rx.onclick = async () => { node.style = state.defaultStyle; await requestExplain(node); };
+    const sh = document.querySelector("[data-share]");
+    if(sh) sh.onclick = () => openShare(node);
   }
 }
 function enterById(id){
@@ -489,6 +522,9 @@ document.addEventListener("keydown", e => {
   if(tag === "input" || tag === "textarea" || tag === "select") return;
   if(e.key === "Escape" && !$("#authModal").classList.contains("hidden")) {
     $("#authModal").classList.add("hidden"); return;
+  }
+  if(e.key === "Escape" && !$("#shareModal").classList.contains("hidden")) {
+    $("#shareModal").classList.add("hidden"); return;
   }
   const node = currentNode();
   if(e.key === "Escape"){ goBack(); return; }
@@ -640,6 +676,135 @@ $("#exportBtn").onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.download = "解释场-" + new Date().toISOString().slice(0,10) + ".md";
   a.click();
+};
+
+/* ================= 分享卡片（解释树切片的只读渲染） ================= */
+let shareCard = null;
+function cardChain(card){                     // 从主对话到该卡的词路径
+  let out = null;
+  (function dfs(node, acc){
+    if (out) return;
+    const acc2 = node.kind === "exp" ? [...acc, node.term] : acc;
+    if (node.id === card.id){ out = acc2; return; }
+    for (const c of (node.children || [])) dfs(c, acc2);
+  })(state.root, []);
+  return out || [card.term];
+}
+function sharePayload(o){                     // 切片 JSON：将来 permalink 的请求体
+  const c = shareCard;
+  return { v: 1, app: "问底 WenDi", term: c.term,
+    chain: o.path ? cardChain(c) : undefined,
+    style: styleName(c.style), text: c.text,
+    context: o.ctx ? c.context : undefined,
+    followups: o.fu ? (c.followups || []).map(f => ({ q: f.q, a: f.a })) : undefined,
+    created: new Date(c.createdAt).toLocaleDateString("zh-CN") };
+}
+function wrapText(g, text, maxW){
+  const out = [];
+  for (const para of String(text || "").split("\n")){
+    let line = "";
+    for (const ch of para){
+      if (line && g.measureText(line + ch).width > maxW){ out.push(line); line = ch; }
+      else line += ch;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function shareOpts(){ return { path: $("#optPath").checked, ctx: $("#optCtx").checked, fu: $("#optFu").checked }; }
+function drawShare(o){
+  const c = shareCard; if (!c) return;
+  const W = 750, PAD = 56, S = 2, IW = W - PAD * 2;
+  const SERIF = '"Noto Serif CJK SC","Source Han Serif SC","Songti SC",Georgia,serif';
+  const meas = document.createElement("canvas").getContext("2d");
+  const m = (font, text, w) => { meas.font = font; return wrapText(meas, text, w); };
+  const pathLines = o.path ? m(`19px ${SERIF}`, cardChain(c).join(" › "), IW) : [];
+  const termLines = m(`600 46px ${SERIF}`, c.term || "…", IW);
+  const textLines = m(`23px ${SERIF}`, c.text || "（解释正文为空）", IW);
+  const ctxLines = o.ctx ? m(`19px ${SERIF}`, "语境 · " + (c.context || "（无）"), IW - 26) : [];
+  const fus = o.fu ? (c.followups || []).slice(0, 3) : [];
+  const fuRows = fus.map(f => ({ q: m(`600 20px ${SERIF}`, "追问 " + f.q, IW), a: m(`20px ${SERIF}`, f.a || "…", IW) }));
+  const LH = { path: 30, term: 60, meta: 40, text: 40, ctx: 32, fu: 34 };
+  let H = PAD + 26;
+  H += pathLines.length * LH.path + (pathLines.length ? 18 : 0);
+  H += termLines.length * LH.term + 14 + LH.meta + 18;
+  H += textLines.length * LH.text + 26;
+  if (ctxLines.length) H += ctxLines.length * LH.ctx + 14 + 18;
+  fuRows.forEach(r => H += r.q.length * LH.fu + r.a.length * LH.fu + 10);
+  if (fus.length) H += 18;
+  H = Math.ceil(H + 96 + PAD * 0.4);
+  const cv = $("#shareCanvas");
+  cv.width = W * S; cv.height = H * S;                 // 2x 渲染，下载清晰
+  const g = cv.getContext("2d");
+  g.scale(S, S);
+  g.fillStyle = "#141416"; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "#303035"; g.lineWidth = 1; g.strokeRect(10.5, 10.5, W - 21, H - 21);
+  g.fillStyle = "#c9a55c"; g.fillRect(PAD, PAD - 34, 64, 4);
+  g.textBaseline = "top";
+  let y = PAD + 10;
+  if (pathLines.length){
+    g.font = `19px ${SERIF}`; g.fillStyle = "#94918a";
+    pathLines.forEach((l, i) => g.fillText(l, PAD, y + i * LH.path));
+    y += pathLines.length * LH.path + 18;
+  }
+  g.font = `600 46px ${SERIF}`; g.fillStyle = "#e8e6e1";
+  termLines.forEach((l, i) => g.fillText(l, PAD, y + i * LH.term));
+  y += termLines.length * LH.term + 14;
+  g.font = `17px -apple-system,"PingFang SC",sans-serif`; g.fillStyle = "#c9a55c";
+  g.fillText(`${styleName(c.style)}档 · ${new Date(c.createdAt).toLocaleDateString("zh-CN")}`, PAD, y);
+  y += LH.meta + 18;
+  g.font = `23px ${SERIF}`; g.fillStyle = "#e8e6e1";
+  textLines.forEach((l, i) => g.fillText(l, PAD, y + i * LH.text));
+  y += textLines.length * LH.text + 26;
+  if (ctxLines.length){
+    g.fillStyle = "#6b5a34"; g.fillRect(PAD, y + 2, 3, ctxLines.length * LH.ctx);
+    g.font = `19px ${SERIF}`; g.fillStyle = "#b5b2aa";
+    ctxLines.forEach((l, i) => g.fillText(l, PAD + 20, y + i * LH.ctx));
+    y += ctxLines.length * LH.ctx + 14 + 18;
+  }
+  if (fus.length){
+    fuRows.forEach(r => {
+      g.font = `600 20px ${SERIF}`; g.fillStyle = "#c9a55c";
+      r.q.forEach((l, i) => g.fillText(l, PAD, y + i * LH.fu)); y += r.q.length * LH.fu;
+      g.font = `20px ${SERIF}`; g.fillStyle = "#b5b2aa";
+      r.a.forEach((l, i) => g.fillText(l, PAD, y + i * LH.fu)); y += r.a.length * LH.fu + 10;
+    });
+    y += 18;
+  }
+  g.strokeStyle = "#303035";
+  g.beginPath(); g.moveTo(PAD, H - 96 + 0.5); g.lineTo(W - PAD, H - 96 + 0.5); g.stroke();
+  g.font = `600 20px ${SERIF}`; g.fillStyle = "#e8e6e1";
+  g.fillText("问底 WenDi", PAD, H - 76);
+  g.font = `15px -apple-system,"PingFang SC",sans-serif`; g.fillStyle = "#94918a";
+  g.fillText("get to the bottom of it · 碰到不懂的词，就划它", PAD, H - 50);
+  g.textAlign = "right";
+  g.fillText("know.kwelldo.cn", W - PAD, H - 50);
+  g.textAlign = "left";
+}
+function openShare(card){
+  shareCard = card;
+  $("#shareModal").classList.remove("hidden");
+  drawShare(shareOpts());
+  $("#shareJson").style.display = "none"; $("#shareJsonBtn").textContent = "查看 JSON";
+}
+["optPath", "optCtx", "optFu"].forEach(id => $("#" + id).onchange = () => drawShare(shareOpts()));
+$("#shareClose").onclick = () => $("#shareModal").classList.add("hidden");
+$("#shareModal").onclick = ev => { if (ev.target.id === "shareModal") $("#shareModal").classList.add("hidden"); };
+$("#shareJsonBtn").onclick = () => {
+  const pre = $("#shareJson");
+  if (pre.style.display === "block"){ pre.style.display = "none"; $("#shareJsonBtn").textContent = "查看 JSON"; return; }
+  pre.textContent = JSON.stringify(sharePayload(shareOpts()), null, 2);
+  pre.style.display = "block"; $("#shareJsonBtn").textContent = "收起 JSON";
+};
+$("#shareDl").onclick = () => {
+  const cv = $("#shareCanvas");
+  cv.toBlob(blob => {
+    if (!blob || !shareCard) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `问底-${shareCard.term || "卡片"}.png`;
+    a.click(); URL.revokeObjectURL(a.href);
+  }, "image/png");
 };
 
 /* ================= 介绍页 ================= */
