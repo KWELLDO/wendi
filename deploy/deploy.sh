@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-HOST=tencent
+HOST="${WENDI_HOST:?请设 WENDI_HOST（ssh 主机别名或 user@host）}"
 
 echo "== 1) 后端 -> /opt/wendi =="
 ssh $HOST 'sudo mkdir -p /opt/wendi && sudo chown ubuntu:ubuntu /opt/wendi'
@@ -18,10 +18,12 @@ echo "== 3) 密钥（仅首次创建） =="
 if ssh $HOST 'test -f /etc/wendi.env'; then
   echo "   /etc/wendi.env 已存在，跳过"
 else
-  KEY=$(grep '^deepseek_n8n_api_key=' ~/.secrets | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
-  [ -n "$KEY" ] || { echo "找不到 deepseek_n8n_api_key，中止"; exit 1; }
-  printf 'WENDI_API_KEY=%s\n' "$KEY" | ssh $HOST 'sudo bash -c "umask 077; cat > /etc/wendi.env; chmod 600 /etc/wendi.env"'
+  [ -n "${WENDI_API_KEY:-}" ] || { echo "找不到 WENDI_API_KEY，中止"; exit 1; }
+  ADMIN_TOKEN="${WENDI_ADMIN_TOKEN:-$(openssl rand -hex 16)}"
+  printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\n' "$WENDI_API_KEY" "$ADMIN_TOKEN" \
+    | ssh $HOST 'sudo bash -c "umask 077; cat > /etc/wendi.env; chmod 600 /etc/wendi.env"'
   echo "   /etc/wendi.env 已创建（600）"
+  echo "   管理 token（请自行保存，用于 /api/meter）：$ADMIN_TOKEN"
 fi
 
 echo "== 4) systemd 服务 =="

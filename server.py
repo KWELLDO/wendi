@@ -181,23 +181,30 @@ class AuthError(RuntimeError):
 
 
 def _existing_keys() -> list[tuple[str, str]]:
+    """返回 (名称, 密钥) 候选列表，首个可用者优先。
+
+    来源优先级：
+      1. WENDI_API_KEY 环境变量（单个）；
+      2. WENDI_KEYS 环境变量（逗号分隔的多个 key，用于轮换）；
+      3. ~/.secrets 里名为 deepseek_api_key 的一行（可选便利，非必需）。
+    """
     env = os.environ.get("WENDI_API_KEY")
     if env:
         return [("env:WENDI_API_KEY", env)]
-    candidates = ["deepseek_api_key", "deepseek_Prime-Agent", "deepseek_codex_api_key",
-                  "deepseek_n8n_api_key", "deepseek_nvim_api_key"]
-    found: dict[str, str] = {}
+    multi = os.environ.get("WENDI_KEYS")
+    if multi:
+        keys = [k.strip() for k in multi.split(",") if k.strip()]
+        if keys:
+            return [(f"env:WENDI_KEYS[{i}]", k) for i, k in enumerate(keys)]
     secrets_file = Path.home() / ".secrets"
     if secrets_file.exists():
         for line in secrets_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, _, v = line.partition("=")
-                found[k.strip()] = v.strip().strip('"').strip("'")
-    out = [(n, found[n]) for n in candidates if found.get(n)]
-    if not out:
-        raise RuntimeError("无可用 API key（请设 WENDI_API_KEY）")
-    return out
+            if line.startswith("deepseek_api_key="):
+                value = line.partition("=")[2].strip().strip('"').strip("'")
+                if value:
+                    return [("~/.secrets:deepseek_api_key", value)]
+    raise RuntimeError("无可用 API key（请设 WENDI_API_KEY 或 WENDI_KEYS）")
 
 
 def _llm_request(key: str, messages: list[dict], max_tokens: int, stream: bool) -> urllib.request.Request:

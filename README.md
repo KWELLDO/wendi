@@ -56,8 +56,10 @@ python3 server.py        # → http://127.0.0.1:8899
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `WENDI_PORT` | 8899 | 监听端口（只绑 127.0.0.1） |
-| `WENDI_MODEL` | deepseek-chat | 模型名 |
+| `WENDI_MODEL` | deepseek-flash | 模型名 |
 | `WENDI_BASE_URL` | https://api.deepseek.com | 任意 OpenAI 兼容端点 |
+| `WENDI_KEYS` | — | 多个 key（逗号分隔），401 自动轮换 |
+| `WENDI_ADMIN_TOKEN` | — | `GET /api/meter` 的管理令牌；不设则拒绝 |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |

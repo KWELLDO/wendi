@@ -31,10 +31,10 @@
 
 ## 三、仓库卫生（开源视角）
 
-- **个人基础设施泄漏进仓库**：
-  - `server.py` `_existing_keys()`（≈L99）硬编码 `~/.secrets` 的私人文件名：`deepseek_Prime-Agent`、`deepseek_n8n_api_key`、`deepseek_codex_api_key` 等；
-  - `deploy/deploy.sh` 硬编码 `HOST=tencent` 和 `deepseek_n8n_api_key`。
-  - 他人按 README 部署实际跑不通。仓库已转私有（2026-09-22），但 git 历史里字符串仍在；重新开源前需清理历史或改掉硬编码。
+- **个人基础设施泄漏进仓库**（✅ 2026-09-24 已修）：
+  - ~~`server.py` `_existing_keys()`（≈L99）硬编码 `~/.secrets` 的私人文件名：`deepseek_Prime-Agent`、`deepseek_n8n_api_key`、`deepseek_codex_api_key` 等~~ → 改为 `WENDI_API_KEY` / `WENDI_KEYS`（逗号分隔轮换）/ `~/.secrets` 的通用 `deepseek_api_key`，无私人名称；
+  - ~~`deploy/deploy.sh` 硬编码 `HOST=tencent` 和 `deepseek_n8n_api_key`~~ → `HOST` 改从 `WENDI_HOST` 读、key 从 `WENDI_API_KEY` 读，并顺带生成 `WENDI_ADMIN_TOKEN`。
+  - **注意**：git 历史里旧字符串仍在（`38d5e73` 及更早）；若要公开，需清理历史（`git filter-repo`）或重建仓库。
 - **prompts.py 头部死引用**：引用 `docs/research/2026-09-21-clarity-vagueness-dialectics.md`、`docs/plans/2026-09-21-mind-graph-design.md`，两文件均不在仓库中。
 - 小 bug：
   - 注册接口（`/api/auth/register`）返回的 `quota` 缺 `plan` 字段，shape 与 `/api/me` 不一致（前端恰好容忍）；
