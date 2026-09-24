@@ -1,9 +1,11 @@
 """受控建号 / 密码重置 / 兑换码批次管理的测试。运行：python3 -m unittest discover -s tests -v"""
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 # 把 db 指向临时文件，避免污染真实数据库
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -207,6 +209,126 @@ class TestAdminHandlers(BaseAdmin):
         h = self.FakeHandler()
         h._admin_void_codes({})
         self.assertEqual(h.status, 400)
+
+    def test_llmkey_requires_token(self):
+        h = self.FakeHandler(token="wrong")
+        h._admin_llmkey_get()
+        self.assertEqual(h.status, 401)
+        h._admin_llmkey_set({"keys": "sk-abc123456789012345678"})
+        self.assertEqual(h.status, 401)
+
+    def test_llmkey_set_get_masked(self):
+        h = self.FakeHandler()
+        h._admin_llmkey_set({"keys": "sk-abc123456789012345678,  sk-def987654321098765432"})
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["count"], 2)
+        self.assertEqual(h.payload["keys"], ["sk-abc***5678", "sk-def***5432"])
+        g = self.FakeHandler(method="GET")
+        g._admin_llmkey_get()
+        self.assertEqual(g.status, 200)
+        self.assertEqual(g.payload["count"], 2)
+        self.assertNotIn("sk-abc123456789012345678", str(g.payload), "完整密钥绝不能回显")
+        self.assertIsNone(g.payload["active"], "刚换 key 后不应还缓存着旧 active")
+
+    def test_llmkey_set_resets_active_cache(self):
+        server._ACTIVE_KEY = ("env:WENDI_API_KEY", "sk-old000000000000000000000")
+        try:
+            h = self.FakeHandler()
+            h._admin_llmkey_set({"keys": "sk-new123456789012345678"})
+            self.assertEqual(h.status, 200)
+            self.assertIsNone(server._ACTIVE_KEY, "换 key 必须作废旧缓存，否则新 key 不生效")
+        finally:
+            server._ACTIVE_KEY = None
+
+    def test_llmkey_set_base_url_and_model(self):
+        h = self.FakeHandler()
+        h._admin_llmkey_set({"keys": "sk-abc123456789012345678",
+                             "base_url": "https://api.moonshot.cn/", "model": "kimi-k2"})
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["base_url"], "https://api.moonshot.cn", "结尾斜杠应去掉")
+        self.assertEqual(h.payload["model"], "kimi-k2")
+        g = self.FakeHandler(method="GET")
+        g._admin_llmkey_get()
+        self.assertEqual(g.payload["base_url"], "https://api.moonshot.cn")
+        self.assertEqual(g.payload["model"], "kimi-k2")
+
+    def test_llmkey_bad_inputs_400(self):
+        h = self.FakeHandler()
+        h._admin_llmkey_set({"keys": ""})
+        self.assertEqual(h.status, 400)
+        h._admin_llmkey_set({"keys": "short"})
+        self.assertEqual(h.status, 400, "过短密钥疑似粘贴不完整")
+        h._admin_llmkey_set({"keys": "sk-abc123456789012345678", "base_url": "ftp://x"})
+        self.assertEqual(h.status, 400)
+
+    def test_llmkey_clear(self):
+        db.meter_set("llm_api_keys", "sk-abc123456789012345678")
+        db.meter_set("llm_base_url", "https://api.moonshot.cn")
+        db.meter_set("llm_model", "kimi-k2")
+        server._ACTIVE_KEY = ("db:llm_api_keys[0]", "sk-abc123456789012345678")
+        try:
+            h = self.FakeHandler()
+            h._admin_llmkey_set({"action": "clear"})
+            self.assertEqual(h.status, 200)
+            self.assertEqual(h.payload["count"], 0)
+            self.assertIsNone(server._ACTIVE_KEY)
+            self.assertEqual(db.meter_get("llm_api_keys"), "")
+            self.assertEqual(db.meter_get("llm_base_url"), "", "清除要连 base_url 一起")
+            self.assertEqual(db.meter_get("llm_model"), "", "清除要连 model 一起")
+        finally:
+            server._ACTIVE_KEY = None
+
+
+class TestKeySources(BaseAdmin):
+    """_existing_keys 的来源优先级：面板(DB) > 环境变量 > ~/.secrets。"""
+
+    def _clean_env(self):
+        return mock.patch.dict(os.environ, {}, clear=False)
+
+    def test_db_key_first_when_no_env(self):
+        db.meter_set("llm_api_keys", "sk-dbkey123456789012345678")
+        try:
+            with mock.patch.dict(os.environ, {"WENDI_API_KEY": "", "WENDI_KEYS": ""},
+                                 clear=False):
+                os.environ.pop("WENDI_API_KEY", None)
+                os.environ.pop("WENDI_KEYS", None)
+                keys = server._existing_keys()
+            self.assertEqual(keys[0], ("db:llm_api_keys[0]", "sk-dbkey123456789012345678"))
+        finally:
+            db.meter_set("llm_api_keys", "")
+
+    def test_db_and_env_merged_db_first(self):
+        db.meter_set("llm_api_keys", "sk-dbkey123456789012345678")
+        try:
+            with mock.patch.dict(os.environ, {"WENDI_API_KEY": "sk-envkey123456789012345"},
+                                 clear=False):
+                os.environ.pop("WENDI_KEYS", None)
+                keys = server._existing_keys()
+            self.assertEqual([k for _, k in keys],
+                             ["sk-dbkey123456789012345678", "sk-envkey123456789012345"])
+        finally:
+            db.meter_set("llm_api_keys", "")
+
+    def test_raises_with_actionable_message_when_nothing(self):
+        db.meter_set("llm_api_keys", "")
+        with mock.patch.dict(os.environ, {"HOME": tempfile.mkdtemp()}, clear=False):
+            os.environ.pop("WENDI_API_KEY", None)
+            os.environ.pop("WENDI_KEYS", None)
+            with self.assertRaises(RuntimeError) as cm:
+                server._existing_keys()
+        self.assertIn("密钥", str(cm.exception))
+
+    def test_llm_request_uses_panel_overrides(self):
+        db.meter_set("llm_base_url", "http://127.0.0.1:9/")
+        db.meter_set("llm_model", "test-model-x")
+        try:
+            req = server._llm_request("sk-k", [{"role": "user", "content": "hi"}], 5, False)
+            self.assertTrue(req.full_url.startswith("http://127.0.0.1:9/chat/completions"))
+            payload = json.loads(req.data.decode())
+            self.assertEqual(payload["model"], "test-model-x")
+        finally:
+            db.meter_set("llm_base_url", "")
+            db.meter_set("llm_model", "")
 
 
 if __name__ == "__main__":

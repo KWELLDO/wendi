@@ -45,6 +45,8 @@ git clone <this-repo> wendi && cd wendi
 
 # 需要 DeepSeek API key（或任意 OpenAI 兼容端点）
 export WENDI_API_KEY=sk-xxxx
+# —— 或者不设环境变量，启动后打开 web 页面点右上角「密钥」按钮在线配置（需 WENDI_ADMIN_TOKEN） ——
+export WENDI_ADMIN_TOKEN=换一个自己的管理令牌
 
 python3 server.py        # → http://127.0.0.1:8899
 ```
@@ -56,10 +58,10 @@ python3 server.py        # → http://127.0.0.1:8899
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `WENDI_PORT` | 8899 | 监听端口（只绑 127.0.0.1） |
-| `WENDI_MODEL` | deepseek-flash | 模型名 |
-| `WENDI_BASE_URL` | https://api.deepseek.com | 任意 OpenAI 兼容端点 |
+| `WENDI_MODEL` | deepseek-flash | 模型名（可用「密钥」面板覆盖） |
+| `WENDI_BASE_URL` | https://api.deepseek.com | 任意 OpenAI 兼容端点（可用「密钥」面板覆盖） |
 | `WENDI_KEYS` | — | 多个 key（逗号分隔），401 自动轮换 |
-| `WENDI_ADMIN_TOKEN` | — | `GET /api/meter` 的管理令牌；不设则拒绝 |
+| `WENDI_ADMIN_TOKEN` | — | 管理令牌（meter 端点 + 「密钥」面板 + 建号/发码）；不设则拒绝 |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |

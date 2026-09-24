@@ -131,6 +131,15 @@
   .acard .afoot{margin-top:12px;font-size:12.5px;color:var(--dim);text-align:center}
   .acard .afoot span{cursor:pointer;text-decoration:underline dotted}
   .acard .mine{font-size:13.5px;margin-bottom:12px}
+  #keyModal{position:fixed;inset:0;background:#0e0e10cc;z-index:210;display:flex;align-items:center;justify-content:center}
+  #keyModal textarea{width:100%;background:#17171a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+                     padding:9px 12px;font-size:13px;margin-bottom:10px;min-height:74px;resize:vertical;
+                     font-family:ui-monospace,SFMono-Regular,monospace}
+  #keyModal textarea:focus{outline:none;border-color:var(--gold-dim)}
+  #keyModal .lbl{font-size:12px;color:var(--dim);margin:2px 0 4px}
+  #keyModal .kstatus{font-size:12.5px;color:var(--gold);margin-bottom:10px;min-height:18px}
+  #keyModal .row{display:flex;gap:8px;margin-top:4px}
+  #keyModal .row button{flex:1}
   #redeemBox{display:flex;gap:8px}
   #redeemBox input{margin-bottom:0}
   #redeemBox button{flex:0 0 auto;padding:0 14px}
@@ -174,6 +183,7 @@
   <button id="aboutBtn" title="关于问底">?</button>
   <span id="quotaBadge" class="qbadge hidden" title="今日用量"></span>
   <button id="syncBtn" class="hidden" title="把本地数据备份到云端">同步↑</button>
+  <button id="keyBtn" title="配置 LLM 密钥 / 接口地址 / 模型（管理员，保存后立即生效）">密钥</button>
   <button id="authBtn">登录</button>
 </header>
 <div id="intro" class="hidden">
@@ -207,6 +217,25 @@
       </div>
       <div id="authMsg2" class="amsg"></div>
       <div class="afoot"><span id="logoutBtn">退出登录</span></div>
+    </div>
+  </div>
+</div>
+<div id="keyModal" class="hidden">
+  <div class="acard">
+    <div class="atabs"><span class="on">LLM 配置</span><span class="x" id="keyClose">×</span></div>
+    <div class="kstatus" id="keyStatus">加载中…</div>
+    <div class="lbl">管理令牌（服务端启动时的 WENDI_ADMIN_TOKEN）</div>
+    <input id="keyToken" type="password" placeholder="WENDI_ADMIN_TOKEN" autocomplete="off">
+    <div class="lbl">API 密钥（OpenAI 兼容，可配多个轮换：换行 / 逗号分隔）</div>
+    <textarea id="keyInput" placeholder="sk-…" spellcheck="false"></textarea>
+    <div class="lbl">接口地址（可选，默认 https://api.deepseek.com）</div>
+    <input id="keyBase" placeholder="https://api.deepseek.com" autocomplete="off" spellcheck="false">
+    <div class="lbl">模型（可选，默认 deepseek-flash）</div>
+    <input id="keyModel" placeholder="deepseek-flash" autocomplete="off" spellcheck="false">
+    <div id="keyMsg" class="amsg"></div>
+    <div class="row">
+      <button id="keySave" class="primary">保存并生效</button>
+      <button id="keyClear">清除面板配置</button>
     </div>
   </div>
 </div>
@@ -467,7 +496,7 @@ function bindAll(){
           f.a += d;
           const el = live(); if(el) el.textContent = f.a;
         });
-        if(!r.ok) f.a = f.a ? f.a + "\n[失败] " + (r.data.error||"") : "[失败] " + (r.data.error||"");
+        if(!r.ok){ const em = friendlyErr(r.data.error); f.a = f.a ? f.a + "\n[失败] " + em : "[失败] " + em; }
         if (r.data && r.data.quota) renderQuota(r.data.quota);
       }catch(e){ f.a = f.a ? f.a + "\n[失败] " + e.message : "[失败] " + e.message; }
       save(); render();
@@ -490,6 +519,9 @@ document.addEventListener("keydown", e => {
   if(tag === "input" || tag === "textarea" || tag === "select") return;
   if(e.key === "Escape" && !$("#authModal").classList.contains("hidden")) {
     $("#authModal").classList.add("hidden"); return;
+  }
+  if(e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) {
+    $("#keyModal").classList.add("hidden"); return;
   }
   const node = currentNode();
   if(e.key === "Escape"){ goBack(); return; }
@@ -568,7 +600,7 @@ async function requestExplain(card){
       const el = live();
       if(el){ el.classList.remove("loading","err"); el.textContent = card.text; }
     });
-    if(!r.ok) throw new Error(r.data.error || "API error");
+    if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
     if (r.data.quota) renderQuota(r.data.quota);
   }catch(e){ card.loading = false; card.error = String(e.message||e); }
@@ -589,7 +621,7 @@ async function sendChat(node, text){
       if(el){ el.classList.remove("loading"); el.textContent = pending.text; scroll(); }
     });
     pending.loading = false;
-    if(!r.ok) pending.text = pending.text ? pending.text + "\n[失败] " + (r.data.error||"") : "[失败] " + (r.data.error||"");
+    if(!r.ok){ const em = friendlyErr(r.data.error); pending.text = pending.text ? pending.text + "\n[失败] " + em : "[失败] " + em; }
     else if(!pending.text) pending.text = "[失败] 空响应";
     if (r.data && r.data.quota) renderQuota(r.data.quota);
   }catch(e){
@@ -665,6 +697,60 @@ $("#aboutBtn").onclick = () => intro.classList.remove("hidden");
 /* ================= 账户 / 引导 · 事件绑定 ================= */
 $("#introTour").onclick = startTour;
 $("#authBtn").onclick = openAuth;
+
+/* ================= LLM 密钥面板（管理员） ================= */
+function friendlyErr(msg){
+  msg = String(msg || "");
+  if(/API key/.test(msg)) return "服务端还没配置 LLM 密钥——点右上角「密钥」按钮配置，保存后立即生效";
+  return msg;
+}
+async function keyApi(method, body){
+  const tok = $("#keyToken").value.trim() || localStorage.getItem("wendi-admin-token") || "";
+  const r = await fetch("/api/admin/llmkey", {
+    method,
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let d = {}; try { d = await r.json(); } catch(e){}
+  return { ok: r.ok, status: r.status, data: d };
+}
+function keyShowStatus(d){
+  $("#keyStatus").textContent = d.count
+    ? `已配置 ${d.count} 个密钥：${d.keys.join("、")}${d.base_url ? " · " + d.base_url : ""}${d.model ? " · " + d.model : ""}`
+    : "面板未配置密钥（若服务端也没设环境变量，解释将报「无可用 API key」）";
+}
+function keyLoad(){
+  $("#keyStatus").textContent = "加载中…";
+  keyApi("GET").then(r => {
+    if(r.status === 401){ $("#keyStatus").textContent = "令牌未通过（检查 WENDI_ADMIN_TOKEN；服务端没设它时此面板不可用）"; return; }
+    if(r.ok) keyShowStatus(r.data);
+    else $("#keyStatus").textContent = "加载失败：" + (r.data.error || r.status);
+  });
+}
+$("#keyBtn").onclick = () => {
+  $("#keyModal").classList.remove("hidden");
+  $("#keyToken").value = localStorage.getItem("wendi-admin-token") || "";
+  $("#keyMsg").textContent = "";
+  keyLoad();
+};
+$("#keyClose").onclick = () => $("#keyModal").classList.add("hidden");
+$("#keySave").onclick = async () => {
+  const tok = $("#keyToken").value.trim();
+  if(tok) localStorage.setItem("wendi-admin-token", tok);
+  const body = { keys: $("#keyInput").value,
+                 base_url: $("#keyBase").value.trim(),
+                 model: $("#keyModel").value.trim() };
+  if(!body.keys.trim()){ $("#keyMsg").textContent = "请粘贴至少一个 API 密钥"; return; }
+  $("#keyMsg").textContent = "";
+  const r = await keyApi("POST", body);
+  if(r.ok){ $("#keyInput").value = ""; keyShowStatus(r.data); toast("密钥已保存并生效"); }
+  else $("#keyMsg").textContent = friendlyErr(r.data.error) || ("失败 " + r.status);
+};
+$("#keyClear").onclick = async () => {
+  const r = await keyApi("POST", { action: "clear" });
+  if(r.ok){ $("#keyStatus").textContent = "已清除面板配置（环境变量来源仍会生效）"; $("#keyInput").value = ""; }
+  else $("#keyMsg").textContent = friendlyErr(r.data.error) || ("失败 " + r.status);
+};
 $("#authClose").onclick = () => $("#authModal").classList.add("hidden");
 $("#authModal").onclick = e => { if (e.target.id === "authModal") $("#authModal").classList.add("hidden"); };
 $("#authSubmit").onclick = doAuth;

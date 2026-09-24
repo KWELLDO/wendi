@@ -180,22 +180,41 @@ class AuthError(RuntimeError):
     """401/403：该 key 不可用，应换下一个候选。"""
 
 
-def _existing_keys() -> list[tuple[str, str]]:
-    """返回 (名称, 密钥) 候选列表，首个可用者优先。
+def _db_keys() -> list[tuple[str, str]]:
+    """管理端「密钥」面板配置进库的密钥（meter_config.llm_api_keys，逗号/空白分隔）。"""
+    raw = db.meter_get("llm_api_keys") or ""
+    keys = [k.strip() for k in raw.replace("\n", ",").split(",") if k.strip()]
+    return [(f"db:llm_api_keys[{i}]", k) for i, k in enumerate(keys)]
 
-    来源优先级：
-      1. WENDI_API_KEY 环境变量（单个）；
-      2. WENDI_KEYS 环境变量（逗号分隔的多个 key，用于轮换）；
-      3. ~/.secrets 里名为 deepseek_api_key 的一行（可选便利，非必需）。
+
+def _llm_model() -> str:
+    """模型名：面板配置优先，回落环境变量。"""
+    return db.meter_get("llm_model") or MODEL
+
+
+def _llm_base_url() -> str:
+    """OpenAI 兼容端点：面板配置优先，回落环境变量。"""
+    return (db.meter_get("llm_base_url") or BASE_URL).rstrip("/")
+
+
+def _existing_keys() -> list[tuple[str, str]]:
+    """返回 (名称, 密钥) 候选列表，首个可用者优先，401 自动轮换下一个。
+
+    来源优先级（可共存，合并为候选列表）：
+      1. 管理端「密钥」面板配置（meter_config.llm_api_keys）——UI 显式操作，最优先；
+      2. WENDI_API_KEY 环境变量（单个）；
+      3. WENDI_KEYS 环境变量（逗号分隔的多个 key，用于轮换）；
+      4. ~/.secrets 里名为 deepseek_api_key 的一行（可选便利，非必需）。
     """
+    candidates: list[tuple[str, str]] = []
+    candidates += _db_keys()
     env = os.environ.get("WENDI_API_KEY")
     if env:
-        return [("env:WENDI_API_KEY", env)]
+        candidates.append(("env:WENDI_API_KEY", env))
     multi = os.environ.get("WENDI_KEYS")
     if multi:
-        keys = [k.strip() for k in multi.split(",") if k.strip()]
-        if keys:
-            return [(f"env:WENDI_KEYS[{i}]", k) for i, k in enumerate(keys)]
+        candidates += [(f"env:WENDI_KEYS[{i}]", k) for i, k in
+                       enumerate(k.strip() for k in multi.split(",") if k.strip())]
     secrets_file = Path.home() / ".secrets"
     if secrets_file.exists():
         for line in secrets_file.read_text(encoding="utf-8").splitlines():
@@ -203,15 +222,18 @@ def _existing_keys() -> list[tuple[str, str]]:
             if line.startswith("deepseek_api_key="):
                 value = line.partition("=")[2].strip().strip('"').strip("'")
                 if value:
-                    return [("~/.secrets:deepseek_api_key", value)]
-    raise RuntimeError("无可用 API key（请设 WENDI_API_KEY 或 WENDI_KEYS）")
+                    candidates.append(("~/.secrets:deepseek_api_key", value))
+    if not candidates:
+        raise RuntimeError("无可用 API key：点右上角「密钥」面板配置，或设 WENDI_API_KEY 环境变量")
+    seen: set[str] = set()
+    return [(name, k) for name, k in candidates if not (k in seen or seen.add(k))]
 
 
 def _llm_request(key: str, messages: list[dict], max_tokens: int, stream: bool) -> urllib.request.Request:
-    payload = {"model": MODEL, "messages": messages, "temperature": 0.4,
+    payload = {"model": _llm_model(), "messages": messages, "temperature": 0.4,
                "max_tokens": max_tokens, "stream": stream}
     return urllib.request.Request(
-        f"{BASE_URL.rstrip('/')}/chat/completions",
+        f"{_llm_base_url()}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         method="POST")
@@ -387,7 +409,7 @@ class Handler(SimpleHTTPRequestHandler):
         qs = parse_qs(urlparse(self.path).query)
         try:
             if path == "/api/health":
-                self._json(200, {"ok": True, "model": MODEL, "used_today": _global["day"]})
+                self._json(200, {"ok": True, "model": _llm_model(), "used_today": _global["day"]})
                 return
             if path == "/api/meter":
                 if not self._admin_ok(qs):
@@ -407,6 +429,9 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 batch = qs.get("batch", [None])[0] or None
                 self._json(200, {"codes": db.list_codes(batch), "summary": db.code_stats(batch)})
+                return
+            if path == "/api/admin/llmkey":
+                self._admin_llmkey_get()
                 return
             if path == "/api/me":
                 user = self._user()
@@ -477,6 +502,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._admin_create_user(body)
             elif path == "/api/admin/users/password":
                 self._admin_reset_password(body)
+            elif path == "/api/admin/llmkey":
+                self._admin_llmkey_set(body)
             else:
                 self._json(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
@@ -600,6 +627,67 @@ class Handler(SimpleHTTPRequestHandler):
         row = db.get_user(user["id"])
         self._json(200, {"id": row["id"], "email": row["email"],
                          "plan": db.effective_plan(row), "plan_until": row["plan_until"]})
+
+    # —— LLM 密钥/端点/模型（「密钥」面板；热生效，无需重启） ——
+    @staticmethod
+    def _mask_key(k: str) -> str:
+        return k if len(k) <= 12 else k[:6] + "***" + k[-4:]
+
+    def _admin_llmkey_get(self):
+        if not self._admin_ok():
+            return
+        keys = _db_keys()
+        self._json(200, {"count": len(keys),
+                         "keys": [self._mask_key(k) for _, k in keys],
+                         "base_url": db.meter_get("llm_base_url") or "",
+                         "model": db.meter_get("llm_model") or "",
+                         "active": _ACTIVE_KEY[0] if _ACTIVE_KEY else None})
+
+    def _admin_llmkey_set(self, body: dict):
+        global _ACTIVE_KEY
+        if not self._admin_ok():
+            return
+        if str(body.get("action", "set")) == "clear":
+            db.meter_set("llm_api_keys", "")
+            db.meter_set("llm_base_url", "")
+            db.meter_set("llm_model", "")
+            _ACTIVE_KEY = None  # 立即停止使用已缓存的 key
+            kernel.emit("admin.llmkey_cleared")
+            self._json(200, {"ok": True, "count": 0, "keys": []})
+            return
+        raw = body.get("keys", "")
+        if isinstance(raw, list):
+            raw = "\n".join(str(k) for k in raw)
+        keys: list[str] = []
+        for k in re.split(r"[,\s;]+", str(raw)):
+            if k and k not in keys:
+                keys.append(k)
+        if not keys:
+            self._json(400, {"error": "keys 为空"})
+            return
+        if len(keys) > 20:
+            self._json(400, {"error": "最多 20 个密钥"})
+            return
+        short = next((k for k in keys if len(k) < 16), None)
+        if short:
+            self._json(400, {"error": f"有密钥只有 {len(short)} 字符，疑似复制不完整（正常 ≥ 20）"})
+            return
+        base_url = str(body.get("base_url", "")).strip()
+        if base_url and not base_url.startswith(("http://", "https://")):
+            self._json(400, {"error": "接口地址必须以 http(s):// 开头"})
+            return
+        if base_url:
+            base_url = base_url.rstrip("/")  # 统一形态：库存的、回显的、请求用的必须是同一个
+        model = str(body.get("model", "")).strip()
+        db.meter_set("llm_api_keys", ",".join(keys))
+        db.meter_set("llm_base_url", base_url)
+        db.meter_set("llm_model", model)
+        _ACTIVE_KEY = None
+        kernel.emit("admin.llmkey_set", n=len(keys), has_base_url=bool(base_url),
+                    model=model or None)
+        self._json(200, {"ok": True, "count": len(keys),
+                         "keys": [self._mask_key(k) for k in keys],
+                         "base_url": base_url, "model": model})
 
     def _admin_reset_password(self, body: dict):
         """重置密码 + 踢掉该用户全部会话。忘记密码不再等于账号作废。"""
