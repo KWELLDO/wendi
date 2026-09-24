@@ -106,5 +106,65 @@ class TestDbMeter(unittest.TestCase):
         db.meter_set("flash_out_offpeak", "0.60")
 
 
+class TestMeterConfigEndpoint(unittest.TestCase):
+    """GET /api/meter/config：闸门参数 + 当日状态（报表页数据源）。直接调 do_GET。
+
+    注意：pytest 单进程共享 server 模块与临时库，meter_requests 有别的用例累积的
+    旧账——所以内存闸态显式设值（生产语义：内存=活闸门），today_cents 只断言
+    与台账 SUM 透传一致，不钉死具体数值。
+    """
+
+    class FakeHandler(server.Handler):
+        def __init__(self, token="test-token"):
+            self.status = None
+            self.payload = None
+            self.headers = {"Authorization": f"Bearer {token}"} if token else {}
+            self.path = "/api/meter/config"
+
+        def _json(self, code, obj):
+            self.status, self.payload = code, obj
+
+    @classmethod
+    def setUpClass(cls):
+        db.init()
+        cls._old_token = server.ADMIN_TOKEN
+        server.ADMIN_TOKEN = "test-token"
+
+    @classmethod
+    def tearDownClass(cls):
+        server.ADMIN_TOKEN = cls._old_token
+
+    def tearDown(self):
+        server._cost_global.update(daykey="2000-01-01", cost_cents=0)
+
+    def _get(self):
+        h = self.FakeHandler()
+        h.do_GET()
+        return h
+
+    def test_no_token_rejected(self):
+        h = self.FakeHandler(token="")
+        h.do_GET()
+        self.assertEqual(h.status, 401)
+
+    def test_reports_caps_state_and_today_cost(self):
+        server._cost_global.update(daykey=server._today(), cost_cents=100)
+        h = self._get()
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["cap_cents"], 3000)
+        self.assertEqual(h.payload["hard_cents"], 6000)
+        self.assertEqual(h.payload["state"], "normal")
+        self.assertEqual(h.payload["today_cents"],
+                         db.meter_totals(server._today())["cost_cents"])
+        self.assertEqual(h.payload["degrade"]["min_interval"], 15)
+        self.assertRegex(h.payload["day"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_state_degraded_and_hard(self):
+        server._cost_global.update(daykey=server._today(), cost_cents=3500)
+        self.assertEqual(self._get().payload["state"], "degraded")
+        server._cost_global.update(daykey=server._today(), cost_cents=6001)
+        self.assertEqual(self._get().payload["state"], "hard")
+
+
 if __name__ == "__main__":
     unittest.main()

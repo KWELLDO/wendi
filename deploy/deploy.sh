@@ -11,8 +11,10 @@ rsync -az server.py prompts.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
 rsync -az deploy/gencode.py "$HOST:/opt/wendi/"
 
 echo "== 2) 前端 -> /var/www/kwelldo/know/ =="
-scp -q web/index.html "$HOST:/tmp/wendi-index.html"
-ssh $HOST 'sudo cp /tmp/wendi-index.html /var/www/kwelldo/know/index.html && rm -f /tmp/wendi-index.html'
+for f in index.html graph2d.html meter.html; do
+  scp -q "web/$f" "$HOST:/tmp/wendi-$f"
+  ssh $HOST "sudo cp /tmp/wendi-$f /var/www/kwelldo/know/$f && rm -f /tmp/wendi-$f"
+done
 
 echo "== 3) 密钥（仅首次创建） =="
 if ssh $HOST 'test -f /etc/wendi.env'; then

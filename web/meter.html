@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>问底 · 计量台</title>
+<style>
+:root{
+  --bg:#faf7f5; --surface:#fff; --surface2:#f3eeea; --border:rgba(41,32,28,.10);
+  --text:#2d2420; --dim:#7a6c63; --faint:#a99a90;
+  --terra:#c2410c; --terra-dim:rgba(194,65,12,.09);
+  --sage:#5f7f3a; --sage-dim:rgba(95,127,58,.10);
+  --gold:#a07617; --gold-dim:rgba(160,118,23,.10);
+  --blood:#8c2f39; --blood-dim:rgba(140,47,57,.08);
+  --ink-line:rgba(41,32,28,.22);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#191412; --surface:#211b18; --surface2:#2a221e; --border:rgba(240,225,215,.09);
+    --text:#ece2da; --dim:#a99788; --faint:#6f5f55;
+    --terra:#e0703a; --terra-dim:rgba(224,112,58,.13);
+    --sage:#93b06a; --sage-dim:rgba(147,176,106,.13);
+    --gold:#cfa04a; --gold-dim:rgba(207,160,74,.13);
+    --blood:#d06a75; --blood-dim:rgba(208,106,117,.12);
+    --ink-line:rgba(240,225,215,.22); }
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:15px/1.7 "Noto Serif SC","Songti SC",Georgia,serif;
+  background-image:radial-gradient(rgba(41,32,28,.035) 1px,transparent 1px);background-size:26px 26px}
+@media (prefers-color-scheme: dark){body{background-image:radial-gradient(rgba(240,225,215,.04) 1px,transparent 1px)}}
+code,.mono{font-family:"JetBrains Mono","SF Mono",Consolas,monospace;font-size:.86em}
+.wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
+.kicker{font-family:"JetBrains Mono",monospace;font-size:.7rem;letter-spacing:.22em;color:var(--terra);
+  text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.kicker::before{content:"";width:24px;height:1px;background:var(--terra)}
+h1{font-weight:900;font-size:1.9rem;margin:.3em 0 .1em}
+.sub{color:var(--dim);font-size:.88rem;margin-bottom:26px}
+section{margin-top:38px}
+h2{font-weight:900;font-size:1.2rem;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+h2::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--terra)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+
+/* token gate */
+#gate{max-width:420px;margin:60px auto;text-align:center}
+#gate .card{padding:28px}
+#gate input{width:100%;margin:14px 0 10px}
+input,button,select{font:inherit;color:inherit}
+input{background:var(--surface2);border:1px solid var(--ink-line);border-radius:8px;padding:8px 12px;outline:none}
+input:focus{border-color:var(--terra)}
+button{background:var(--terra-dim);border:1px solid var(--terra);color:var(--terra);border-radius:8px;
+  padding:8px 18px;cursor:pointer;font-weight:600}
+button:hover{background:var(--terra);color:var(--bg)}
+button.ghost{background:none;border-color:var(--ink-line);color:var(--dim)}
+.hint{color:var(--faint);font-size:.78rem}
+
+/* KPI row */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
+.kpi .n{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:1.5rem;line-height:1.15}
+.kpi .l{color:var(--dim);font-size:.75rem;margin-top:3px}
+.kpi .n small{font-size:.85rem;color:var(--dim);font-weight:400}
+
+/* gate bar */
+.gbar{height:10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);overflow:hidden;margin:10px 0 6px}
+.gbar i{display:block;height:100%;background:var(--sage);transition:width .4s}
+.gbar.warn i{background:var(--gold)} .gbar.hot i{background:var(--blood)}
+.gcap{display:flex;justify-content:space-between;color:var(--faint);font-size:.72rem}
+.stpill{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:600;
+  padding:2px 12px;border-radius:999px;border:1px solid}
+.st-normal{color:var(--sage);border-color:var(--sage);background:var(--sage-dim)}
+.st-degraded{color:var(--gold);border-color:var(--gold);background:var(--gold-dim)}
+.st-hard{color:var(--blood);border-color:var(--blood);background:var(--blood-dim)}
+
+/* chips + tables */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{font-family:"JetBrains Mono",monospace;font-size:.72rem;padding:2px 11px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface2);color:var(--dim)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th{text-align:left;font-size:.74rem;letter-spacing:.04em;color:var(--dim);padding:8px 12px;
+  border-bottom:1px solid var(--ink-line);white-space:nowrap}
+td{padding:7px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--terra-dim)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.dim{color:var(--dim)} .faint{color:var(--faint)}
+
+/* trend bars */
+.trend{display:flex;align-items:flex-end;gap:6px;height:130px;margin:16px 0 6px}
+.trend .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
+.trend .bar{width:100%;max-width:34px;border-radius:4px 4px 0 0;background:var(--terra);min-height:2px;
+  transition:height .4s;position:relative}
+.trend .bar.req{background:var(--gold)}
+.trend .col:hover .bar{opacity:.75}
+.trend .d{font-family:"JetBrains Mono",monospace;font-size:.58rem;color:var(--faint);white-space:nowrap}
+.trend .v{font-family:"JetBrains Mono",monospace;font-size:.6rem;color:var(--dim)}
+.legend{display:flex;gap:16px;color:var(--faint);font-size:.72rem;margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.row2{grid-template-columns:1fr}}
+.qrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.qrow input{width:130px}
+.err{color:var(--blood);font-size:.82rem;margin-top:8px}
+footer{margin-top:70px;color:var(--faint);font-size:.74rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="card">
+    <div class="kicker" style="justify-content:center">WenDi Meter</div>
+    <h1 style="font-size:1.5rem">计量台</h1>
+    <p class="hint" style="margin-top:6px">需要管理 token（WENDI_ADMIN_TOKEN）</p>
+    <input id="tok" type="password" placeholder="admin token" autocomplete="off">
+    <button id="go">进入</button>
+    <p class="err" id="gerr" style="text-align:center"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="kicker">WenDi Meter · <span id="day"></span></div>
+  <h1>计量台</h1>
+  <p class="sub">成本闸状态与计量总账 · 数据源 <code>/api/meter*</code> · <button class="ghost" id="out" style="padding:2px 10px;font-size:.72rem">换 token</button></p>
+
+  <section>
+    <h2>成本闸</h2>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span class="stpill st-normal" id="stpill">normal</span>
+        <span class="mono" style="font-size:1.15rem;font-weight:600" id="todayCost">¥0.00</span>
+        <span class="dim" style="font-size:.82rem" id="gateNote"></span>
+      </div>
+      <div class="gbar" id="gbar"><i style="width:0%"></i></div>
+      <div class="gcap"><span id="capL">cap ¥30.00 → 降级</span><span id="hardL">hard ¥60.00 → 硬停</span></div>
+      <div class="chips" id="degChips"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>当日总账</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="n" id="kReq">–</div><div class="l">请求次数</div></div>
+      <div class="kpi"><div class="n" id="kCost">–</div><div class="l">当日成本</div></div>
+      <div class="kpi"><div class="n" id="kTok">–</div><div class="l">总 tokens</div></div>
+      <div class="kpi"><div class="n" id="kHit">–</div><div class="l">缓存命中</div></div>
+      <div class="kpi"><div class="n" id="kComp">–</div><div class="l">输出 tokens</div></div>
+    </div>
+    <div class="chips" id="planChips"></div>
+    <div class="chips" id="modeChips"></div>
+  </section>
+
+  <section>
+    <h2>近 14 天</h2>
+    <div class="card">
+      <div class="trend" id="trend"></div>
+      <div class="legend">
+        <span><i style="background:var(--terra)"></i>成本(¥,按日)</span>
+        <span><i style="background:var(--gold)"></i>请求次数</span>
+        <span class="faint" style="margin-left:auto" id="trendSum"></span>
+      </div>
+      <div class="tw" style="margin-top:12px"><table id="dtab">
+        <thead><tr><th>日期</th><th class="num">请求</th><th class="num">命中 tok</th><th class="num">未命中 tok</th><th class="num">输出 tok</th><th class="num">成本</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>用户查询</h2>
+    <div class="card">
+      <div class="qrow">
+        <input id="uid" placeholder="user_id" inputmode="numeric">
+        <select id="days" class="mono" style="background:var(--surface2);border:1px solid var(--ink-line);border-radius:8px;padding:8px">
+          <option>7</option><option>14</option><option>30</option><option>90</option>
+        </select>
+        <button id="q">查账</button>
+        <span class="hint">user_id 见 /api/meter/user；匿名调用无此维度</span>
+      </div>
+      <div class="tw"><table id="utab">
+        <thead><tr><th>日期</th><th class="num">请求</th><th class="num">成本</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p class="err" id="uerr"></p>
+    </div>
+  </section>
+
+  <footer>
+    <span>问底 · 计量台(admin)</span>
+    <span class="mono" id="fstate"></span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var TOK = localStorage.getItem("wendi_meter_token") || "";
+var API = location.origin.includes("file") ? "https://know.kwelldo.cn" : "";
+
+function yen(cents){ return "¥" + (cents/100).toFixed(2); }
+function fmt(n){ return (n||0).toLocaleString(); }
+function stepDay(day, delta){
+  var p = day.split("-"), d = new Date(+p[0], +p[1]-1, +p[2], 12);
+  d.setDate(d.getDate()+delta);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function api(path){
+  return fetch(API + path, { headers: { "Authorization": "Bearer " + TOK } })
+    .then(function(r){
+      if (r.status === 401) throw new Error("unauthorized");
+      return r.json();
+    });
+}
+function shortDay(d){ return d.slice(5); }
+
+function renderGate(cfg){
+  $("#day").textContent = cfg.day;
+  var pct = Math.min(100, cfg.today_cents / cfg.hard_cents * 100);
+  var bar = $("#gbar");
+  bar.className = "gbar" + (cfg.state === "hard" ? " hot" : cfg.state === "degraded" ? " warn" : "");
+  bar.firstElementChild.style.width = Math.max(1.5, pct) + "%";
+  var pill = $("#stpill");
+  pill.textContent = cfg.state;
+  pill.className = "stpill st-" + cfg.state;
+  $("#todayCost").textContent = yen(cfg.today_cents);
+  $("#capL").textContent = "cap " + yen(cfg.cap_cents) + " → 降级";
+  $("#hardL").textContent = "hard " + yen(cfg.hard_cents) + " → 硬停";
+  $("#gateNote").textContent = "距 cap " + yen(Math.max(0, cfg.cap_cents - cfg.today_cents)) +
+    " · 距 hard " + yen(Math.max(0, cfg.hard_cents - cfg.today_cents));
+  $("#degChips").innerHTML =
+    '<span class="chip">降级 explain ≤ ' + cfg.degrade.explain_tokens + " tok</span>" +
+    '<span class="chip">降级 chat ≤ ' + cfg.degrade.chat_tokens + " tok</span>" +
+    '<span class="chip">降级限速 ' + cfg.degrade.min_interval + "s/人</span>";
+  $("#fstate").textContent = cfg.state + " · " + yen(cfg.today_cents) + " / " + yen(cfg.hard_cents);
+}
+
+function renderTotals(t){
+  $("#kReq").textContent = fmt(t.requests);
+  $("#kCost").textContent = yen(t.cost_cents);
+  $("#kTok").innerHTML = fmt(t.hit_tokens + t.miss_tokens + t.completion_tokens) + " <small>tok</small>";
+  $("#kHit").innerHTML = fmt(t.hit_tokens) + " <small>tok</small>";
+  $("#kComp").innerHTML = fmt(t.completion_tokens) + " <small>tok</small>";
+  var chips = function(obj, label){
+    return Object.keys(obj || {}).sort().map(function(k){
+      return '<span class="chip">' + label + " " + k + " × " + obj[k] + "</span>";
+    }).join("");
+  };
+  $("#planChips").innerHTML = chips(t.by_plan, "plan");
+  $("#modeChips").innerHTML = chips(t.by_mode, "mode");
+}
+
+function renderTrend(days){
+  var maxC = 1, maxR = 1, sumC = 0, sumR = 0;
+  days.forEach(function(d){ maxC = Math.max(maxC, d.cost_cents); maxR = Math.max(maxR, d.requests);
+    sumC += d.cost_cents; sumR += d.requests; });
+  $("#trend").innerHTML = days.map(function(d){
+    var hC = Math.round(d.cost_cents / maxC * 100), hR = Math.round(d.requests / maxR * 100);
+    return '<div class="col" title="' + d.day + " · " + yen(d.cost_cents) + " · " + d.requests + ' 次">' +
+      '<span class="v">' + (d.cost_cents ? (d.cost_cents/100).toFixed(1) : "") + '</span>' +
+      '<div class="bar" style="height:' + Math.max(1.5, hC) + '%"></div>' +
+      '<div class="bar req" style="height:' + Math.max(1.5, hR) + '%"></div>' +
+      '<span class="d">' + shortDay(d.day) + "</span></div>";
+  }).join("");
+  $("#trendSum").textContent = "14 天合计 " + yen(sumC) + " · " + fmt(sumR) + " 次";
+  $("#dtab tbody").innerHTML = days.slice().reverse().map(function(d){
+    return "<tr><td class='mono'>" + d.day + "</td><td class='num'>" + fmt(d.requests) +
+      "</td><td class='num'>" + fmt(d.hit_tokens) + "</td><td class='num'>" + fmt(d.miss_tokens) +
+      "</td><td class='num'>" + fmt(d.completion_tokens) + "</td><td class='num'>" + yen(d.cost_cents) + "</td></tr>";
+  }).join("");
+}
+
+function loadAll(){
+  api("/api/meter/config").then(function(cfg){
+    renderGate(cfg);
+    return api("/api/meter?day=" + cfg.day).then(function(t){
+      renderTotals(t);
+      var list = [];
+      for (var i = 13; i >= 0; i--) list.push(stepDay(cfg.day, -i));
+      return Promise.all(list.map(function(d){
+        return api("/api/meter?day=" + d).then(function(t2){
+          t2.day = d; return t2;
+        });
+      })).then(renderTrend);
+    });
+  }).catch(handleErr);
+}
+
+function handleErr(e){
+  if (e && e.message === "unauthorized"){
+    localStorage.removeItem("wendi_meter_token");
+    $("#app").style.display = "none";
+    $("#gate").style.display = "block";
+    $("#gerr").textContent = "token 无效或已变更";
+    return;
+  }
+  $("#gerr").textContent = "加载失败：" + e;
+}
+
+function enter(){
+  $("#gate").style.display = "none";
+  $("#app").style.display = "block";
+  loadAll();
+}
+
+$("#go").addEventListener("click", function(){
+  TOK = $("#tok").value.trim();
+  if (!TOK) return;
+  localStorage.setItem("wendi_meter_token", TOK);
+  enter();
+});
+$("#tok").addEventListener("keydown", function(e){ if (e.key === "Enter") $("#go").click(); });
+$("#out").addEventListener("click", function(){
+  localStorage.removeItem("wendi_meter_token"); location.reload();
+});
+$("#q").addEventListener("click", function(){
+  var uid = $("#uid").value.trim();
+  if (!/^\d+$/.test(uid)){ $("#uerr").textContent = "user_id 必须是数字"; return; }
+  $("#uerr").textContent = "";
+  api("/api/meter/user?user_id=" + uid + "&days=" + $("#days").value).then(function(r){
+    $("#utab tbody").innerHTML = (r.days || []).map(function(d){
+      return "<tr><td class='mono'>" + d.day + "</td><td class='num'>" + fmt(d.requests) +
+        "</td><td class='num'>" + yen(d.cost_cents) + "</td></tr>";
+    }).join("") || "<tr><td colspan='3' class='faint'>该用户无记录</td></tr>";
+  }).catch(function(e){ $("#uerr").textContent = "查询失败：" + e.message; });
+});
+
+if (TOK) enter();
+</script>
+</body>
+</html>

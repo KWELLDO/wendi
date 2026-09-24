@@ -482,6 +482,20 @@ class Handler(SimpleHTTPRequestHandler):
                 days = int(qs.get("days", ["7"])[0])
                 self._json(200, {"user_id": uid, "days": db.meter_user_ndays(uid, days)})
                 return
+            if path == "/api/meter/config":
+                if not self._admin_ok(qs):
+                    return
+                cap, hard = _cost_caps()
+                self._json(200, {
+                    "day": _today(),
+                    "state": _cost_state(),
+                    "cap_cents": cap, "hard_cents": hard,
+                    "today_cents": db.meter_totals(_today())["cost_cents"],
+                    "degrade": {"explain_tokens": _degrade_max_tokens("explain"),
+                                "chat_tokens": _degrade_max_tokens("chat"),
+                                "min_interval": int(float(db.meter_get("degrade_min_interval") or 15))},
+                })
+                return
             if path == "/api/admin/codes":
                 if not self._admin_ok(qs):
                     return
