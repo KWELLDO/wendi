@@ -51,7 +51,9 @@ def init() -> None:
             days INTEGER NOT NULL,
             note TEXT DEFAULT '',
             used_by INTEGER,
-            used_at TEXT
+            used_at TEXT,
+            batch TEXT NOT NULL DEFAULT '',
+            voided INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS syncs (
             user_id INTEGER PRIMARY KEY,
@@ -85,6 +87,12 @@ def init() -> None:
             c.execute("ALTER TABLE users ADD COLUMN day_key TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass
+        for ddl in ("ALTER TABLE codes ADD COLUMN batch TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE codes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"):
+            try:
+                c.execute(ddl)
+            except sqlite3.OperationalError:
+                pass
         # —— 经济测算默认单价（美元/百万 token，来自 docs/plans/2026-09-23-usage-pricing-probe.md） ——
         defaults = {
             "flash_in_hit_offpeak": "0.003",
@@ -133,6 +141,13 @@ def get_user(uid: int) -> sqlite3.Row | None:
 def set_plan(uid: int, plan: str, until: str) -> None:
     with _conn() as c:
         c.execute("UPDATE users SET plan=?, plan_until=? WHERE id=?", (plan, until, uid))
+
+
+def reset_password(uid: int, salt: str, pw_hash: str) -> None:
+    """改密码并踢掉该用户全部会话（重置后旧 token 立即失效）。"""
+    with _conn() as c:
+        c.execute("UPDATE users SET pw_salt=?, pw_hash=? WHERE id=?", (salt, pw_hash, uid))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
 
 
 # ================= 会话 =================
@@ -198,16 +213,74 @@ def refund_quota(uid: int) -> None:
 
 
 # ================= 兑换码 =================
-def gen_codes(n: int, days: int, note: str = "") -> list[str]:
+_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 去掉易混字符
+
+
+def gen_codes(n: int, days: int, note: str = "", batch: str | None = None) -> tuple[str, list[str]]:
+    """生成 n 个兑换码，返回 (batch, codes)。batch 缺省自动生成 YYYYMMDD-XXXX。
+
+    撞库（INSERT OR IGNORE 未插入）时重试，绝不把已存在的码返回给调用方。
+    """
     import secrets as _s
-    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 去掉易混字符
+    if not batch:
+        batch = time.strftime("%Y%m%d") + "-" + "".join(_s.choice(_CODE_ALPHABET) for _ in range(4))
+    out: list[str] = []
+    with _conn() as c:
+        while len(out) < n:
+            code = "WD-" + "-".join("".join(_s.choice(_CODE_ALPHABET) for _ in range(4)) for _ in range(3))
+            cur = c.execute("INSERT OR IGNORE INTO codes (code, days, note, batch) VALUES (?,?,?,?)",
+                            (code, days, note, batch))
+            if cur.rowcount:  # 0 = 撞库，重试
+                out.append(code)
+    return batch, out
+
+
+def list_codes(batch: str | None = None) -> list[dict]:
+    """列兑换码（可按批次过滤），带兑换人邮箱与 status：unused / used / voided。"""
+    q = ("SELECT c.code, c.days, c.note, c.batch, c.used_by, c.used_at, c.voided, "
+         "u.email AS used_by_email FROM codes c LEFT JOIN users u ON u.id = c.used_by")
+    args: tuple = ()
+    if batch:
+        q += " WHERE c.batch=?"
+        args = (batch,)
+    q += " ORDER BY c.batch DESC, c.code"
     out = []
     with _conn() as c:
-        for _ in range(n):
-            code = "WD-" + "-".join("".join(_s.choice(alphabet) for _ in range(4)) for _ in range(3))
-            c.execute("INSERT OR IGNORE INTO codes (code, days, note) VALUES (?,?,?)", (code, days, note))
-            out.append(code)
+        for r in c.execute(q, args):
+            d = dict(r)
+            d["status"] = "voided" if d["voided"] else ("used" if d["used_by"] else "unused")
+            out.append(d)
     return out
+
+
+def void_codes(codes: list[str] | None = None, batch: str | None = None) -> int:
+    """作废未使用的码（按码列表和/或整批）。返回实际作废数量；已用/已废的跳过。"""
+    with _conn() as c:
+        n = 0
+        if batch:
+            n += c.execute("UPDATE codes SET voided=1 WHERE batch=? AND used_by IS NULL AND voided=0",
+                           (batch,)).rowcount
+        for code in codes or []:
+            n += c.execute("UPDATE codes SET voided=1 WHERE code=? AND used_by IS NULL AND voided=0",
+                           (code.strip().upper(),)).rowcount
+        return n
+
+
+def code_stats(batch: str | None = None) -> dict:
+    """批次转化账：总数/已兑/已废/未用/兑过码的用户数。used 与 voided 天然不相交。"""
+    q = ("SELECT COUNT(*) AS n, "
+         "COALESCE(SUM(used_by IS NOT NULL),0) AS used, "
+         "COALESCE(SUM(voided),0) AS voided, "
+         "COUNT(DISTINCT used_by) AS redeemers FROM codes")
+    args: tuple = ()
+    if batch:
+        q += " WHERE batch=?"
+        args = (batch,)
+    with _conn() as c:
+        row = c.execute(q, args).fetchone()
+    n, used, voided = row["n"], row["used"], row["voided"]
+    return {"n": n, "used": used, "voided": voided, "unused": n - used - voided,
+            "redeemers": row["redeemers"]}
 
 
 def redeem(code: str, uid: int) -> tuple[bool, str, str]:
@@ -217,6 +290,8 @@ def redeem(code: str, uid: int) -> tuple[bool, str, str]:
         row = c.execute("SELECT * FROM codes WHERE code=?", (code,)).fetchone()
         if not row:
             return False, "兑换码不存在", ""
+        if row["voided"]:
+            return False, "兑换码已作废", ""
         if row["used_by"]:
             return False, "兑换码已被使用", ""
         user = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()

@@ -11,5 +11,7 @@ db.init()
 n = int(sys.argv[1]) if len(sys.argv) > 1 else 10
 days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
 note = sys.argv[3] if len(sys.argv) > 3 else ""
-for c in db.gen_codes(n, days, note):
+batch, codes = db.gen_codes(n, days, note)
+print(f"批次: {batch}")
+for c in codes:
     print(c)

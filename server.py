@@ -402,6 +402,12 @@ class Handler(SimpleHTTPRequestHandler):
                 days = int(qs.get("days", ["7"])[0])
                 self._json(200, {"user_id": uid, "days": db.meter_user_ndays(uid, days)})
                 return
+            if path == "/api/admin/codes":
+                if not self._admin_ok(qs):
+                    return
+                batch = qs.get("batch", [None])[0] or None
+                self._json(200, {"codes": db.list_codes(batch), "summary": db.code_stats(batch)})
+                return
             if path == "/api/me":
                 user = self._user()
                 if not user:
@@ -424,9 +430,19 @@ class Handler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
-    def _admin_ok(self, qs: dict) -> bool:
-        """校验 ?token= 是否匹配 WENDI_ADMIN_TOKEN。不匹配 → 401 并返回 False。"""
+    def _qs(self) -> dict:
+        from urllib.parse import urlparse, parse_qs
+        return parse_qs(urlparse(self.path).query)
+
+    def _admin_ok(self, qs: dict | None = None) -> bool:
+        """校验 ?token= 或 Authorization: Bearer 是否匹配 WENDI_ADMIN_TOKEN。不匹配 → 401 并返回 False。"""
+        if qs is None:
+            qs = self._qs()
         token = qs.get("token", [""])[0]
+        if not token:
+            auth = self.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                token = auth[7:].strip()
         if not ADMIN_TOKEN or token != ADMIN_TOKEN:
             self._json(401, {"error": "unauthorized"})
             return False
@@ -453,6 +469,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self._sync_put(body)
             elif path == "/api/explain":
                 self._explain(body)
+            elif path == "/api/admin/codes":
+                self._admin_gen_codes(body)
+            elif path == "/api/admin/codes/void":
+                self._admin_void_codes(body)
+            elif path == "/api/admin/users":
+                self._admin_create_user(body)
+            elif path == "/api/admin/users/password":
+                self._admin_reset_password(body)
             else:
                 self._json(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
@@ -511,6 +535,89 @@ class Handler(SimpleHTTPRequestHandler):
         row = db.get_user(user["id"])
         self._json(200, {"ok": True, "message": msg, "plan": "pro", "plan_until": until,
                          "quota": db.quota_state(row)})
+
+    # ---------- 管理端（WENDI_ADMIN_TOKEN；空则一律拒绝） ----------
+    def _admin_gen_codes(self, body: dict):
+        if not self._admin_ok():
+            return
+        try:
+            n, days = int(body.get("n", 10)), int(body.get("days", 30))
+        except (TypeError, ValueError):
+            self._json(400, {"error": "n/days 必须是整数"})
+            return
+        if not 1 <= n <= 500 or not 1 <= days <= 3650:
+            self._json(400, {"error": "n 范围 1-500，days 范围 1-3650"})
+            return
+        note = str(body.get("note", ""))[:200]
+        batch = str(body.get("batch", "")).strip() or None
+        batch, codes = db.gen_codes(n, days, note, batch)
+        kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days, note=note)
+        self._json(200, {"batch": batch, "codes": codes})
+
+    def _admin_void_codes(self, body: dict):
+        if not self._admin_ok():
+            return
+        codes = [str(c) for c in body.get("codes", []) if str(c).strip()] or None
+        batch = str(body.get("batch", "")).strip() or None
+        if not codes and not batch:
+            self._json(400, {"error": "需要 codes 列表或 batch"})
+            return
+        voided = db.void_codes(codes, batch)
+        self._json(200, {"voided": voided})
+
+    def _admin_create_user(self, body: dict):
+        """受控建号：绕过公开注册的 EMAIL_RE，任意非空标识即可；可直接授予 pro。"""
+        if not self._admin_ok():
+            return
+        email = str(body.get("email", "")).strip()
+        pw = str(body.get("password", ""))
+        if not email or len(email) > 254:
+            self._json(400, {"error": "email 必填且不超过 254 字符"})
+            return
+        if len(pw) < 6:
+            self._json(400, {"error": "密码至少 6 位"})
+            return
+        salt, h = hash_password(pw)
+        user = db.create_user(email, salt, h)
+        if not user:
+            self._json(409, {"error": "这个邮箱已经注册过了"})
+            return
+        plan = str(body.get("plan", "free"))
+        until = None
+        if plan == "pro":
+            try:
+                days = int(body.get("days", 30))
+            except (TypeError, ValueError):
+                self._json(400, {"error": "days 必须是整数"})
+                return
+            if not 1 <= days <= 3650:
+                self._json(400, {"error": "days 范围 1-3650"})
+                return
+            t = time.mktime(time.strptime(db.today(), "%Y-%m-%d")) + days * 86400
+            until = time.strftime("%Y-%m-%d", time.localtime(t))
+            db.set_plan(user["id"], "pro", until)
+        kernel.emit("admin.user_created", user_id=user["id"], email=email, plan=plan)
+        row = db.get_user(user["id"])
+        self._json(200, {"id": row["id"], "email": row["email"],
+                         "plan": db.effective_plan(row), "plan_until": row["plan_until"]})
+
+    def _admin_reset_password(self, body: dict):
+        """重置密码 + 踢掉该用户全部会话。忘记密码不再等于账号作废。"""
+        if not self._admin_ok():
+            return
+        email = str(body.get("email", "")).strip()
+        pw = str(body.get("password", ""))
+        row = db.get_user_by_email(email)
+        if not row:
+            self._json(404, {"error": "用户不存在"})
+            return
+        if len(pw) < 6:
+            self._json(400, {"error": "密码至少 6 位"})
+            return
+        salt, h = hash_password(pw)
+        db.reset_password(row["id"], salt, h)
+        kernel.emit("admin.password_reset", user_id=row["id"], email=email)
+        self._json(200, {"ok": True, "email": row["email"], "sessions_revoked": True})
 
     # ---------- 云同步 ----------
     def _sync_put(self, body: dict):
