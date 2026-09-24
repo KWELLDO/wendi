@@ -93,6 +93,16 @@
   .qa{border-left:2px solid var(--gold-dim);margin:8px 0 0;padding:2px 0 2px 10px;font-size:13.3px}
   .qa .q{color:var(--gold)} .qa .a{white-space:pre-wrap;color:#d5d2ca}
   .qa .a:empty::before{content:"…";color:var(--dim)}
+  /* —— markdown 渲染（解释卡/对话/追问共用） —— */
+  .expbody p,.msg .txt p,.qa .a p{margin:.45em 0}
+  .expbody h4,.msg .txt h4,.qa .a h4{margin:.7em 0 .25em;font-size:1.02em;color:var(--gold)}
+  .expbody ul,.expbody ol,.msg .txt ul,.msg .txt ol,.qa .a ul,.qa .a ol{margin:.4em 0;padding-left:1.4em}
+  .expbody li,.msg .txt li,.qa .a li{margin:.15em 0}
+  .expbody code,.msg .txt code,.qa .a code{background:#26262b;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:.92em;font-family:ui-monospace,SFMono-Regular,monospace}
+  .expbody pre,.msg .txt pre,.qa .a pre{background:#17171a;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;margin:.5em 0}
+  .expbody pre code,.msg .txt pre code,.qa .a pre code{background:none;border:none;padding:0}
+  .expbody blockquote,.msg .txt blockquote,.qa .a blockquote{border-left:3px solid var(--gold-dim);margin:.5em 0;padding:.1em .8em;color:var(--dim)}
+  .expbody a,.msg .txt a,.qa .a a{color:var(--gold)}
   .inputrow{flex:0 0 auto;display:flex;gap:7px;padding:9px 11px;border-top:1px solid var(--line);background:var(--panel2)}
   .inputrow input{flex:1;background:#17171a;border:1px solid var(--line);border-radius:8px;color:var(--text);
                   padding:7px 11px;font-size:13.5px}
@@ -137,6 +147,9 @@
                      font-family:ui-monospace,SFMono-Regular,monospace}
   #keyModal textarea:focus{outline:none;border-color:var(--gold-dim)}
   #keyModal .lbl{font-size:12px;color:var(--dim);margin:2px 0 4px}
+  #keyModal .knote{font-size:12px;color:var(--dim);background:#17171a;border:1px solid var(--line);
+                   border-radius:8px;padding:6px 10px;margin-bottom:10px}
+  #keyModal .knote b{color:var(--gold)}
   #keyModal .kstatus{font-size:12.5px;color:var(--gold);margin-bottom:10px;min-height:18px}
   #keyModal .row{display:flex;gap:8px;margin-top:4px}
   #keyModal .row button{flex:1}
@@ -179,11 +192,12 @@
   <button id="sampleBtn">示例问题</button>
   <button id="exportBtn">导出 md</button>
   <button id="exportJsonBtn" title="导出原始数据（JSON），可自行可视化或二次加工">导出 json</button>
+  <button id="graphBtn" title="当前会话的 2D 图谱：横轴=解释展开，纵轴=时间">图谱</button>
   <button id="resetBtn">重来</button>
   <button id="aboutBtn" title="关于问底">?</button>
   <span id="quotaBadge" class="qbadge hidden" title="今日用量"></span>
   <button id="syncBtn" class="hidden" title="把本地数据备份到云端">同步↑</button>
-  <button id="keyBtn" title="配置 LLM 密钥 / 接口地址 / 模型（管理员，保存后立即生效）">密钥</button>
+  <button id="keyBtn" title="站长配置服务端 LLM 密钥/接口地址/模型（保存即生效）。普通用户无需配置，登录即用">服务配置</button>
   <button id="authBtn">登录</button>
 </header>
 <div id="intro" class="hidden">
@@ -222,7 +236,8 @@
 </div>
 <div id="keyModal" class="hidden">
   <div class="acard">
-    <div class="atabs"><span class="on">LLM 配置</span><span class="x" id="keyClose">×</span></div>
+    <div class="atabs"><span class="on">服务配置（站长）</span><span class="x" id="keyClose">×</span></div>
+    <div class="knote">此面板供<b>站长</b>配置服务端 LLM。普通用户<b>登录即用，无需配置任何密钥</b>。</div>
     <div class="kstatus" id="keyStatus">加载中…</div>
     <div class="lbl">管理令牌（服务端启动时的 WENDI_ADMIN_TOKEN）</div>
     <input id="keyToken" type="password" placeholder="WENDI_ADMIN_TOKEN" autocomplete="off">
@@ -251,6 +266,46 @@ const SKEY = "explainer-proto-v2";
 const $ = s => document.querySelector(s);
 const uid = () => "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+/* 极简安全 markdown 渲染：先整体转义再做有限白名单转换（零依赖） */
+function mdRender(src){
+  src = String(src == null ? "" : src);
+  if(!src) return "";
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  const out = [];
+  let para = [], ul = null, ol = null, code = null;
+  const flushP = () => { if(para.length) out.push("<p>" + para.map(inline).join("<br>") + "</p>"); para = []; };
+  const flushL = () => {
+    if(ul){ out.push("<ul>" + ul.map(t => "<li>" + inline(t) + "</li>").join("") + "</ul>"); ul = null; }
+    if(ol){ out.push("<ol>" + ol.map(t => "<li>" + inline(t) + "</li>").join("") + "</ol>"); ol = null; }
+  };
+  for(const line of src.split("\n")){
+    if(code !== null){
+      if(/^```/.test(line.trim())){ out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>"); code = null; }
+      else code.push(line);
+      continue;
+    }
+    const t = line.trim();
+    if(/^```/.test(t)){ flushP(); flushL(); code = []; continue; }
+    if(!t){ flushP(); flushL(); continue; }
+    const h = t.match(/^#{1,4}\s+(.*)/);
+    if(h){ flushP(); flushL(); out.push("<h4>" + inline(h[1]) + "</h4>"); continue; }
+    const ulm = t.match(/^[-*+]\s+(.*)/);
+    if(ulm){ flushP(); if(ol) flushL(); ul = ul || []; ul.push(ulm[1]); continue; }
+    const olm = t.match(/^\d+[.、)]\s+(.*)/);
+    if(olm){ flushP(); if(ul) flushL(); ol = ol || []; ol.push(olm[1]); continue; }
+    const q = t.match(/^>\s?(.*)/);
+    if(q){ flushP(); flushL(); out.push("<blockquote>" + inline(q[1]) + "</blockquote>"); continue; }
+    if(ul || ol) flushL();
+    para.push(t);
+  }
+  if(code !== null) out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+  flushP(); flushL();
+  return out.join("");
+}
 function hhmm(t){ const d=new Date(t); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
 function styleName(s){ return {casual:"说人话",standard:"标准",rigorous:"严谨"}[s]||s; }
 function div(c){ const d=document.createElement("div"); if(c) d.className=c; return d; }
@@ -326,7 +381,7 @@ function renderMain(node, depth){
     for(const m of node.messages || []){
       const el = div("msg " + m.role);
       el.innerHTML = `<div class="who">${m.role==="user" ? "你" : "AI"}</div>
-        <div class="txt ${m.loading?"loading":""}" ${m.id?`data-msg="${m.id}"`:""} data-quote-scope="1">${esc(m.text || (m.loading?"…":""))}</div>`;
+        <div class="txt ${m.loading?"loading":""}" ${m.id?`data-msg="${m.id}"`:""} data-quote-scope="1">${m.text ? mdRender(m.text) : esc(m.loading?"…":"")}</div>`;
       body.appendChild(el);
     }
     if(!(node.messages||[]).length)
@@ -337,11 +392,11 @@ function renderMain(node, depth){
     main.appendChild(row);
   } else {
     const head = `<div class="expbody ${node.loading?"loading":node.error?"err":""}" data-exp="${node.id}" data-quote-scope="1">${
-      esc(node.error ? ("[失败] "+node.error) : (node.text || "解释中…"))}</div>`;
+      node.error ? esc("[失败] "+node.error) : (node.text ? mdRender(node.text) : esc(node.loading ? "解释中…" : ""))}</div>`;
     body.innerHTML = head;
     (node.followups || []).forEach((f, i) => {
       body.insertAdjacentHTML("beforeend",
-        `<div class="qa" data-fu="${i}"><div class="q">追问：${esc(f.q)}</div><div class="a">${esc(f.a)}</div></div>`);
+        `<div class="qa" data-fu="${i}"><div class="q">追问：${esc(f.q)}</div><div class="a">${mdRender(f.a)}</div></div>`);
     });
     main.appendChild(body);
     const row = div("inputrow");
@@ -406,7 +461,7 @@ function renderMini(node){
   if(node.kind === "conv"){
     main.innerHTML = `<div class="m-text serif">${esc((node.messages||[]).slice(-2).map(m => `${m.role==="user"?"你":"AI"}：${m.text||""}`).join("\n\n"))}</div>`;
   } else {
-    main.innerHTML = `<div class="m-text" data-quote-scope="1">${esc(node.error ? ("[失败] "+node.error) : (node.text || "解释中…"))}</div>`;
+    main.innerHTML = `<div class="m-text" data-quote-scope="1">${node.error ? esc("[失败] "+node.error) : (node.text ? mdRender(node.text) : esc(node.loading ? "解释中…" : ""))}</div>`;
   }
   const side = div("m-side");
   const list = div("m-list");
@@ -494,10 +549,11 @@ function bindAll(){
       try{
         const r = await apiStream("/api/explain", {mode:"followup",term:node.term,previous:node.text,question:q,stream:true}, d => {
           f.a += d;
-          const el = live(); if(el) el.textContent = f.a;
+          const el = live(); if(el) el.innerHTML = mdRender(f.a);
         });
         if(!r.ok){ const em = friendlyErr(r.data.error); f.a = f.a ? f.a + "\n[失败] " + em : "[失败] " + em; }
         if (r.data && r.data.quota) renderQuota(r.data.quota);
+        if (r.data && r.data.truncated) toast("回答达到长度上限被截断");
       }catch(e){ f.a = f.a ? f.a + "\n[失败] " + e.message : "[失败] " + e.message; }
       save(); render();
     };
@@ -598,11 +654,12 @@ async function requestExplain(card){
     const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,stream:true}, d => {
       card.text += d;
       const el = live();
-      if(el){ el.classList.remove("loading","err"); el.textContent = card.text; }
+      if(el){ el.classList.remove("loading","err"); el.innerHTML = mdRender(card.text); }
     });
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
     if (r.data.quota) renderQuota(r.data.quota);
+    if (r.data.truncated) toast("回答达到长度上限被截断，可重答");
   }catch(e){ card.loading = false; card.error = String(e.message||e); }
   save(); render();
 }
@@ -618,12 +675,13 @@ async function sendChat(node, text){
     const r = await apiStream("/api/explain", {mode:"chat", stream:true, messages:[...history, {role:"user", content:text}]}, d => {
       pending.text += d;
       const el = live();
-      if(el){ el.classList.remove("loading"); el.textContent = pending.text; scroll(); }
+      if(el){ el.classList.remove("loading"); el.innerHTML = mdRender(pending.text); scroll(); }
     });
     pending.loading = false;
     if(!r.ok){ const em = friendlyErr(r.data.error); pending.text = pending.text ? pending.text + "\n[失败] " + em : "[失败] " + em; }
     else if(!pending.text) pending.text = "[失败] 空响应";
     if (r.data && r.data.quota) renderQuota(r.data.quota);
+    if (r.data && r.data.truncated) toast("回答达到长度上限被截断");
   }catch(e){
     pending.loading = false;
     pending.text = pending.text ? pending.text + "\n[失败] " + e.message : "[失败] " + e.message;
@@ -697,11 +755,12 @@ $("#aboutBtn").onclick = () => intro.classList.remove("hidden");
 /* ================= 账户 / 引导 · 事件绑定 ================= */
 $("#introTour").onclick = startTour;
 $("#authBtn").onclick = openAuth;
+$("#graphBtn").onclick = () => location.href = "/graph2d.html";
 
 /* ================= LLM 密钥面板（管理员） ================= */
 function friendlyErr(msg){
   msg = String(msg || "");
-  if(/API key/.test(msg)) return "服务端还没配置 LLM 密钥——点右上角「密钥」按钮配置，保存后立即生效";
+  if(/API key/.test(msg)) return "服务端还没配置 LLM 密钥——请站长点右上角「服务配置」填入，保存后立即生效（普通用户无需操作）";
   return msg;
 }
 async function keyApi(method, body){
@@ -810,7 +869,7 @@ async function apiStream(path, body, onDelta){
       let o; try { o = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
       if(o.delta){ if(out.ok) onDelta(o.delta); }
       else if(o.error){ out.ok = false; out.data = { error: o.error }; }
-      if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; }
+      if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; if(o.truncated) out.data.truncated = true; }
     }
   }
   return out;

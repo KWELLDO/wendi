@@ -45,7 +45,7 @@ git clone <this-repo> wendi && cd wendi
 
 # 需要 DeepSeek API key（或任意 OpenAI 兼容端点）
 export WENDI_API_KEY=sk-xxxx
-# —— 或者不设环境变量，启动后打开 web 页面点右上角「密钥」按钮在线配置（需 WENDI_ADMIN_TOKEN） ——
+# —— 或者不设环境变量，启动后打开 web 页面点右上角「服务配置」（站长入口）在线配置，需 WENDI_ADMIN_TOKEN ——
 export WENDI_ADMIN_TOKEN=换一个自己的管理令牌
 
 python3 server.py        # → http://127.0.0.1:8899

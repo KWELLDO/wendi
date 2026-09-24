@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>解释场 · 2D 图谱</title>
+<style>
+  :root{
+    --bg:#141416; --panel:#1d1d20; --line:#303035; --text:#e8e6e1; --dim:#94918a;
+    --gold:#c9a55c; --gold-dim:#6b5a34; --err:#b3564a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+       height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--line);
+         background:var(--panel);flex-wrap:wrap}
+  header b{font-size:14.5px}
+  header .sub{color:var(--dim);font-size:12px}
+  .badge{font-size:11.5px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:2px 9px}
+  a.badge{text-decoration:none}
+  a.badge:hover{border-color:var(--gold-dim);color:var(--gold)}
+  .sp{flex:1}
+  button{background:#2a2a2e;color:var(--text);border:1px solid var(--line);border-radius:7px;
+         padding:3px 11px;font-size:12.5px;cursor:pointer}
+  button:hover{border-color:var(--gold-dim)}
+  #wrap{flex:1;min-height:0;position:relative}
+  svg{display:block;width:100%;height:100%;cursor:grab}
+  svg.drag{cursor:grabbing}
+  .axis{stroke:var(--line);stroke-width:1}
+  .grid{stroke:var(--line);stroke-width:1;stroke-dasharray:2 5;opacity:.6}
+  .tick{fill:var(--dim);font-size:10.5px}
+  .axlab{fill:var(--dim);font-size:11.5px}
+  .edge{stroke:var(--gold-dim);stroke-width:1.4;fill:none;opacity:.75}
+  .edge.hot{stroke:var(--gold);opacity:1;stroke-width:2}
+  .n-exp circle{fill:var(--gold);stroke:#8a6f3a;stroke-width:1.2}
+  .n-exp.ghost circle{fill:var(--bg);stroke:var(--gold-dim);stroke-dasharray:3 3}
+  .n-exp.err circle{fill:var(--bg);stroke:var(--err)}
+  .n-conv rect{fill:var(--bg);stroke:var(--dim);stroke-width:1.2}
+  .lab{font-size:11.5px;fill:var(--text);paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+  .n-hot circle,.n-hot rect{stroke:var(--gold);stroke-width:2.2}
+  #tip{position:absolute;pointer-events:none;background:#222226ee;border:1px solid var(--line);
+       border-radius:8px;padding:7px 11px;font-size:12px;max-width:320px;display:none;z-index:5}
+  #tip .t{color:var(--gold);font-weight:600}
+  #tip .m{color:var(--dim);font-size:11px}
+  #empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+         gap:10px;color:var(--dim)}
+  #empty a{color:var(--gold);text-decoration:none;border:1px solid var(--gold-dim);border-radius:8px;padding:5px 16px}
+  #legend{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--dim);
+          background:#1d1d20d9;border:1px solid var(--line);border-radius:8px;padding:5px 10px;line-height:1.7}
+  #legend .e{color:var(--gold)}
+</style>
+</head>
+<body>
+<header>
+  <b>解释场 · 2D 图谱</b>
+  <span class="sub">自下而上，像树一样生长 · 同层左→右按发生先后 · 悬停看详情</span>
+  <span class="badge" id="stat">–</span>
+  <span class="sp"></span>
+  <span class="badge">滚轮缩放 · 拖拽平移 · 双击复位</span>
+  <a class="badge" href="/">← 回解释场</a>
+  <button id="rebtn">刷新</button>
+</header>
+<div id="wrap">
+  <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="tip"></div>
+  <div id="legend">
+    <span class="e">●</span> 解释卡（虚线=生成中，红=失败）&nbsp;&nbsp;◇ 对话根&nbsp;&nbsp;+N=追问数<br>
+    根在底部，解释向上生长展开；同一层左右按发生先后
+  </div>
+  <div id="empty" style="display:none">
+    <div id="emptyMsg">还没有可画的数据</div>
+    <a href="/">回解释场</a>
+  </div>
+</div>
+<script>
+"use strict";
+/* ============ 数据：只读当前会话（与解释场同一 localStorage） ============ */
+const SKEY = "explainer-proto-v2";
+
+function loadState(){
+  try{
+    const d = JSON.parse(localStorage.getItem(SKEY) || "null");
+    if(d && d.root) return d;
+  }catch(e){}
+  return null;
+}
+
+/* ============ 布局：自下而上，像树一样生长 ============ */
+const LEVEL_H = 120;         // 每层解释的垂直距离（越深越靠上）
+const LEAF_W = 175;          // 叶子水平间距（含标签宽度）
+const PAD = { l: 60, r: 170, t: 50, b: 50 };
+
+function nodeTime(n){
+  if(typeof n.createdAt === "number") return n.createdAt;
+  if(Array.isArray(n.messages)){
+    const ts = n.messages.map(m => m.at).filter(t => typeof t === "number");
+    if(ts.length) return Math.min(...ts);
+  }
+  return null;
+}
+
+function collect(state){
+  const nodes = [], edges = [];
+  (function walk(n, depth, parent){
+    const item = { ref:n, id:n.id, kind:n.kind, term:n.term || "", depth,
+                   t:nodeTime(n), parent };
+    nodes.push(item);
+    if(parent) edges.push({ a:parent, b:item });
+    for(const c of n.children || []) walk(c, depth + 1, item);
+  })(state.root, 0, null);
+
+  // 缺时间的节点（老数据的对话根等）：子全有时间取最早 → 父时间 → 全局最早
+  // 迭代传递（父子互相等待会死递归），最多 n 轮。时间只用于提示与同层排序兜底
+  const known = nodes.map(n => n.t).filter(t => t != null);
+  const fallback = known.length ? Math.min(...known) : Date.now();
+  for(let pass = 0; pass < nodes.length; pass++){
+    let changed = false;
+    for(const n of nodes){
+      if(n.t != null) continue;
+      const kids = nodes.filter(x => x.parent === n);
+      if(kids.length && kids.every(k => k.t != null)){
+        n.t = Math.min(...kids.map(k => k.t)); changed = true;
+      }else if(n.parent && n.parent.t != null){
+        n.t = n.parent.t; changed = true;
+      }
+    }
+    if(!changed) break;
+  }
+  nodes.forEach(n => { if(n.t == null) n.t = fallback; });
+  return { nodes, edges };
+}
+
+function layout(nodes, edges){
+  const kids = new Map();
+  for(const n of nodes){
+    if(!kids.has(n.parent)) kids.set(n.parent, []);
+    kids.get(n.parent).push(n);          // nodes 顺序=创建顺序 → 同层左→右按时间
+  }
+  const maxDepth = Math.max(0, ...nodes.map(n => n.depth));
+  const plotH = maxDepth * LEVEL_H;
+  let cursor = PAD.l;
+  const place = n => {
+    const ks = kids.get(n) || [];
+    if(ks.length){ ks.forEach(place); n.x = (ks[0].x + ks[ks.length - 1].x) / 2; }
+    else { n.x = cursor; cursor += LEAF_W; }
+    n.y = PAD.t + plotH - n.depth * LEVEL_H;   // 根在下，向上生长
+  };
+  place(nodes[0]);
+  const W = Math.max(cursor + PAD.r, PAD.l + 320);
+  const H = PAD.t + plotH + PAD.b;
+  return { W, H,
+           tmin: Math.min(...nodes.map(n => n.t)),
+           tmax: Math.max(...nodes.map(n => n.t)),
+           maxDepth };
+}
+
+/* ============ 渲染 ============ */
+const svg = document.getElementById("svg");
+const tip = document.getElementById("tip");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const trunc = (s, n) => [...s].length > n ? [...s].slice(0, n).join("") + "…" : s;
+
+function fmtTime(t){
+  const d = new Date(t), now = new Date();
+  const hm = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return d.toDateString() === now.toDateString() ? hm
+       : `${d.getMonth()+1}-${d.getDate()} ${hm}`;
+}
+
+let VIEW = null;   // 初始 viewBox（双击复位用）
+let DATA = null;
+
+function render(){
+  const state = loadState();
+  const empty = document.getElementById("empty");
+  if(!state){
+    empty.style.display = "flex";
+    document.getElementById("emptyMsg").textContent = "没有找到当前会话数据（localStorage 为空）";
+    svg.innerHTML = "";
+    document.getElementById("stat").textContent = "无数据";
+    return;
+  }
+  const { nodes, edges } = collect(state);
+  DATA = { nodes };
+  const exps = nodes.filter(n => n.kind === "exp");
+  if(!exps.length){
+    empty.style.display = "flex";
+    document.getElementById("emptyMsg").textContent = "这个会话还没有解释卡片——去解释场划词生成一张再来";
+    svg.innerHTML = "";
+    document.getElementById("stat").textContent = "0 张卡";
+    return;
+  }
+  empty.style.display = "none";
+
+  const L = layout(nodes, edges);
+  const followups = exps.reduce((s, n) => s + (n.ref.followups || []).length, 0);
+  const range = `${fmtTime(L.tmin)} – ${fmtTime(L.tmax)}`;
+  document.getElementById("stat").textContent =
+    `${exps.length} 张解释卡 · ${followups} 条追问 · ${range}`;
+
+  // 树形布局不画坐标系，时间信息在悬停提示与统计里
+
+  // 边（父在下 → 子在上，竖向贝塞尔，像枝干向上长）
+  let eg = "";
+  for(const e of edges){
+    const my = (e.a.y + e.b.y) / 2;
+    eg += `<path class="edge" data-a="${e.a.id}" data-b="${e.b.id}" ` +
+          `d="M${e.a.x},${e.a.y} C${e.a.x},${my} ${e.b.x},${my} ${e.b.x},${e.b.y}"/>`;
+  }
+
+  // 节点 + 标签
+  let nd = "";
+  for(const n of nodes){
+    if(n.kind === "conv"){
+      nd += `<g class="n-conv" data-id="${n.id}">` +
+            `<rect x="${n.x - 5.5}" y="${n.y - 5.5}" width="11" height="11" rx="2.5" transform="rotate(45 ${n.x} ${n.y})"/>` +
+            `<text class="lab" x="${n.x + 11}" y="${n.y + 4}" fill="var(--dim)">对话</text></g>`;
+      continue;
+    }
+    const fu = (n.ref.followups || []).length;
+    const cls = "n-exp" + (n.ref.error ? " err" : (n.ref.loading ? " ghost" : ""));
+    const label = trunc(n.term || "(未命名)", 16) + (fu ? ` +${fu}` : "");
+    nd += `<g class="${cls}" data-id="${n.id}">` +
+          `<circle cx="${n.x}" cy="${n.y}" r="6.5"/>` +
+          `<text class="lab" x="${n.x + 11}" y="${n.y + 4}">${esc(label)}</text></g>`;
+  }
+
+  svg.setAttribute("viewBox", `0 0 ${L.W} ${L.H}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  VIEW = `0 0 ${L.W} ${L.H}`;
+  svg.innerHTML = eg + nd;
+}
+
+/* ============ 交互：悬停详情 / 平移缩放 / 双击复位 ============ */
+const byId = id => DATA && DATA.nodes.find(n => n.id === id);
+
+svg.addEventListener("mouseover", e => {
+  const g = e.target.closest("g[data-id]");
+  if(!g || !DATA) return;
+  g.classList.add("n-hot");
+  const n = byId(g.dataset.id);
+  if(!n) return;
+  const r = n.ref;
+  const parent = n.parent && n.parent.kind === "exp" ? esc(n.parent.term) : "–";
+  const fu = (r.followups || []).map(f => `<div>· ${esc(f.q)}</div>`).join("");
+  tip.innerHTML =
+    `<div class="t">${esc(n.term || "对话根")}</div>` +
+    `<div class="m">${fmtTime(n.t)} · 层 L${n.depth}` +
+    (r.style ? ` · ${esc(r.style)}` : "") +
+    (typeof r.text === "string" && r.text ? ` · ${r.text.length} 字` : "") + `</div>` +
+    `<div class="m">源自：${parent}</div>` +
+    (fu ? `<div style="margin-top:3px">追问：</div>${fu}` : "");
+  tip.style.display = "block";
+  // 关联边高亮
+  svg.querySelectorAll(".edge").forEach(p => {
+    if(p.dataset.a === n.id || p.dataset.b === n.id) p.classList.add("hot");
+  });
+});
+svg.addEventListener("mousemove", e => {
+  const w = document.getElementById("wrap").getBoundingClientRect();
+  let x = e.clientX - w.left + 14, y = e.clientY - w.top + 14;
+  if(x > w.width - 340) x = e.clientX - w.left - 336;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+});
+svg.addEventListener("mouseout", e => {
+  const g = e.target.closest("g[data-id]");
+  if(g) g.classList.remove("n-hot");
+  if(!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest("g[data-id]")){
+    tip.style.display = "none";
+    svg.querySelectorAll(".edge.hot").forEach(p => p.classList.remove("hot"));
+  }
+});
+
+// viewBox 平移缩放
+let baseVB = null;
+function parseVB(){
+  return (svg.getAttribute("viewBox") || "0 0 800 600").split(/\s+/).map(Number);
+}
+function setVB(v){ svg.setAttribute("viewBox", v.join(" ")); }
+
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  const v = parseVB(), k = e.deltaY > 0 ? 1.12 : 1 / 1.12;
+  const r = svg.getBoundingClientRect();
+  const px = v[0] + (e.clientX - r.left) / r.width * v[2];
+  const py = v[1] + (e.clientY - r.top) / r.height * v[3];
+  const nv = [px - (px - v[0]) * k, py - (py - v[1]) * k, v[2] * k, v[3] * k];
+  const cap = (VIEW || "0 0 800 600").split(/\s+/).map(Number);
+  if(nv[2] > cap[2] * 20 || nv[2] < cap[2] / 50) return;   // 缩放边界
+  setVB(nv);
+}, { passive:false });
+
+let drag = null;
+svg.addEventListener("mousedown", e => {
+  const v = parseVB();
+  drag = { x:e.clientX, y:e.clientY, v };
+  svg.classList.add("drag");
+});
+window.addEventListener("mousemove", e => {
+  if(!drag) return;
+  const r = svg.getBoundingClientRect();
+  const dx = (e.clientX - drag.x) / r.width * drag.v[2];
+  const dy = (e.clientY - drag.y) / r.height * drag.v[3];
+  setVB([drag.v[0] - dx, drag.v[1] - dy, drag.v[2], drag.v[3]]);
+});
+window.addEventListener("mouseup", () => { drag = null; svg.classList.remove("drag"); });
+svg.addEventListener("dblclick", () => { if(VIEW) setVB(VIEW.split(/\s+/).map(Number)); });
+
+document.getElementById("rebtn").onclick = render;
+window.addEventListener("storage", e => { if(e.key === SKEY) render(); });  // 解释场改数据时本页自动刷新
+render();
+</script>
+</body>
+</html>

@@ -288,8 +288,7 @@ class TestKeySources(BaseAdmin):
     def test_db_key_first_when_no_env(self):
         db.meter_set("llm_api_keys", "sk-dbkey123456789012345678")
         try:
-            with mock.patch.dict(os.environ, {"WENDI_API_KEY": "", "WENDI_KEYS": ""},
-                                 clear=False):
+            with mock.patch.dict(os.environ, {"HOME": tempfile.mkdtemp()}, clear=False):
                 os.environ.pop("WENDI_API_KEY", None)
                 os.environ.pop("WENDI_KEYS", None)
                 keys = server._existing_keys()
@@ -300,7 +299,9 @@ class TestKeySources(BaseAdmin):
     def test_db_and_env_merged_db_first(self):
         db.meter_set("llm_api_keys", "sk-dbkey123456789012345678")
         try:
-            with mock.patch.dict(os.environ, {"WENDI_API_KEY": "sk-envkey123456789012345"},
+            with mock.patch.dict(os.environ,
+                                 {"HOME": tempfile.mkdtemp(),
+                                  "WENDI_API_KEY": "sk-envkey123456789012345"},
                                  clear=False):
                 os.environ.pop("WENDI_KEYS", None)
                 keys = server._existing_keys()

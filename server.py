@@ -41,7 +41,7 @@ TIMEOUT = float(os.environ.get("WENDI_TIMEOUT", "90"))
 WEB_DIR = HERE / "web"
 
 # —— 输出长度（主对话更容易被截断，给得宽些） ——
-MAX_TOKENS = int(os.environ.get("WENDI_MAX_TOKENS", "800"))
+MAX_TOKENS = int(os.environ.get("WENDI_MAX_TOKENS", "1600"))
 MAX_TOKENS_CHAT = int(os.environ.get("WENDI_MAX_TOKENS_CHAT", "2000"))
 
 # —— 限流 ——
@@ -224,7 +224,7 @@ def _existing_keys() -> list[tuple[str, str]]:
                 if value:
                     candidates.append(("~/.secrets:deepseek_api_key", value))
     if not candidates:
-        raise RuntimeError("无可用 API key：点右上角「密钥」面板配置，或设 WENDI_API_KEY 环境变量")
+        raise RuntimeError("无可用 API key：站长在 web 右上角「服务配置」填入密钥即可（热生效），或设 WENDI_API_KEY 环境变量")
     seen: set[str] = set()
     return [(name, k) for name, k in candidates if not (k in seen or seen.add(k))]
 
@@ -268,11 +268,12 @@ def _request_once(key: str, messages: list[dict], max_tokens: int) -> tuple[str,
             text = data["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError) as e:
             raise RuntimeError("LLM 响应异常") from e
-        return text, data.get("usage", {}) or {}
+        finish = data["choices"][0].get("finish_reason") or ""
+        return text, data.get("usage", {}) or {}, finish
     raise RuntimeError(f"LLM 连续空响应/坏 JSON: {last_err}")
 
 
-def call_llm(messages: list[dict], max_tokens: int = MAX_TOKENS) -> tuple[str, dict]:
+def call_llm(messages: list[dict], max_tokens: int = MAX_TOKENS) -> tuple[str, dict, bool]:
     global _ACTIVE_KEY
     keys = _existing_keys()
     if _ACTIVE_KEY:
@@ -280,11 +281,11 @@ def call_llm(messages: list[dict], max_tokens: int = MAX_TOKENS) -> tuple[str, d
     errors: list[str] = []
     for name, key in keys:
         try:
-            text, usage = _request_once(key, messages, max_tokens)
+            text, usage, finish = _request_once(key, messages, max_tokens)
             if not _ACTIVE_KEY or _ACTIVE_KEY[0] != name:
                 print(f"[key] 使用: {name}")
                 _ACTIVE_KEY = (name, key)
-            return text, usage
+            return text, usage, finish == "length"
         except AuthError as e:
             errors.append(f"{name}: {e}")
             continue
@@ -335,6 +336,7 @@ def sse_deltas(resp):
     拿不到 usage 时 yield `{"usage": {}}`（调用方据此记 0 token，不报错）。
     """
     usage: dict = {}
+    finish = ""
     for raw in resp:
         line = raw.decode("utf-8", "replace").strip()
         if not line.startswith("data:"):
@@ -349,12 +351,15 @@ def sse_deltas(resp):
         if obj.get("usage"):
             usage = obj["usage"]
         try:
-            delta = obj["choices"][0].get("delta", {}).get("content")
+            choice = obj["choices"][0]
+            if choice.get("finish_reason"):
+                finish = choice["finish_reason"]
+            delta = choice.get("delta", {}).get("content")
         except (KeyError, IndexError, AttributeError):
             continue
         if delta:
             yield delta
-    yield {"usage": usage}
+    yield {"usage": usage, "finish": finish}
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -760,7 +765,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if stream:
                 return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0)
-            text, usage = call_llm(msgs, max_tokens)
+            text, usage, truncated = call_llm(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
             if user:
                 db.refund_quota(user["id"])
@@ -772,8 +777,13 @@ class Handler(SimpleHTTPRequestHandler):
         _record_usage(user, mode, body.get("style", "standard"), False, usage, ok=True)
         kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                     term=term, parent_term=None, style=body.get("style", "standard"),
-                    ms=round((time.time() - t0) * 1000), stream=False, chunks=1)
-        self._json(200, {"text": text, "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+                    ms=round((time.time() - t0) * 1000), stream=False, chunks=1,
+                    truncated=truncated)
+        payload = {"text": text,
+                   "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
+        if truncated:
+            payload["truncated"] = True
+        self._json(200, payload)
 
     def _explain_stream(self, user, msgs: list[dict], max_tokens: int,
                         mode: str = "explain", term: str = "", t0: float = 0.0):
@@ -797,19 +807,25 @@ class Handler(SimpleHTTPRequestHandler):
 
         sent = 0
         usage: dict = {}
+        finish = ""
         try:
             for delta in sse_deltas(resp):
                 if isinstance(delta, dict) and "usage" in delta:
                     usage = delta["usage"]
+                    finish = delta.get("finish") or ""
                     continue
                 sent += 1
                 emit({"delta": delta})
-            emit({"done": True,
-                  "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+            done = {"done": True,
+                    "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
+            if finish == "length":
+                done["truncated"] = True
+            emit(done)
             _record_usage(user, mode, "standard", True, usage, ok=True)
             kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                         term=term, parent_term=None, style="standard",
-                        ms=round((time.time() - t0) * 1000), stream=True, chunks=sent)
+                        ms=round((time.time() - t0) * 1000), stream=True, chunks=sent,
+                        truncated=(finish == "length"))
         except (BrokenPipeError, ConnectionResetError):
             return  # 客户端中途离开
         except Exception as e:  # noqa: BLE001
