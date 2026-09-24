@@ -56,7 +56,8 @@ kernel = Kernel()
 
 _anon: dict[str, dict] = defaultdict(lambda: {"minute": [], "day": 0, "daykey": ""})
 _global = {"day": 0, "daykey": ""}
-_cost_global = {"day": 0, "daykey": "", "cost_cents": 0, "alerted": False}
+_cost_global = {"day": 0, "daykey": "", "cost_cents": 0, "alerted": False, "hard_alerted": False}
+_degrade_last: dict[str, float] = {}  # 降级档：同一用户上次放行时刻（内存态，与 _anon 同债）
 log = logging.getLogger("wendi.meter")
 
 
@@ -108,40 +109,92 @@ def _cost_cents(hit_tokens: int, miss_tokens: int, completion_tokens: int) -> in
     return round(usd / 1_000_000 * usd_cny * 100)
 
 
-def _record_usage(user, mode: str, style, stream: bool, usage: dict, ok: bool) -> None:
-    """落库一次计量 + 成本告警（只告警不阻断）。任何内部异常都不向上抛。"""
+def _record_usage(user, mode: str, style, stream: bool, usage: dict, ok: bool,
+                  depth: int = -1, turns: int = -1) -> None:
+    """落库一次计量 + 成本闸推进。任何内部异常都不向上抛。"""
     try:
         hit, miss, comp = _usage_split(usage)
         cost = _cost_cents(hit, miss, comp) if ok else 0
         plan = db.effective_plan(user) if user else "anon"
         uid = user["id"] if user else None
-        db.meter_record(uid, plan, mode, style, stream, hit, miss, comp, cost, ok)
+        db.meter_record(uid, plan, mode, style, stream, hit, miss, comp, cost,
+                        ok, depth, turns)
         _tick_cost_gate(cost)
     except Exception:  # noqa: BLE001
         log.exception("计量落库失败（已忽略，不影响主干）")
 
 
-def _tick_cost_gate(add_cents: int) -> None:
-    """累计全局日成本，超 cap 当日首次越界时告警。只告警，不阻断。"""
+def _cost_caps() -> tuple[int, int]:
+    """(cap, hard)：cap 超了当日全员降级，hard(=2×cap) 超了硬停。均自 meter_config 热读。"""
+    cap = int(float(db.meter_get("cost_cents_cap") or 3000))
+    hard = int(float(db.meter_get("cost_cents_hard") or cap * 2))
+    return cap, hard
+
+
+def _cost_roll_today() -> None:
     today = _today()
     if _cost_global["daykey"] != today:
-        _cost_global["daykey"] = today
-        _cost_global["cost_cents"] = 0
-        _cost_global["alerted"] = False
+        # 跨天/进程重启：内存计数不可信，从计量表恢复当日累计（堵住"重启绕过硬停"）。
+        # 恢复值只反映已成功落库的调用，与内存累加的偏差 ≤ 最近一笔未落库请求，可忽略。
+        try:
+            restored = int(db.meter_totals(today)["cost_cents"])
+        except Exception:  # noqa: BLE001
+            restored = 0
+        _cost_global.update(daykey=today, cost_cents=restored,
+                            alerted=False, hard_alerted=False)
+
+
+def _cost_state() -> str:
+    """normal | degraded(超cap，全员降级) | hard(超2×cap，硬停)。请求入口每必调一次。"""
+    _cost_roll_today()
+    cap, hard = _cost_caps()
+    if _cost_global["cost_cents"] > hard:
+        return "hard"
+    if _cost_global["cost_cents"] > cap:
+        return "degraded"
+    return "normal"
+
+
+def _tick_cost_gate(add_cents: int) -> None:
+    """累计全局日成本；越 cap/hard 各发一次事件。状态推进本身不阻断，闸门在 _explain 入口。"""
+    _cost_roll_today()
     _cost_global["cost_cents"] += add_cents
-    cap = int(float(db.meter_get("cost_cents_cap") or 3000))
-    if _cost_global["cost_cents"] > cap and not _cost_global["alerted"]:
+    cap, hard = _cost_caps()
+    cost = _cost_global["cost_cents"]
+    if cost > cap and not _cost_global["alerted"]:
         _cost_global["alerted"] = True
-        log.error("每日成本越界：%d 分 > %d 分（仅告警，不阻断）", _cost_global["cost_cents"], cap)
-        kernel.emit("meter.cost_over", day=today, cost_cents=_cost_global["cost_cents"], cap=cap)
+        log.error("每日成本越界：%d 分 > %d 分（当日全员转入降级档）", cost, cap)
+        kernel.emit("meter.cost_over", day=_today(), cost_cents=cost, cap=cap)
+    if cost > hard and not _cost_global["hard_alerted"]:
+        _cost_global["hard_alerted"] = True
+        log.error("每日成本硬停：%d 分 > %d 分（当日停止服务，明日恢复）", cost, hard)
+        kernel.emit("meter.cost_hard", day=_today(), cost_cents=cost, hard=hard)
+
+
+def _degrade_ok(key: str) -> bool:
+    """降级档限速：同一 key 间隔 ≥ degrade_min_interval 秒才放行（默认 15）。"""
+    iv = float(db.meter_get("degrade_min_interval") or 15)
+    now = time.time()
+    if now - _degrade_last.get(key, 0.0) < iv:
+        return False
+    _degrade_last[key] = now
+    return True
+
+
+def _degrade_max_tokens(mode: str) -> int:
+    """降级档输出上限：chat 1000 / 其他 400（meter_config 热改）。"""
+    if mode == "chat":
+        return int(float(db.meter_get("degrade_max_tokens_chat") or 1000))
+    return int(float(db.meter_get("degrade_max_tokens") or 400))
 
 
 def _today() -> str:
     return time.strftime("%Y-%m-%d")
 
 
-def check_anon(ip: str) -> tuple[bool, str]:
-    """匿名配额（按 IP，内存）。返回 (ok, message)。"""
+def check_anon(ip: str) -> tuple[str, str]:
+    """匿名配额（按 IP，内存）。返回 (status, message)：
+    ok=正常放行 · degraded=超体验额度，降级续命 · blocked=限流/全局日限，429。"""
     now = time.time()
     today = _today()
     h = _anon[ip]
@@ -151,14 +204,14 @@ def check_anon(ip: str) -> tuple[bool, str]:
         h["minute"] = []
     h["minute"] = [t for t in h["minute"] if now - t < 60]
     if len(h["minute"]) >= LIMIT_ANON_PER_MIN:
-        return False, "请求太快了，歇口气再试。"
-    if h["day"] >= db.QUOTA_ANON:
-        return False, f"未登录的每日体验额度用完了（{db.QUOTA_ANON} 次）。注册一个账号可以继续。"
+        return "blocked", "请求太快了，歇口气再试。"
     if not check_global():
-        return False, "今天服务总量已达上限，明天再来。"
+        return "blocked", "今天服务总量已达上限，明天再来。"
     h["minute"].append(now)
     h["day"] += 1
-    return True, ""
+    if h["day"] > db.QUOTA_ANON:
+        return "degraded", ""
+    return "ok", ""
 
 
 def check_global() -> bool:
@@ -731,24 +784,50 @@ class Handler(SimpleHTTPRequestHandler):
     # ---------- 核心：解释 ----------
     def _explain(self, body: dict):
         user = self._user()
-        # 配额
+        # —— 成本闸（硬底线）：hard 硬停；degraded 当日全员降级 ——
+        cost_state = _cost_state()
+        if cost_state == "hard":
+            self._json(429, {"error": "今日服务已达成本上限，明天恢复。", "cost": "hard"})
+            return
+        degraded = cost_state == "degraded"
+        degrade_reason = "cost_cap" if degraded else None
+
+        # —— 配额（P0：超限不断头，降级续命） ——
+        consumed = False
         if user:
             limit = db.quota_limit(user)
             ok, used, limit = db.consume_quota(user["id"], limit)
-            if not ok:
-                self._json(429, {"error": f"今天的额度用完了（{limit} 次/天）。升级 Pro 可以获得更多额度。",
-                                 "quota": {"plan": db.effective_plan(user), "used": used, "limit": limit}})
-                return
+            consumed = ok  # 未真正扣次的失败请求不退款，否则降级用户失败一次反赚一个槽位
+            if not ok and not degraded:
+                degraded, degrade_reason = True, "quota"
         else:
-            ok, msg = check_anon(self._ip())
-            if not ok:
+            st, msg = check_anon(self._ip())
+            if st == "blocked":
                 self._json(429, {"error": msg})
                 return
+            if st == "degraded" and not degraded:
+                degraded, degrade_reason = True, "quota"
 
         mode = body.get("mode", "explain")
+        # —— 行为信号（P0 埋点）：树深 + 对话轮数 ——
+        depth = body.get("depth")
+        turns = body.get("turns")
+        depth = depth if isinstance(depth, int) and depth >= 0 else -1
+        turns = turns if isinstance(turns, int) and turns >= 0 else -1
         stream = bool(body.get("stream"))
         term = str(body.get("term", ""))
         max_tokens = MAX_TOKENS
+
+        # —— 降级档限速：超限后同一用户 15s 一发 ——
+        if degraded:
+            key = f"u{user['id']}" if user else f"ip:{self._ip()}"
+            if not _degrade_ok(key):
+                iv = int(float(db.meter_get("degrade_min_interval") or 15))
+                self._json(429, {"error": f"你今天问得很多，慢一点再继续（降级间隔 {iv} 秒）。升级 Pro 即可不限速。",
+                                 "degraded": True, "reason": degrade_reason,
+                                 "quota": self._quota_payload(db.get_user(user["id"]) if user else None)})
+                return
+
         t0 = time.time()
         try:
             if mode == "explain":
@@ -763,35 +842,48 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 self._json(400, {"error": f"unknown mode: {mode}"})
                 return
+            if degraded:
+                max_tokens = min(max_tokens, _degrade_max_tokens(mode))
             if stream:
-                return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0)
+                return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0,
+                                            depth=depth, turns=turns,
+                                            degraded=degraded, degrade_reason=degrade_reason,
+                                            consumed=consumed)
             text, usage, truncated = call_llm(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
-            if user:
+            if user and consumed:
                 db.refund_quota(user["id"])
             kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
                         term=term, error=str(e))
-            _record_usage(user, mode, body.get("style", "standard"), False, {}, ok=False)
+            _record_usage(user, mode, body.get("style", "standard"), False, {}, ok=False,
+                          depth=depth, turns=turns)
             self._json(500, {"error": str(e)})
             return
-        _record_usage(user, mode, body.get("style", "standard"), False, usage, ok=True)
+        _record_usage(user, mode, body.get("style", "standard"), False, usage, ok=True,
+                      depth=depth, turns=turns)
         kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                     term=term, parent_term=None, style=body.get("style", "standard"),
                     ms=round((time.time() - t0) * 1000), stream=False, chunks=1,
-                    truncated=truncated)
+                    truncated=truncated, depth=depth, turns=turns, degraded=degraded)
         payload = {"text": text,
                    "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
         if truncated:
             payload["truncated"] = True
+        if degraded:
+            payload["degraded"] = True
+            payload["reason"] = degrade_reason
         self._json(200, payload)
 
     def _explain_stream(self, user, msgs: list[dict], max_tokens: int,
-                        mode: str = "explain", term: str = "", t0: float = 0.0):
+                        mode: str = "explain", term: str = "", t0: float = 0.0,
+                        depth: int = -1, turns: int = -1,
+                        degraded: bool = False, degrade_reason: str | None = None,
+                        consumed: bool = True):
         """SSE 流式解释。事件：data: {"delta": "…"} … data: {"done": true, "quota": {…}} / {"error": "…"}"""
         try:
             resp = call_llm_stream(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
-            if user:
+            if user and consumed:
                 db.refund_quota(user["id"])
             self._json(500, {"error": str(e)})
             return
@@ -820,21 +912,24 @@ class Handler(SimpleHTTPRequestHandler):
                     "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
             if finish == "length":
                 done["truncated"] = True
+            if degraded:
+                done["degraded"] = True
+                done["reason"] = degrade_reason
             emit(done)
-            _record_usage(user, mode, "standard", True, usage, ok=True)
+            _record_usage(user, mode, "standard", True, usage, ok=True, depth=depth, turns=turns)
             kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                         term=term, parent_term=None, style="standard",
                         ms=round((time.time() - t0) * 1000), stream=True, chunks=sent,
-                        truncated=(finish == "length"))
+                        truncated=(finish == "length"), depth=depth, turns=turns, degraded=degraded)
         except (BrokenPipeError, ConnectionResetError):
             return  # 客户端中途离开
         except Exception as e:  # noqa: BLE001
-            _record_usage(user, mode, "standard", True, usage, ok=False)
+            _record_usage(user, mode, "standard", True, usage, ok=False, depth=depth, turns=turns)
             kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
                         term=term, error=str(e))
             try:
                 emit({"error": str(e)})
-                if not sent and user:  # 一个字都没出就失败 → 退款
+                if not sent and user and consumed:  # 一个字都没出且真扣了次 → 退款
                     db.refund_quota(user["id"])
             except OSError:
                 pass

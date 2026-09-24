@@ -74,7 +74,9 @@ def init() -> None:
             prompt_cache_miss_tokens INTEGER NOT NULL,
             completion_tokens INTEGER NOT NULL,
             cost_cents INTEGER NOT NULL,
-            ok INTEGER NOT NULL
+            ok INTEGER NOT NULL,
+            depth INTEGER NOT NULL DEFAULT -1,
+            turns INTEGER NOT NULL DEFAULT -1
         );
         CREATE INDEX IF NOT EXISTS idx_meter_requests_day ON meter_requests(day_key);
         CREATE INDEX IF NOT EXISTS idx_meter_requests_user_day ON meter_requests(user_id, day_key);
@@ -88,7 +90,9 @@ def init() -> None:
         except sqlite3.OperationalError:
             pass
         for ddl in ("ALTER TABLE codes ADD COLUMN batch TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE codes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"):
+                    "ALTER TABLE codes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE meter_requests ADD COLUMN depth INTEGER NOT NULL DEFAULT -1",
+                    "ALTER TABLE meter_requests ADD COLUMN turns INTEGER NOT NULL DEFAULT -1"):
             try:
                 c.execute(ddl)
             except sqlite3.OperationalError:
@@ -102,7 +106,12 @@ def init() -> None:
             "flash_out_offpeak": "0.60",
             "flash_out_peak": "1.20",
             "usd_to_cny": "7.2",
-            "cost_cents_cap": "3000",  # ¥30/天
+            "cost_cents_cap": "3000",  # ¥30/天 → 超了当日全员降级
+            "cost_cents_hard": "6000",  # ¥60/天 → 2×cap，超了硬停 429
+            # —— 降级档（P0：超配额/超cap不断头，缩短输出+降速） ——
+            "degrade_max_tokens": "400",       # 降级时 explain/followup 输出上限
+            "degrade_max_tokens_chat": "1000",  # 降级时 chat 输出上限
+            "degrade_min_interval": "15",       # 降级时同一用户最小间隔（秒）
         }
         c.executemany("INSERT OR IGNORE INTO meter_config (key, value) VALUES (?,?)",
                       list(defaults.items()))
@@ -322,18 +331,19 @@ def sync_put(uid: int, data: str) -> str:
 # ================= 经济测算（metering） =================
 def meter_record(user_id, plan: str, mode: str, style, stream: bool,
                  prompt_cache_hit_tokens: int, prompt_cache_miss_tokens: int,
-                 completion_tokens: int, cost_cents: int, ok: bool) -> None:
-    """记一笔 LLM 调用的真实 token 消耗与折算成本。只观测，不阻断。"""
+                 completion_tokens: int, cost_cents: int, ok: bool,
+                 depth: int = -1, turns: int = -1) -> None:
+    """记一笔 LLM 调用的真实 token 消耗与折算成本。depth/turns 为行为信号（-1=未上报）。"""
     with _conn() as c:
         c.execute(
             "INSERT INTO meter_requests (ts, day_key, user_id, plan, mode, style, stream, "
             "prompt_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, "
-            "completion_tokens, cost_cents, ok) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "completion_tokens, cost_cents, ok, depth, turns) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (now(), today(), user_id, plan, mode, style,
              1 if stream else 0,
              prompt_cache_hit_tokens + prompt_cache_miss_tokens,
              prompt_cache_hit_tokens, prompt_cache_miss_tokens,
-             completion_tokens, cost_cents, 1 if ok else 0))
+             completion_tokens, cost_cents, 1 if ok else 0, depth, turns))
 
 
 def meter_set(key: str, value: str) -> None:

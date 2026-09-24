@@ -127,6 +127,7 @@
   /* 账户 / 配额 / 引导 */
   .hidden{display:none !important}
   .qbadge{font-size:11.5px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:2px 8px}
+  .qbadge.deg{color:#d9a441;border-color:#d9a441}
   #authModal{position:fixed;inset:0;background:#0e0e10cc;z-index:210;display:flex;align-items:center;justify-content:center}
   .acard{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
   .acard .atabs{display:flex;gap:14px;align-items:center;margin-bottom:14px;font-size:15px}
@@ -547,7 +548,8 @@ function bindAll(){
       const f = node.followups[node.followups.length-1];
       const live = () => document.querySelector(`[data-fu="${node.followups.indexOf(f)}"] .a`);
       try{
-        const r = await apiStream("/api/explain", {mode:"followup",term:node.term,previous:node.text,question:q,stream:true}, d => {
+      const r = await apiStream("/api/explain", {mode:"followup",term:node.term,previous:node.text,question:q,stream:true,
+        depth: state.focusPath.length - 1, turns: node.followups.length}, d => {
           f.a += d;
           const el = live(); if(el) el.innerHTML = mdRender(f.a);
         });
@@ -651,7 +653,8 @@ async function requestExplain(card){
   card.loading = true; card.error = null; card.text = ""; save(); render();
   const live = () => document.querySelector(`[data-exp="${card.id}"]`);
   try{
-    const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,stream:true}, d => {
+    const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,stream:true,
+      depth: state.focusPath.length, turns: 0}, d => {
       card.text += d;
       const el = live();
       if(el){ el.classList.remove("loading","err"); el.innerHTML = mdRender(card.text); }
@@ -672,7 +675,8 @@ async function sendChat(node, text){
   const live = () => document.querySelector(`[data-msg="${pending.id}"] .txt`);
   const scroll = () => { const c = document.querySelector(".content .ctext"); if(c) c.scrollTop = c.scrollHeight; };
   try{
-    const r = await apiStream("/api/explain", {mode:"chat", stream:true, messages:[...history, {role:"user", content:text}]}, d => {
+    const r = await apiStream("/api/explain", {mode:"chat", stream:true, messages:[...history, {role:"user", content:text}],
+      depth: state.focusPath.length - 1, turns: history.filter(m => m.role === "user").length + 1}, d => {
       pending.text += d;
       const el = live();
       if(el){ el.classList.remove("loading"); el.innerHTML = mdRender(pending.text); scroll(); }
@@ -846,6 +850,7 @@ async function api(path, method, body){
   const r = await fetch(path, opts);
   let d = {};
   try { d = await r.json(); } catch(e){}
+  if (d && "degraded" in d) DEGRADED = !!d.degraded;
   return { ok: r.ok, status: r.status, data: d };
 }
 /* SSE 流式请求：每收到一个 {"delta":…} 事件就回调 onDelta。返回值语义同 api()。 */
@@ -853,6 +858,7 @@ async function apiStream(path, body, onDelta){
   const r = await fetch(path, { method: "POST", headers: apiHeaders(), body: JSON.stringify(body) });
   if(!r.ok || !r.body){
     let d = {}; try { d = await r.json(); } catch(e){}
+    if (d && "degraded" in d) DEGRADED = !!d.degraded;
     return { ok: false, status: r.status, data: d };
   }
   const reader = r.body.getReader(), dec = new TextDecoder();
@@ -869,7 +875,8 @@ async function apiStream(path, body, onDelta){
       let o; try { o = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
       if(o.delta){ if(out.ok) onDelta(o.delta); }
       else if(o.error){ out.ok = false; out.data = { error: o.error }; }
-      if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; if(o.truncated) out.data.truncated = true; }
+      if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; if(o.truncated) out.data.truncated = true;
+                  if("degraded" in o){ out.data.degraded = o.degraded; DEGRADED = !!o.degraded; } }
     }
   }
   return out;
@@ -881,13 +888,16 @@ function toast(t){
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove("show"), 2800);
 }
+let DEGRADED = false;  // 服务端降级档（超配额/超成本cap）：徽章提示，非错误
 function renderQuota(q){
   const el = $("#quotaBadge");
   if (!q) { el.classList.add("hidden"); return; }
   el.classList.remove("hidden");
+  el.classList.toggle("deg", DEGRADED);
   const plan = q.plan === "pro" ? "Pro" : q.plan === "anon" ? "未登录" : "免费";
-  el.textContent = q.used + "/" + q.limit;
-  el.title = plan + " · 今日 " + q.used + "/" + q.limit + " 次";
+  el.textContent = (DEGRADED ? "⚡" : "") + q.used + "/" + q.limit;
+  el.title = plan + " · 今日 " + q.used + "/" + q.limit + " 次"
+           + (DEGRADED ? " · ⚡降级中：回答更短更慢，明天恢复（升级 Pro 解除）" : "");
 }
 function renderAccount(){
   if (ME) {
