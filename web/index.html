@@ -169,6 +169,7 @@
   <button id="closedBtn">已移除 <span id="closedCount">0</span></button>
   <button id="sampleBtn">示例问题</button>
   <button id="exportBtn">导出 md</button>
+  <button id="exportJsonBtn" title="导出原始数据（JSON），可自行可视化或二次加工">导出 json</button>
   <button id="resetBtn">重来</button>
   <button id="aboutBtn" title="关于问底">?</button>
   <span id="quotaBadge" class="qbadge hidden" title="今日用量"></span>
@@ -639,6 +640,19 @@ $("#exportBtn").onclick = () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "解释场-" + new Date().toISOString().slice(0,10) + ".md";
+  a.click();
+};
+$("#exportJsonBtn").onclick = () => {
+  const payload = {
+    schema: "wendi.field.v1",
+    exportedAt: new Date().toISOString(),
+    app: "know.kwelldo.cn",
+    data: state
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "解释场-" + new Date().toISOString().slice(0,10) + ".json";
   a.click();
 };
 
