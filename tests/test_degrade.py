@@ -134,9 +134,12 @@ class TestCostGate(P0Base):
         self.assertEqual(server._cost_state(), "hard")
 
     def test_day_rollover_resets(self):
+        # 日切/重启后内存计数不可信，应从计量表恢复；账本为空即 0。
+        # （mock 掉计量表：本模块其他用例会往同一个 temp DB 写记录，断言不该随执行顺序漂移）
         server._cost_global.update(daykey="2000-01-01", cost_cents=99999,
                                    alerted=True, hard_alerted=True)
-        self.assertEqual(server._cost_state(), "normal")
+        with mock.patch.object(db, "meter_totals", return_value={"cost_cents": 0}):
+            self.assertEqual(server._cost_state(), "normal")
         self.assertEqual(server._cost_global["cost_cents"], 0)
 
     def test_tick_emits_events_once(self):

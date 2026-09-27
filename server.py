@@ -50,6 +50,19 @@ LIMIT_GLOBAL_DAY = int(os.environ.get("WENDI_LIMIT_GLOBAL_DAY", "4000"))
 MAX_BODY = 64 * 1024
 MAX_SYNC_BYTES = 1024 * 1024  # 云同步单用户上限 1MB
 ADMIN_TOKEN = os.environ.get("WENDI_ADMIN_TOKEN", "")  # 空则 meter 端点拒绝一切请求
+# 可选的管理端 IP 白名单（逗号分隔；空=不限制）。只认 X-Real-IP/X-Forwarded-For 的第一跳。
+ADMIN_IPS = [ip.strip() for ip in os.environ.get("WENDI_ADMIN_IPS", "").split(",") if ip.strip()]
+FEEDBACK_MAX = 2000                     # 单条反馈正文字数上限
+FEEDBACK_PER_DAY = int(os.environ.get("WENDI_FEEDBACK_PER_DAY", "5"))   # 每 IP 每天
+FEEDBACK_INTERVAL = int(os.environ.get("WENDI_FEEDBACK_INTERVAL", "30"))  # 同一 IP 最小间隔（秒）
+
+# 允许站长后台在线热改的 meter_config 键（llm_* 密钥类不在此端点暴露，走「服务配置」面板）
+METER_CONFIG_KEYS = (
+    "cost_cents_cap", "cost_cents_hard", "degrade_min_interval",
+    "degrade_max_tokens", "degrade_max_tokens_chat",
+    "flash_in_hit_offpeak", "flash_in_hit_peak", "flash_in_miss_offpeak",
+    "flash_in_miss_peak", "flash_out_offpeak", "flash_out_peak", "usd_to_cny",
+)
 
 # —— 内核（kernel.py：事件 + 服务 + 作用域；graph/notes/share 模块的挂载点） ——
 kernel = Kernel()
@@ -58,6 +71,7 @@ _anon: dict[str, dict] = defaultdict(lambda: {"minute": [], "day": 0, "daykey": 
 _global = {"day": 0, "daykey": ""}
 _cost_global = {"day": 0, "daykey": "", "cost_cents": 0, "alerted": False, "hard_alerted": False}
 _degrade_last: dict[str, float] = {}  # 降级档：同一用户上次放行时刻（内存态，与 _anon 同债）
+_feedback_rate: dict[str, dict] = defaultdict(lambda: {"day": 0, "daykey": "", "last": 0.0})
 log = logging.getLogger("wendi.meter")
 
 
@@ -450,7 +464,9 @@ class Handler(SimpleHTTPRequestHandler):
     def _user(self):
         auth = self.headers.get("Authorization", "")
         token = auth[7:].strip() if auth.startswith("Bearer ") else ""
-        return db.get_session_user(token)
+        user = db.get_session_user(token)
+        # 被禁用的账号：已有会话立即失效（登录入口也会拒），退回匿名身份（按 IP 限额）
+        return None if (user and user["disabled"]) else user
 
     def _quota_payload(self, user) -> dict:
         if user:
@@ -494,6 +510,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "degrade": {"explain_tokens": _degrade_max_tokens("explain"),
                                 "chat_tokens": _degrade_max_tokens("chat"),
                                 "min_interval": int(float(db.meter_get("degrade_min_interval") or 15))},
+                    # 可热改的全量白名单值（站长后台「闸门」页直接编辑）
+                    "config": {k: db.meter_get(k) for k in METER_CONFIG_KEYS},
                 })
                 return
             if path == "/api/admin/codes":
@@ -504,6 +522,31 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if path == "/api/admin/llmkey":
                 self._admin_llmkey_get()
+                return
+            if path == "/api/admin/overview":
+                self._admin_overview()
+                return
+            if path == "/api/admin/users":
+                if not self._admin_ok(qs):
+                    return
+                self._json(200, {"users": db.list_users(qs.get("q", [""])[0] or None,
+                                                         self._qint(qs, "limit", 200, hi=1000)),
+                                 "stats": db.user_stats()})
+                return
+            if path == "/api/admin/feedback":
+                if not self._admin_ok(qs):
+                    return
+                status = qs.get("status", [""])[0] or None
+                if status and status not in db.FEEDBACK_STATUSES:
+                    self._json(400, {"error": "status 只能是 new / read / done"})
+                    return
+                self._json(200, {"items": db.feedback_list(status, self._qint(qs, "limit", 200, hi=1000)),
+                                 "stats": db.feedback_stats()})
+                return
+            if path == "/api/admin/audit":
+                if not self._admin_ok(qs):
+                    return
+                self._json(200, {"items": db.admin_log_list(self._qint(qs, "limit", 200, hi=1000))})
                 return
             if path == "/api/me":
                 user = self._user()
@@ -531,8 +574,20 @@ class Handler(SimpleHTTPRequestHandler):
         from urllib.parse import urlparse, parse_qs
         return parse_qs(urlparse(self.path).query)
 
+    @staticmethod
+    def _qint(qs: dict, key: str, default: int, lo: int = 1, hi: int = 1000) -> int:
+        """查询串里的整数参数：越界夹紧、非数字回落默认（不因一个坏参数 500）。"""
+        try:
+            return max(lo, min(hi, int(qs.get(key, [str(default)])[0])))
+        except (TypeError, ValueError):
+            return default
+
     def _admin_ok(self, qs: dict | None = None) -> bool:
-        """校验 ?token= 或 Authorization: Bearer 是否匹配 WENDI_ADMIN_TOKEN。不匹配 → 401 并返回 False。"""
+        """校验 ?token= 或 Authorization: Bearer 是否匹配 WENDI_ADMIN_TOKEN。不匹配 → 401 并返回 False。
+        另可设 WENDI_ADMIN_IPS 白名单（逗号分隔）；白名单外一律 403。"""
+        if ADMIN_IPS and self._ip() not in ADMIN_IPS:
+            self._json(403, {"error": "admin ip not allowed"})
+            return False
         if qs is None:
             qs = self._qs()
         token = qs.get("token", [""])[0]
@@ -566,6 +621,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._sync_put(body)
             elif path == "/api/explain":
                 self._explain(body)
+            elif path == "/api/feedback":
+                self._feedback_add(body)
             elif path == "/api/admin/codes":
                 self._admin_gen_codes(body)
             elif path == "/api/admin/codes/void":
@@ -574,8 +631,16 @@ class Handler(SimpleHTTPRequestHandler):
                 self._admin_create_user(body)
             elif path == "/api/admin/users/password":
                 self._admin_reset_password(body)
+            elif path == "/api/sync/delete":
+                self._sync_delete()
             elif path == "/api/admin/llmkey":
                 self._admin_llmkey_set(body)
+            elif path == "/api/admin/users/disable":
+                self._admin_user_disable(body)
+            elif path == "/api/admin/feedback/status":
+                self._admin_feedback_status(body)
+            elif path == "/api/admin/meter/config":
+                self._admin_meter_config_set(body)
             else:
                 self._json(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
@@ -610,6 +675,9 @@ class Handler(SimpleHTTPRequestHandler):
         if not row or not verify_password(pw, row["pw_salt"], row["pw_hash"]):
             self._json(401, {"error": "邮箱或密码不正确"})
             return
+        if row["disabled"]:
+            self._json(403, {"error": "这个账号已被停用。若有疑问请在反馈页留言。"})
+            return
         token = new_token()
         db.create_session(token, row["id"])
         self._json(200, {"token": token, "email": row["email"],
@@ -635,6 +703,45 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(200, {"ok": True, "message": msg, "plan": "pro", "plan_until": until,
                          "quota": db.quota_state(row)})
 
+    # ---------- 反馈（公开；按 IP 限流，落库进站长后台） ----------
+    def _feedback_add(self, body: dict):
+        ip = self._ip()
+        h = _feedback_rate[ip]
+        day = _today()
+        if h["daykey"] != day:
+            h["daykey"], h["day"], h["last"] = day, 0, 0.0
+        now = time.time()
+        if now - h["last"] < FEEDBACK_INTERVAL:
+            self._json(429, {"error": f"刚收到你的反馈，{FEEDBACK_INTERVAL} 秒后可再发一条。"})
+            return
+        if h["day"] >= FEEDBACK_PER_DAY:
+            self._json(429, {"error": "今天的反馈条数已满，请明天再来或直接发邮件。"})
+            return
+        kind = str(body.get("kind", "other")).strip() or "other"
+        if kind not in db.FEEDBACK_KINDS:
+            self._json(400, {"error": "kind 只能是 bug / idea / other"})
+            return
+        text = str(body.get("body", "")).strip()
+        if len(text) < 2:
+            self._json(400, {"error": "内容太短了，多写两句吧"})
+            return
+        if len(text) > FEEDBACK_MAX:
+            self._json(400, {"error": f"内容请在 {FEEDBACK_MAX} 字以内"})
+            return
+        contact = str(body.get("contact", "")).strip()[:200]
+        can_reply = bool(body.get("can_reply"))
+        if can_reply and not contact:
+            self._json(400, {"error": "勾了「可以联系我」就得留个邮箱或微信"})
+            return
+        user = self._user()
+        fid = db.feedback_add(kind, text, contact, can_reply,
+                              user["id"] if user else None, ip,
+                              self.headers.get("User-Agent", ""))
+        h["day"] += 1
+        h["last"] = now
+        kernel.emit("feedback.new", id=fid, kind=kind, user_id=user["id"] if user else None)
+        self._json(200, {"ok": True, "id": fid})
+
     # ---------- 管理端（WENDI_ADMIN_TOKEN；空则一律拒绝） ----------
     def _admin_gen_codes(self, body: dict):
         if not self._admin_ok():
@@ -651,6 +758,7 @@ class Handler(SimpleHTTPRequestHandler):
         batch = str(body.get("batch", "")).strip() or None
         batch, codes = db.gen_codes(n, days, note, batch)
         kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days, note=note)
+        db.admin_log("codes.gen", f"batch={batch} n={len(codes)} days={days} note={note}", self._ip())
         self._json(200, {"batch": batch, "codes": codes})
 
     def _admin_void_codes(self, body: dict):
@@ -662,6 +770,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {"error": "需要 codes 列表或 batch"})
             return
         voided = db.void_codes(codes, batch)
+        db.admin_log("codes.void", f"batch={batch} codes={len(codes) if codes else 0} voided={voided}",
+                     self._ip())
         self._json(200, {"voided": voided})
 
     def _admin_create_user(self, body: dict):
@@ -696,6 +806,7 @@ class Handler(SimpleHTTPRequestHandler):
             until = time.strftime("%Y-%m-%d", time.localtime(t))
             db.set_plan(user["id"], "pro", until)
         kernel.emit("admin.user_created", user_id=user["id"], email=email, plan=plan)
+        db.admin_log("user.create", f"user_id={user['id']} email={email} plan={plan}", self._ip())
         row = db.get_user(user["id"])
         self._json(200, {"id": row["id"], "email": row["email"],
                          "plan": db.effective_plan(row), "plan_until": row["plan_until"]})
@@ -725,6 +836,7 @@ class Handler(SimpleHTTPRequestHandler):
             db.meter_set("llm_model", "")
             _ACTIVE_KEY = None  # 立即停止使用已缓存的 key
             kernel.emit("admin.llmkey_cleared")
+            db.admin_log("llmkey.clear", "", self._ip())
             self._json(200, {"ok": True, "count": 0, "keys": []})
             return
         raw = body.get("keys", "")
@@ -757,6 +869,7 @@ class Handler(SimpleHTTPRequestHandler):
         _ACTIVE_KEY = None
         kernel.emit("admin.llmkey_set", n=len(keys), has_base_url=bool(base_url),
                     model=model or None)
+        db.admin_log("llmkey.set", f"n={len(keys)} base_url={base_url} model={model}", self._ip())
         self._json(200, {"ok": True, "count": len(keys),
                          "keys": [self._mask_key(k) for k in keys],
                          "base_url": base_url, "model": model})
@@ -777,7 +890,115 @@ class Handler(SimpleHTTPRequestHandler):
         salt, h = hash_password(pw)
         db.reset_password(row["id"], salt, h)
         kernel.emit("admin.password_reset", user_id=row["id"], email=email)
+        db.admin_log("user.password_reset", f"user_id={row['id']} email={row['email']}", self._ip())
         self._json(200, {"ok": True, "email": row["email"], "sessions_revoked": True})
+
+    # ---------- 站长后台：总览 / 用户 / 反馈 / 闸门热改 ----------
+    def _admin_overview(self):
+        """一屏看板：成本闸状态 + 当日账 + 用户/反馈/兑换码计数 + 最新 5 条未读反馈。"""
+        if not self._admin_ok():
+            return
+        day = _today()
+        cap, hard = _cost_caps()
+        meter = db.meter_totals(day)
+        codes = db.code_stats()
+        self._json(200, {
+            "day": day, "model": _llm_model(), "state": _cost_state(),
+            "cost_cents": meter["cost_cents"], "cap_cents": cap, "hard_cents": hard,
+            "calls_today": meter["requests"],
+            "users": db.user_stats(),
+            "feedback": db.feedback_stats(),
+            "codes": {"n": codes["n"], "used": codes["used"],
+                      "unused": codes["unused"], "voided": codes["voided"]},
+            "meter": meter,
+            "feedback_new": db.feedback_list("new", 5),
+        })
+
+    def _admin_user_disable(self, body: dict):
+        """停用/恢复账号。停用同时踢掉该用户全部会话（在建会话立即失效）。"""
+        if not self._admin_ok():
+            return
+        if "user_id" not in body:
+            self._json(400, {"error": "缺 user_id"})
+            return
+        try:
+            uid = int(body["user_id"])
+        except (TypeError, ValueError):
+            self._json(400, {"error": "user_id 必须是整数"})
+            return
+        if "disabled" not in body:
+            self._json(400, {"error": "缺 disabled（true=停用 / false=恢复）"})
+            return
+        row = db.get_user(uid)
+        if not row:
+            self._json(404, {"error": "用户不存在"})
+            return
+        disabled = bool(body.get("disabled"))
+        db.set_disabled(uid, disabled)
+        kicked = db.drop_sessions(uid) if disabled else 0
+        db.admin_log("user.disable" if disabled else "user.enable",
+                     f"user_id={uid} email={row['email']} reason={str(body.get('reason', ''))[:200]}",
+                     self._ip())
+        kernel.emit("admin.user_disabled", user_id=uid, disabled=disabled)
+        self._json(200, {"ok": True, "user_id": uid, "email": row["email"],
+                         "disabled": disabled, "sessions_dropped": kicked})
+
+    def _admin_feedback_status(self, body: dict):
+        if not self._admin_ok():
+            return
+        if "id" not in body:
+            self._json(400, {"error": "缺 id"})
+            return
+        try:
+            fid = int(body["id"])
+        except (TypeError, ValueError):
+            self._json(400, {"error": "id 必须是整数"})
+            return
+        status = str(body.get("status", "")).strip()
+        if status not in db.FEEDBACK_STATUSES:
+            self._json(400, {"error": "status 只能是 new / read / done"})
+            return
+        note = body.get("note")
+        note = None if note is None else str(note)[:500]
+        if not db.feedback_set_status(fid, status, note):
+            self._json(404, {"error": "反馈不存在"})
+            return
+        db.admin_log("feedback.status", f"id={fid} status={status}", self._ip())
+        self._json(200, {"ok": True, "id": fid, "status": status})
+
+    def _admin_meter_config_set(self, body: dict):
+        """热改成本闸/降级档/单价（白名单键，见 METER_CONFIG_KEYS）。保存即生效，无需重启。"""
+        if not self._admin_ok():
+            return
+        patch = body.get("set")
+        if not isinstance(patch, dict) or not patch:
+            self._json(400, {"error": 'body 形如 {"set": {"cost_cents_cap": 3000}}'})
+            return
+        unknown = [k for k in patch if k not in METER_CONFIG_KEYS]
+        if unknown:
+            self._json(400, {"error": "不允许改的键：" + "、".join(unknown)})
+            return
+        vals: dict[str, str] = {}
+        for k, v in patch.items():
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                self._json(400, {"error": f"{k} 必须是数字"})
+                return
+            if not (f >= 0) or f == float("inf"):  # NaN / 负数 / 无穷 一律拒
+                self._json(400, {"error": f"{k} 必须是非负有限数"})
+                return
+            vals[k] = str(int(f)) if k.startswith(("cost_cents", "degrade_")) else str(f)
+        cap = float(vals.get("cost_cents_cap") or db.meter_get("cost_cents_cap") or 0)
+        hard = float(vals.get("cost_cents_hard") or db.meter_get("cost_cents_hard") or 0)
+        if cap and hard and hard <= cap:
+            self._json(400, {"error": f"hard 必须大于 cap（改了会是 cap={cap:g} / hard={hard:g}）"})
+            return
+        for k, v in vals.items():
+            db.meter_set(k, v)
+        db.admin_log("meter.config", json.dumps(vals, ensure_ascii=False), self._ip())
+        kernel.emit("admin.meter_config", keys=sorted(vals))
+        self._json(200, {"ok": True, "set": vals})
 
     # ---------- 云同步 ----------
     def _sync_put(self, body: dict):
@@ -794,6 +1015,15 @@ class Handler(SimpleHTTPRequestHandler):
             return
         ts = db.sync_put(user["id"], data)
         self._json(200, {"ok": True, "updated_at": ts})
+
+    def _sync_delete(self):
+        """删除自己的云端副本（本地数据不动）。"""
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        deleted = db.sync_delete(user["id"])
+        self._json(200, {"ok": True, "deleted": deleted})
 
     # ---------- 核心：解释 ----------
     def _explain(self, body: dict):

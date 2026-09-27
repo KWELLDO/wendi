@@ -1,0 +1,124 @@
+/* 问底 WenDi · 文档页共用样式（关于 / 隐私 / 条款 / 反馈 / 站长后台）
+   视觉契约见 docs/adr/0001：新闻纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；亮默认、夜版跟随系统。 */
+:root{
+  --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
+  --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
+  --rule:#15130f; --hairline:#d8d2c4;
+  --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
+  --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
+  --slab-bg:#1b1813; --slab-fg:#f4f0e4;
+  --float:0 6px 18px rgba(21,19,15,.16);
+  --noise:rgba(21,19,15,.05);
+  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
+  --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
+  --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
+  --rule:#ece5d6; --hairline:#3a342b;
+  --accent:#d76a5f; --accent-wash:rgba(215,106,95,.12); --accent-line:rgba(215,106,95,.50);
+  --ok:#6bb3a4; --warn:#d9ac47; --err:#d76a5f;
+  --slab-bg:#0f0d0a; --slab-fg:#ece5d6;
+  --float:0 6px 18px rgba(0,0,0,.55);
+  --noise:rgba(236,229,214,.03);
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.75 var(--sans);
+     background-image:radial-gradient(var(--noise) 1px,transparent 1px);background-size:4px 4px}
+::selection{background:var(--accent-wash)}
+a{color:var(--accent);text-decoration:underline;text-decoration-color:var(--accent-line);
+  text-underline-offset:3px}
+a:hover{text-decoration-color:var(--accent)}
+code,kbd{font-family:var(--mono);font-size:.88em;background:var(--surface-2);
+         border:1px solid var(--hairline);padding:.05em .35em}
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:var(--surface);
+    border:1px solid var(--hairline);padding:12px 14px;overflow-x:auto}
+pre code{background:none;border:none;padding:0}
+hr{border:0;border-top:1px solid var(--hairline);margin:32px 0}
+
+/* —— 页头 / 页脚 —— */
+.site{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+      padding:10px 20px;border-bottom:2px solid var(--rule)}
+.site .brand{font-family:var(--serif);font-weight:600;font-size:17px;color:var(--ink);
+             text-decoration:none;letter-spacing:.5px}
+.site .brand span{font-family:var(--sans);font-size:11.5px;color:var(--ink-3);
+                  margin-left:7px;letter-spacing:0}
+.site nav{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13.5px}
+.site nav a{color:var(--ink-2);text-decoration:none}
+.site nav a:hover{color:var(--accent)}
+.site nav a.on{color:var(--accent)}
+.site nav a.go{border:1px solid var(--hairline);padding:3px 11px;color:var(--ink)}
+.site nav a.go:hover{border-color:var(--ink);color:var(--ink)}
+footer.site{display:block;border-bottom:0;border-top:1px solid var(--hairline);
+            color:var(--ink-3);font-size:12.5px;line-height:1.9;padding:18px 20px 40px}
+footer.site .fnav{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+footer.site a{color:var(--ink-2);text-decoration:none}
+footer.site a:hover{color:var(--accent)}
+
+/* —— 正文栏 —— */
+main{max-width:46rem;margin:0 auto;padding:34px 20px 10px}
+main.wide{max-width:72rem}
+h1{font-family:var(--serif);font-size:clamp(25px,4.2vw,34px);line-height:1.3;
+   margin:0 0 6px;font-weight:600}
+.lede{font-family:var(--serif);font-size:17px;color:var(--ink-2);margin:0 0 26px;line-height:1.8}
+h2{font-family:var(--serif);font-size:20px;margin:38px 0 10px;padding-top:14px;
+   border-top:1px solid var(--hairline);font-weight:600}
+h3{font-family:var(--serif);font-size:16.5px;margin:24px 0 6px;font-weight:600}
+p{margin:.7em 0}
+ul,ol{padding-left:1.35em;margin:.7em 0}
+li{margin:.25em 0}
+blockquote{margin:16px 0;padding:2px 0 2px 16px;border-left:2px solid var(--accent-line);
+           color:var(--ink-2);font-family:var(--serif)}
+.muted{color:var(--ink-3)}
+.small{font-size:12.5px;line-height:1.7}
+.tag{display:inline-block;border:1px solid var(--hairline);color:var(--ink-2);
+     font-size:12px;padding:0 7px;margin-right:6px}
+dl{margin:.8em 0}
+dt{font-family:var(--serif);font-weight:600;margin-top:.9em}
+dd{margin:.15em 0 0 1.2em;color:var(--ink-2)}
+
+/* —— 表格 —— */
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border-bottom:1px solid var(--hairline);padding:8px 10px;text-align:left;vertical-align:top}
+th{font-family:var(--serif);font-weight:600;border-bottom:1px solid var(--rule)}
+tr:hover td{background:var(--surface-2)}
+
+/* —— 提示盒 —— */
+.box{border:1px solid var(--hairline);border-left:3px solid var(--ink);background:var(--surface);
+     padding:12px 15px;margin:18px 0}
+.box.warn{border-left-color:var(--warn)}
+.box.ok{border-left-color:var(--ok)}
+.box.accent{border-left-color:var(--accent)}
+.box h3{margin-top:0}
+.card{border:1px solid var(--hairline);background:var(--surface);padding:16px 18px;margin:16px 0}
+
+/* —— 按钮 / 表单 —— */
+button,.btn{font:13.5px var(--sans);background:transparent;color:var(--ink);
+            border:1px solid var(--hairline);padding:6px 14px;cursor:pointer;text-decoration:none}
+button:hover,.btn:hover{border-color:var(--ink)}
+button.primary,.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink);
+                            font-weight:600}
+button.primary:hover,.btn.primary:hover{background:var(--accent);border-color:var(--accent)}
+button.ghost{border-color:transparent;color:var(--ink-2)}
+button.ghost:hover{color:var(--accent);border-color:transparent}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+label{display:block;font-size:13px;color:var(--ink-2);margin:14px 0 5px}
+input[type=text],input[type=email],input[type=password],textarea,select{
+  width:100%;font:14px var(--sans);color:var(--ink);background:var(--surface);
+  border:1px solid var(--hairline);padding:8px 10px}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+textarea{min-height:150px;resize:vertical;line-height:1.7}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);margin:12px 0}
+.chk input{width:auto;margin:0}
+.msg{font-size:13px;margin:10px 0;min-height:1.2em}
+.msg.err{color:var(--err)}
+.msg.ok{color:var(--ok)}
+.hint{font-size:12.5px;color:var(--ink-3)}
+@media (max-width:640px){
+  .site{padding:9px 14px}
+  main{padding:24px 15px 6px}
+  .site nav{gap:11px;font-size:13px}
+}

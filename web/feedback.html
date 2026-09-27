@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反馈 · 问底 WenDi</title>
+<meta name="description" content="给问底留言：遇到的 bug、想要的功能、看不懂的地方。留言直接进站长后台。">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="/">问底<span>WenDi</span></a>
+  <nav>
+    <a href="/about.html">关于</a>
+    <a href="/feedback.html" class="on">反馈</a>
+    <a href="/privacy.html">隐私</a>
+    <a href="/terms.html">条款</a>
+    <a class="go" href="/">回到工作台</a>
+  </nav>
+</header>
+<main>
+  <h1>反馈</h1>
+  <p class="lede">这个项目是一个人做的，你的每一条留言都会进我的后台，我会一条条看。说清楚「你做了什么、期望什么、实际发生了什么」比写得客气有用得多。</p>
+
+  <form id="fbForm">
+    <label for="fbKind">这是什么</label>
+    <select id="fbKind">
+      <option value="bug">出问题了（bug）</option>
+      <option value="idea">想要的功能 / 建议</option>
+      <option value="other">其它（说不上来也算）</option>
+    </select>
+
+    <label for="fbBody">内容</label>
+    <textarea id="fbBody" maxlength="2000" placeholder="例：在手机上划词后气泡跑到屏幕外面了；我用的是 Android Chrome。&#10;例：希望解释卡能标一下「这个词有多少种理解」。"></textarea>
+    <div class="hint"><span id="fbCount">0</span> / 2000 字</div>
+
+    <label for="fbContact">联系方式（选填）</label>
+    <input id="fbContact" type="text" maxlength="200" placeholder="邮箱或微信，方便我回你" autocomplete="email">
+
+    <div class="chk">
+      <input id="fbReply" type="checkbox">
+      <label for="fbReply" style="margin:0">可以联系我（留了联系方式才勾得上）</label>
+    </div>
+
+    <div class="row" style="margin-top:18px">
+      <button type="submit" class="primary" id="fbSubmit">发送</button>
+      <span class="hint" id="fbState"></span>
+    </div>
+    <div class="msg" id="fbMsg"></div>
+  </form>
+
+  <div class="box">
+    <h3>也可以</h3>
+    <ul>
+      <li>在源码仓库提 Issue：<a href="https://github.com/KWELLDO/wendi/issues">GitHub</a> / <a href="https://gitee.com/kwelldo/wendi/issues">Gitee</a>（适合能复现、能贴截图的问题）</li>
+      <li>只想聊天、讲感受、说「我用它做了什么」——上面这个框就够了，不用管格式</li>
+    </ul>
+  </div>
+
+  <div class="box ok">
+    <h3>我会怎么用它</h3>
+    <p class="small" style="margin:0">留言只用来改这个产品。勾了「可以联系我」我可能会回你一封邮件问细节；不留联系方式我也能看，只是没法追问。
+    具体存什么、存多久见 <a href="/privacy.html">隐私政策</a>。</p>
+  </div>
+</main>
+<footer class="site">
+  <div class="fnav">
+    <a href="/">工作台</a>
+    <a href="/about.html">关于 wendi</a>
+    <a href="/feedback.html">反馈</a>
+    <a href="/privacy.html">隐私政策</a>
+    <a href="/terms.html">服务条款</a>
+    <a href="https://github.com/KWELLDO/wendi">源码（AGPL-3.0）</a>
+  </div>
+  <div>问底 WenDi · 递归解释器 · AGPL-3.0-or-later · 最后更新 2026-09-27</div>
+</footer>
+<script>
+function $(s){ return document.querySelector(s); }
+var body = $("#fbBody"), contact = $("#fbContact"), reply = $("#fbReply");
+
+body.addEventListener("input", function(){ $("#fbCount").textContent = body.value.length; });
+reply.addEventListener("change", function(){
+  if(reply.checked && !contact.value.trim()){ contact.focus(); }
+});
+contact.addEventListener("input", function(){
+  if(!contact.value.trim() && reply.checked) reply.checked = false;
+});
+
+/* 已登录的话把邮箱填进联系方式（本地只读 token，不写别的） */
+(function prefill(){
+  var tok = localStorage.getItem("wendi-token");
+  if(!tok) return;
+  fetch("/api/me", { headers: { "Authorization": "Bearer " + tok } })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !d.email) return;
+      if(!contact.value) contact.value = d.email;
+      if(!reply.checked) reply.checked = true;
+      $("#fbState").textContent = "已识别登录账号：" + d.email;
+    })
+    .catch(function(){});
+})();
+
+$("#fbForm").addEventListener("submit", function(e){
+  e.preventDefault();
+  var msg = $("#fbMsg"), btn = $("#fbSubmit");
+  var text = body.value.trim();
+  msg.className = "msg";
+  msg.textContent = "";
+  if(text.length < 2){ msg.className = "msg err"; msg.textContent = "再多写两句吧。"; body.focus(); return; }
+  if(reply.checked && !contact.value.trim()){
+    msg.className = "msg err";
+    msg.textContent = "勾了「可以联系我」就得留个联系方式。";
+    contact.focus();
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "发送中…";
+  fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind: $("#fbKind").value,
+      body: text,
+      contact: contact.value.trim(),
+      can_reply: reply.checked
+    })
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(d){
+      return { ok: r.ok, status: r.status, data: d };
+    });
+  }).then(function(res){
+    btn.disabled = false;
+    btn.textContent = "发送";
+    if(res.ok){
+      $("#fbForm").reset();
+      $("#fbCount").textContent = "0";
+      $("#fbState").textContent = "";
+      msg.className = "msg ok";
+      msg.textContent = "收到了，编号 #" + res.data.id + "。";
+      return;
+    }
+    msg.className = "msg err";
+    msg.textContent = res.data.error || ("发送失败（HTTP " + res.status + "），过一会儿再试。");
+  }).catch(function(){
+    btn.disabled = false;
+    btn.textContent = "发送";
+    msg.className = "msg err";
+    msg.textContent = "网络不通，没发出去。稍后再试。";
+  });
+});
+</script>
+</body>
+</html>

@@ -136,6 +136,7 @@ class TestAdminHandlers(BaseAdmin):
             self.headers = {"Authorization": f"Bearer {token}"} if token else {}
             self.path = "/api/admin/x"
             self._method = method
+            self.client_address = ("127.0.0.1", 0)  # _ip() 用；管理动作要写审计日志
 
         def _json(self, code, obj):
             self.status, self.payload = code, obj

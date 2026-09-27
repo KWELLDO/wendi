@@ -61,7 +61,10 @@ python3 server.py        # → http://127.0.0.1:8899
 | `WENDI_MODEL` | deepseek-flash | 模型名（可用「密钥」面板覆盖） |
 | `WENDI_BASE_URL` | https://api.deepseek.com | 任意 OpenAI 兼容端点（可用「密钥」面板覆盖） |
 | `WENDI_KEYS` | — | 多个 key（逗号分隔），401 自动轮换 |
-| `WENDI_ADMIN_TOKEN` | — | 管理令牌（meter 端点 + 「密钥」面板 + 建号/发码）；不设则拒绝 |
+| `WENDI_ADMIN_TOKEN` | — | 管理令牌（meter 端点 + 「密钥」面板 + 建号/发码 + 站长后台）；不设则拒绝 |
+| `WENDI_ADMIN_IPS` | — | 管理端 IP 白名单（逗号分隔；空=不限制）。走 nginx 时认 `X-Real-IP` |
+| `WENDI_FEEDBACK_PER_DAY` | 5 | 反馈入口：每 IP 每天最多几条 |
+| `WENDI_FEEDBACK_INTERVAL` | 30 | 反馈入口：同一 IP 两条之间的最小间隔（秒） |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |
@@ -80,8 +83,15 @@ server.py        薄代理：转发 LLM 调用 + 限流（防滥用/成本闸）
 kernel.py        内核：事件总线 + 服务注册 + 作用域生命周期（借鉴 cordis，MIT）
 prompts.py       解释器人格：划词解释 / 卡内追问 / 主对话 三个提示词
 web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像机 + 键盘导航
+web/about.html   关于 wendi（立场、数据主权、合规状态）
+web/privacy.html 隐私政策（收集什么/不收集什么、保留期、你的权利）
+web/terms.html   服务条款（测试期口径、兑换码、免责）
+web/feedback.html 反馈表单（进站长后台，匿名可发）
+web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸 / 审计）
+web/meter.html   计量台（逐日账、单用户 drill-down）
+web/site.css     文档页共用样式（大报编辑体 token）
 deploy/          部署件（systemd / nginx / 部署脚本）
-tests/           内核测试（python3 -m unittest discover -s tests）
+tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 ```
 
