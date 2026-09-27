@@ -97,7 +97,7 @@ tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 ```
 
-前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc` 返回上层、`↑↓` 切换子解释、`Enter` 进入、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）、导出 Markdown。
+前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc`/`Alt+←` 返回上层、`↑↓` 切换子解释、`Alt+Enter`/`Alt+→` 进入（进/退都带 Alt，避免生成过程中误触把回答顶出视野）、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）、导出 Markdown。
 
 ## 形态
 

@@ -286,7 +286,7 @@
     <option value="standard" selected>标准</option>
     <option value="rigorous">严谨</option>
   </select>
-  <button id="backBtn" title="返回上一层（Esc）">← 返回</button>
+  <button id="backBtn" title="返回上一层（Esc / Alt+←）">← 返回</button>
   <button id="closedBtn">已移除 <span id="closedCount">0</span></button>
   <span class="hsep"></span>
   <button id="sampleBtn">示例问题</button>
@@ -306,7 +306,7 @@
     <h1>问底<span>WenDi</span></h1>
     <div class="slogan">Get to the bottom of it.</div>
     <div class="irow">遇到不懂的词 → <b>划它</b> → 得到解释；<br>解释里还有不懂的 → <b>继续划</b>，一层层到底。</div>
-    <div class="ikeys"><span>Esc 返回上一层</span><span>↑ ↓ 切换</span><span>Enter 进入</span></div>
+    <div class="ikeys"><span>Esc / Alt+← 返回上一层</span><span>↑ ↓ 切换</span><span>Alt+Enter 进入</span></div>
     <div class="inote">
       数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
       测试期：未登录每天 20 次，登录后 40 次（Pro 300 次）。
@@ -700,7 +700,7 @@ function renderSide(node, key){
         <span class="lt">${esc(c.term)}</span>
         <span class="lm">${c.loading ? "…" : (c.text ? "✓" : "")} ${hhmm(c.createdAt)}</span>
         <button class="mini" data-del="${c.id}" title="移除（可恢复）">×</button>
-        <button class="mini" data-enter="${c.id}" title="进入（Enter）">▸</button>`;
+        <button class="mini" data-enter="${c.id}" title="进入（Alt+Enter / Alt+→）">▸</button>`;
       it.dataset.child = c.id;
       lbody.appendChild(it);
     }
@@ -809,7 +809,7 @@ function bindAll(){
     if(input && send){
       const fire = () => { const t = input.value.trim(); if(t) { input.value=""; sendChat(node, t); } };
       send.onclick = fire;
-      input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
+      input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey && !e.altKey) fire(); });
     }
   } else {
     const input = document.querySelector(`[data-input-key="ask-${node.id}"]`);
@@ -833,7 +833,7 @@ function bindAll(){
       save(); render("");
     };
     if(ask) ask.onclick = fire;
-    if(input) input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
+    if(input) input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey && !e.altKey) fire(); });
     const rx = document.querySelector("[data-rexplain]");
     if(rx) rx.onclick = async () => { node.style = state.defaultStyle; await requestExplain(node); };
     const sh = document.querySelector("[data-share]");
@@ -846,10 +846,28 @@ function enterById(id){
   if(child) enter(child);
 }
 
-/* 键盘：Esc 返回 / Enter 进入选中 / ↑↓ 切换选中 */
+/* 键盘：Alt+← 返回上层 / Alt+→ 或 Alt+Enter 进入选中的子解释 / ↑↓ 切换选中 / Esc 返回上层
+   —— 进入要用 Alt：生成回答时随手按 Enter 就钻进子解释，会把正在长的回答顶出视野。
+   守卫看 e.target（事件来源），不能看 document.activeElement：输入框自己的 Enter 处理里会
+   同步 render() 重建 DOM，输入框被摘掉后 activeElement 变成 body，同一个事件继续冒泡到这儿
+   就会被当成全局快捷键。
+   Alt+←/→ 必须 preventDefault：否则浏览器把 Alt+← 当历史后退。Alt 组合在输入框里也生效。 */
 document.addEventListener("keydown", e => {
-  const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
-  if(tag === "input" || tag === "textarea" || tag === "select") return;
+  if(!state) return;                                      // 启动(DOMContentLoaded)之前不处理
+  const t = e.target;
+  const tag = (t && t.tagName || "").toLowerCase();
+  const inField = tag === "input" || tag === "textarea" || tag === "select" || !!(t && t.isContentEditable);
+  if(e.altKey && (e.key === "Enter" || e.key === "ArrowRight" || e.key === "ArrowLeft")){
+    if(e.key === "ArrowLeft"){
+      if(state.focusPath.length > 1){ e.preventDefault(); goBack(); }   // 已在顶层就不拦,交回浏览器
+      return;
+    }
+    e.preventDefault();
+    const sel = selectedChild(currentNode());
+    if(sel) enter(sel);
+    return;
+  }
+  if(inField) return;
   if(e.key === "Escape" && !$("#authModal").classList.contains("hidden")) {
     $("#authModal").classList.add("hidden"); return;
   }
@@ -864,8 +882,7 @@ document.addEventListener("keydown", e => {
   if(!node.children.length) return;
   const sel = selectedChild(node);
   const idx = Math.max(0, node.children.findIndex(c => c.id === (sel||{}).id));
-  if(e.key === "Enter"){ if(sel) enter(sel); }
-  else if(e.key === "ArrowDown"){ selectChild(node, node.children[Math.min(idx+1, node.children.length-1)]); }
+  if(e.key === "ArrowDown"){ selectChild(node, node.children[Math.min(idx+1, node.children.length-1)]); }
   else if(e.key === "ArrowUp"){ selectChild(node, node.children[Math.max(idx-1, 0)]); }
 });
 
@@ -907,7 +924,7 @@ document.addEventListener("mouseup", e => {
 });
 /* 划词解释：气泡里的「疑惑」（可留空）= 让解释先正面回答你卡在哪，而不是泛泛解释这个词 */
 $("#doubtInput").addEventListener("keydown", e => {
-  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("#explainBtn").click(); }
+  if(e.key === "Enter" && !e.shiftKey && !e.altKey){ e.preventDefault(); $("#explainBtn").click(); }
   else if(e.key === "Escape"){ e.preventDefault(); $("#bubble").style.display = "none"; bubbleInfo = null; }
 });
 $("#explainBtn").addEventListener("click", async () => {
@@ -1436,7 +1453,7 @@ function tourAfterExplain(){
 function tourAfterEnter(){
   if (tourStep === 2) {
     tourStep = 3;
-    coach("按 Esc 就回到上一层，内容都不会丢。就这样——开始你自己的问题吧");
+    coach("按 Esc 或 Alt+← 就回到上一层，内容都不会丢。就这样——开始你自己的问题吧");
     setTimeout(coachHide, 8000);
   }
 }
