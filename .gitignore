@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 codes*.txt
 wendi.db
+.pi/
