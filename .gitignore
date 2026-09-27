@@ -3,3 +3,4 @@ __pycache__/
 codes*.txt
 wendi.db
 .pi/
+reports/

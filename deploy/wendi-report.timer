@@ -1,0 +1,10 @@
+[Unit]
+Description=WenDi (问底) daily report at 23:55
+
+[Timer]
+OnCalendar=*-*-* 23:55:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
