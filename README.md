@@ -46,7 +46,7 @@ git clone <this-repo> wendi && cd wendi
 
 # 需要 DeepSeek API key（或任意 OpenAI 兼容端点）
 export WENDI_API_KEY=sk-xxxx
-# —— 或者不设环境变量，启动后打开 web 页面点右上角「服务配置」（站长入口）在线配置，需 WENDI_ADMIN_TOKEN ——
+# —— 或者不设环境变量：启动后打开 web 页面 →「设置 → 站长 → 服务端密钥」在线配置（需 WENDI_ADMIN_TOKEN；带 ?admin=1 或存过令牌才会显示「站长」区）——
 export WENDI_ADMIN_TOKEN=换一个自己的管理令牌
 
 python3 server.py        # → http://127.0.0.1:8899
@@ -100,7 +100,7 @@ tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 ```
 
-前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc`/`Alt+←` 返回上层、`↑↓` 切换子解释、`Alt+Enter`/`Alt+→` 进入（进/退都带 Alt，避免生成过程中误触把回答顶出视野）、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）、导出 Markdown。
+前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc`/`Alt+←` 返回上层、`↑↓` 切换子解释、`Alt+Enter`/`Alt+→` 进入（进/退都带 Alt，避免生成过程中误触把回答顶出视野）、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）。导出 / 图谱 / 示例 / 已移除 / 清空都收在顶栏「设置」里；反馈入口 = 设置面板 + 右下角常驻「反馈 / 建议」；站长那套（服务端密钥 / 站长后台 / 计量台）默认不显示，带 `?admin=1` 或存过 admin 令牌才出现。
 
 ## 形态
 
