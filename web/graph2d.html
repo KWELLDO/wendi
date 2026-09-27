@@ -83,6 +83,9 @@
   .n-exp.err .halo{fill:var(--err);opacity:.18}
   .n-conv .core{fill:none;stroke:var(--ink-3);stroke-width:1.2}
   .n-conv:hover .core,.n-conv.sel .core{stroke:var(--accent)}
+  .n-turn .core{stroke:var(--ink-2)}
+  .n-turn.ghost .core{stroke:var(--ink-3);stroke-dasharray:3 3}
+  .edge.chain{stroke:var(--accent-line)}
   .lab{font-size:12px;font-weight:500;fill:var(--ink);paint-order:stroke;stroke:var(--paper);
        stroke-width:3.2px;stroke-linejoin:round;letter-spacing:.01em}
   .n-conv .lab{fill:var(--ink-3);font-weight:400}
@@ -115,6 +118,9 @@
   .dtext{white-space:pre-wrap;line-height:1.8;color:var(--ink-2);background:var(--surface-2);
          border:1px solid var(--hairline);padding:9px 11px;max-height:260px;overflow:auto}
   .dfu{margin:8px 0}
+  .dturn .dq::before,.dturn .da::before{content:""}
+  .dturn .da{color:var(--ink)}
+  .dmeta b{color:var(--ink);font-weight:600}
   .dq{color:var(--accent);font-size:12px;margin-bottom:2px}
   .dq::before{content:"Q ";opacity:.6;font-size:10.5px}
   .da{color:var(--ink-2);font-size:12px;line-height:1.7;white-space:pre-wrap}
@@ -140,7 +146,7 @@
 <body>
 <header>
   <b>解释场 · 2D 图谱</b>
-  <span class="sub">自下而上，像树一样生长 · 同层左→右按发生先后</span>
+  <span class="sub">底部 = 对话轮次（左→右按发生先后）· 解释自下而上生长 · 卡片挂在它诞生那一轮</span>
   <span class="badge" id="stat">–</span>
   <span class="sp"></span>
   <span class="badge">滚轮缩放 · 拖拽平移 · 双击复位 · 点击节点看详情</span>
@@ -164,7 +170,8 @@
     <div class="psec">
       <div class="ptitle">图例</div>
       <div class="legend">
-        <span class="e">●</span> 解释卡&nbsp;&nbsp;<span class="e">◇</span> 对话根&nbsp;&nbsp;<span class="e">+N</span> 追问数<br>
+        <span class="e">●</span> 解释卡&nbsp;&nbsp;<span class="e">◇</span> 对话轮次&nbsp;&nbsp;<span class="e">+N</span> 追问数<br>
+        每轮 = 一问一答，卡片长在它诞生那一轮之上<br>
         虚线圆圈 = 生成中 · 红圈 = 失败
       </div>
     </div>
@@ -190,6 +197,7 @@ function loadState(){
 /* ============ 布局：自下而上，像树一样生长 ============ */
 const LEVEL_H = 122;         // 每层解释的垂直距离（越深越靠上）
 const LEAF_W = 178;          // 叶子水平间距（含标签宽度）
+const TURN_W = 104;          // 单轮对话的最小水平步进（这一轮没长出卡片时）
 const PAD = { l: 70, r: 180, t: 56, b: 54 };
 
 function nodeTime(n){
@@ -201,15 +209,67 @@ function nodeTime(n){
   return null;
 }
 
+/* 主对话切片：一轮 = 一条 user 消息（及其后的 assistant 回答） */
+function splitTurns(conv){
+  const out = [];
+  for(const m of conv.messages || []){
+    if(m.role === "user"){
+      out.push({ q:m.text || "", a:"", at:typeof m.at === "number" ? m.at : null, loading:false });
+    }else{
+      if(!out.length) out.push({ q:"", a:"", at:null, loading:false });   // 异常数据：没有提问的回答也占一轮
+      const t = out[out.length-1];
+      t.a = m.text || "";
+      t.loading = !!m.loading;
+      if(t.at == null && typeof m.at === "number") t.at = m.at;
+    }
+  }
+  const fb = nodeTime(conv);
+  out.forEach(t => { if(t.at == null) t.at = fb == null ? Date.now() : fb; });
+  return out;
+}
+
+/* 卡片挂在哪一轮：优先用创建时写入的 exp.turn，其次按创建时间落在哪一轮之后 */
+function turnOf(card, turns){
+  if(typeof card.turn === "number" && card.turn >= 1) return Math.min(Math.round(card.turn), turns.length);
+  const t = nodeTime(card);
+  if(t == null) return turns.length;
+  let k = 1;
+  for(let i = 0; i < turns.length; i++) if(turns[i].at <= t) k = i + 1;
+  return k;
+}
+
 function collect(state){
   const nodes = [], edges = [];
-  (function walk(n, depth, parent){
-    const item = { ref:n, id:n.id, kind:n.kind, term:n.term || "", depth,
-                   t:nodeTime(n), parent, kids:0 };
+  const push = (item, parent, chain) => {
+    item.parent = parent;
     nodes.push(item);
-    if(parent){ edges.push({ a:parent, b:item }); parent.kids++; }
+    if(parent){ edges.push({ a:parent, b:item, chain:!!chain }); parent.kids++; }
+    return item;
+  };
+
+  /* 主对话 = 底部一条轮次链：每轮一个节点，卡片挂在它诞生那一轮之上 */
+  function walkConv(n, depth, parent){
+    const turns = splitTurns(n);
+    if(!turns.length){                        // 空对话：留一个「对话」点（与旧版一致）
+      const item = push({ ref:n, id:n.id, kind:"conv", depth, t:nodeTime(n), parent, kids:0, turn:0 }, parent);
+      for(const c of n.children || []) walk(c, depth + 1, item);
+      return item;
+    }
+    const items = turns.map((tr, i) => ({ ref:n, id:`${n.id}#t${i+1}`, kind:"turn", turn:i + 1, depth,
+                                          t:tr.at, parent:null, kids:0, q:tr.q, a:tr.a, loading:tr.loading }));
+    items.forEach((it, i) => push(it, i ? items[i-1] : parent, i > 0));
+    for(const c of n.children || []) walk(c, depth + 1, items[turnOf(c, turns) - 1]);
+    return items[0];
+  }
+
+  function walk(n, depth, parent){
+    if(n.kind === "conv") return walkConv(n, depth, parent);
+    const item = push({ ref:n, id:n.id, kind:"exp", term:n.term || "", depth,
+                        t:nodeTime(n), parent, kids:0 }, parent);
     for(const c of n.children || []) walk(c, depth + 1, item);
-  })(state.root, 0, null);
+    return item;
+  }
+  walk(state.root, 0, null);
 
   // 缺时间的节点（老数据的对话根等）：子全有时间取最早 → 父时间 → 全局最早
   const known = nodes.map(n => n.t).filter(t => t != null);
@@ -239,16 +299,44 @@ function layout(nodes, edges){
   }
   const maxDepth = Math.max(0, ...nodes.map(n => n.depth));
   const plotH = maxDepth * LEVEL_H;
+  const H = Math.max(PAD.t + plotH + PAD.b, 320);
+  const yAt = d => PAD.t + plotH - d * LEVEL_H + (H - (PAD.t + plotH + PAD.b));  // 根在下，向上生长
+
   let cursor = PAD.l;
-  const place = n => {
+  // 解释子树：叶子按游标横排，父节点居中于子节点之上；返回该子树的水平占位 [lo,hi]
+  function place(n){
+    n.y = yAt(n.depth);
     const ks = kids.get(n) || [];
-    if(ks.length){ ks.forEach(place); n.x = (ks[0].x + ks[ks.length - 1].x) / 2; }
-    else { n.x = cursor; cursor += LEAF_W; }
-    n.y = PAD.t + plotH - n.depth * LEVEL_H;   // 根在下，向上生长
-  };
-  place(nodes[0]);
+    if(!ks.length){
+      const lo = cursor;
+      cursor += LEAF_W;
+      n.x = lo + LEAF_W / 2;
+      return [lo, cursor];
+    }
+    let lo = Infinity, hi = -Infinity;
+    for(const k of ks){
+      const [a, b] = place(k);
+      if(a < lo) lo = a;
+      if(b > hi) hi = b;
+    }
+    n.x = (ks[0].x + ks[ks.length - 1].x) / 2;   // 居中于子节点之上
+    return [Math.min(lo, n.x), Math.max(hi, n.x)];
+  }
+
+  // 底层 = 对话时间线：轮次按发生先后左→右，各自吃掉一条不小于 TURN_W 的车道
+  for(const t of nodes.filter(n => n.depth === 0)){
+    let lo = cursor, hi = cursor;
+    for(const k of kids.get(t) || []){
+      const [a, b] = place(k);
+      if(a < lo) lo = a;
+      if(b > hi) hi = b;
+    }
+    const w = Math.max(hi - lo, TURN_W);
+    t.y = yAt(0);
+    t.x = lo + w / 2;
+    cursor = lo + w;
+  }
   const W = Math.max(cursor + PAD.r, PAD.l + 320);
-  const H = PAD.t + plotH + PAD.b;
   return { W, H,
            tmin: Math.min(...nodes.map(n => n.t)),
            tmax: Math.max(...nodes.map(n => n.t)),
@@ -292,7 +380,8 @@ function render(){
   const { nodes, edges } = collect(state);
   DATA = { nodes, edges };
   const exps = nodes.filter(n => n.kind === "exp");
-  if(!exps.length){
+  const turns = nodes.filter(n => n.kind === "turn");
+  if(!exps.length && !turns.length){
     empty.style.display = "flex";
     document.getElementById("emptyMsg").textContent = "这个会话还没有解释卡片——去解释场划词生成一张再来";
     svg.innerHTML = "";
@@ -307,14 +396,14 @@ function render(){
   const L = layout(nodes, edges);
   const followups = exps.reduce((s, n) => s + (n.ref.followups || []).length, 0);
   document.getElementById("stat").textContent =
-    `${exps.length} 张解释卡 · ${followups} 条追问`;
+    `${exps.length} 张解释卡 · ${followups} 条追问 · ${turns.length} 轮对话`;
 
   // 右侧「会话」元信息
   document.getElementById("meta").innerHTML =
     `<div class="mi"><span>解释卡</span><b>${exps.length}</b></div>` +
     `<div class="mi"><span>追问</span><b>${followups}</b></div>` +
     `<div class="mi"><span>层级</span><b>${L.maxDepth + 1} 层</b></div>` +
-    `<div class="mi"><span>对话</span><b>${nodes.filter(n => n.kind === "conv").length}</b></div>` +
+    `<div class="mi"><span>对话轮次</span><b>${turns.length}</b></div>` +
     `<div class="mi wide"><span>时间范围</span><b>${fmtDay(L.tmin)} ${fmtTime(L.tmin)} – ${fmtTime(L.tmax)}</b></div>`;
 
   // —— 展开动画节奏：每层 step 毫秒级联，树再深总时长也压在一秒内 ——
@@ -327,7 +416,7 @@ function render(){
   edges.forEach((e, i) => {
     const my = (e.a.y + e.b.y) / 2;
     const d = (e.b.depth - 1) * step + 18;
-    eg += `<path class="edge" data-a="${e.a.id}" data-b="${e.b.id}" pathLength="100" ` +
+    eg += `<path class="edge${e.chain ? " chain" : ""}" data-a="${e.a.id}" data-b="${e.b.id}" pathLength="100" ` +
           `style="animation-delay:${Math.round(d)}ms;animation-duration:${Math.round(edgeDur)}ms" ` +
           `d="M${e.a.x},${e.a.y} C${e.a.x},${my} ${e.b.x},${my} ${e.b.x},${e.b.y}"/>`;
   });
@@ -336,12 +425,15 @@ function render(){
   let nd = "";
   nodes.forEach((n, i) => {
     const delay = `animation-delay:${nodeDelay(n.depth, i)}ms`;
-    if(n.kind === "conv"){
-      nd += `<g class="node n-conv" data-id="${n.id}" style="${delay}">` +
+    if(n.kind === "conv" || n.kind === "turn"){
+      const turn = n.kind === "turn";
+      const cls = "n-conv" + (turn ? " n-turn" : "") + (n.loading ? " ghost" : "");
+      nd += `<g class="node ${cls}" data-id="${n.id}" style="${delay}">` +
+            `<title>${esc(turn ? (n.q ? trunc(n.q, 80) : "（空提问）") : "对话根")}</title>` +
             `<circle class="halo" cx="${n.x}" cy="${n.y}" r="15"/>` +
             `<circle class="ring" cx="${n.x}" cy="${n.y}" r="10.5"/>` +
             `<rect class="core" x="${n.x - 5}" y="${n.y - 5}" width="10" height="10" rx="2" transform="rotate(45 ${n.x} ${n.y})"/>` +
-            `<text class="lab" x="${n.x + 13}" y="${n.y + 4}">对话</text></g>`;
+            `<text class="lab" x="${n.x + 13}" y="${n.y + 4}">${turn ? `第 ${n.turn} 轮` : "对话"}</text></g>`;
       return;
     }
     const fu = (n.ref.followups || []).length;
@@ -394,9 +486,19 @@ function selectNode(id){
       (msgs.length ? `<div class="ptitle2">最近消息</div>` + msgs.slice(-6).map(m =>
         `<div class="dfu"><div class="dq">${m.role === "user" ? "你" : "AI"}</div>` +
         `<div class="da">${esc(trunc(m.text || "", 220))}</div></div>`).join("") : "");
+  }else if(n.kind === "turn"){
+    box.innerHTML =
+      `<div class="dtitle">第 ${n.turn} 轮对话</div>` +
+      `<div class="dmeta">${fmtDay(n.t)} ${fmtTime(n.t)}</div>` +
+      `<div class="drow">从这一轮长出 <b>${n.kids}</b> 张解释卡</div>` +
+      `<div class="dfu dturn"><div class="dq">你问</div><div class="da">${esc(trunc(n.q, 600)) || "（空）"}</div></div>` +
+      `<div class="dfu dturn"><div class="dq">AI 答</div><div class="da">${esc(trunc(n.a, 1500)) || (n.loading ? "生成中…" : "（空）")}</div></div>`;
   }else{
     const fu = r.followups || [];
-    const parent = n.parent ? (n.parent.kind === "exp" ? n.parent.term : "对话根") : "—";
+    const parent = !n.parent ? "—"
+                 : n.parent.kind === "exp" ? n.parent.term
+                 : n.parent.kind === "turn" ? `第 ${n.parent.turn} 轮`
+                 : "对话根";
     box.innerHTML =
       `<div class="dtitle">${esc(n.term || "(未命名)")}</div>` +
       `<div class="dmeta">${fmtDay(n.t)} ${fmtTime(n.t)} · 第 ${n.depth} 层` +
