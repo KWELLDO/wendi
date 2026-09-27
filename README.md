@@ -66,7 +66,7 @@ python3 server.py        # → http://127.0.0.1:8899
 | `WENDI_ADMIN_IPS` | — | 管理端 IP 白名单（逗号分隔；空=不限制）。走 nginx 时认 `X-Real-IP` |
 | `WENDI_FEEDBACK_PER_DAY` | 5 | 反馈入口：每 IP 每天最多几条 |
 | `WENDI_FEEDBACK_INTERVAL` | 30 | 反馈入口：同一 IP 两条之间的最小间隔（秒） |
-| `WENDI_REQUIRE_INVITE` | 1 | 注册是否必须邀请码（设 0 临时放开公开注册） |
+| `WENDI_REQUIRE_INVITE` | 1 | 内测开关：注册需邀请码，**且未登录不能发起解释请求**（设 0 恢复公开注册与匿名体验） |
 | `WENDI_EVENT_PER_MIN` | 90 | 每 IP 每分钟事件上限（超出静默丢弃） |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
@@ -136,7 +136,7 @@ docs/            理论文档 + 架构图（wendi-architecture.html，可交互�
 
 | 身份 | 每日额度 | 说明 |
 |---|---|---|
-| 未登录 | 20 次 | 按 IP，防止滥用 |
+| 未登录 | 20 次 | 按 IP；**仅在 `WENDI_REQUIRE_INVITE=0` 时可用**（内测期未登录不能提问） |
 | 免费账号 | 40 次 | 注册即得 |
 | Pro | 300 次 | 兑换码激活，含云同步 |
 
@@ -147,6 +147,19 @@ docs/            理论文档 + 架构图（wendi-architecture.html，可交互�
 ```bash
 ssh your-server 'cd /opt/wendi && python3 gencode.py 10 30 launch'
 # 参数：数量 天数 备注
+```
+
+## 运维速查
+
+```bash
+# 请求日志（每请求一行 JSON：状态码/延迟/用户/会话/成本）
+ssh <host> 'sudo journalctl -u wendi -n 200 -o cat | grep ^{'
+
+# 内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
+ssh <host> 'cd /opt/wendi && python3 daily_report.py'      # 或看 /opt/wendi/reports/
+
+# 看板（浏览器，需管理令牌）：总览 / 反馈 / 用户 / 测试者 / 指标 / 事件流 / 兑换码 / 闸门 / 审计
+https://know.kwelldo.cn/admin.html
 ```
 
 ## 许可

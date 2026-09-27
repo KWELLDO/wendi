@@ -499,3 +499,47 @@ class TestStreamUsage(Base):
                                         return_value=_FakeResp([b"data: [DONE]\n"])):
             h._explain_stream(u, [], 100, session_id="", room_id="")
         self.assertEqual(h.status, 200)
+
+
+# ===================== 邀请制闸门：内测期未登录不给用 =====================
+class TestInviteGate(Base):
+    def _explain_handler(self):
+        class H(Handler):
+            def __init__(self, *a, **kw):
+                super().__init__(*a, **kw)
+                self.body = {}
+        return H(token="")
+
+    def test_anonymous_explain_blocked_when_invite_only(self):
+        h = self._explain_handler()
+        h._explain({"mode": "chat", "messages": [{"role": "user", "content": "x"}]})
+        self.assertEqual(h.status, 403)
+        self.assertTrue(h.payload["need_invite"])
+        # 被门挡住也算信号：落一条 gate_blocked，能看到「有多少人想用但没码」
+        ev = db.events_list(event="gate_blocked")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(ev[0]["meta"]["mode"], "chat")
+        row = db._conn().execute("SELECT COUNT(*) AS n FROM meter_requests").fetchone()
+        self.assertEqual(row["n"], 0, "被闸门拦住不该产生 LLM 调用")
+
+    def test_anonymous_allowed_when_switch_off(self):
+        server.REQUIRE_INVITE = False
+        try:
+            u = None
+            h = self._explain_handler()
+            # 打桩 LLM：不花钱，只验证闸门放行到配额/调用逻辑
+            with mock.patch.object(server, "call_llm",
+                                   return_value=("答案", {"prompt_tokens": 10,
+                                                          "completion_tokens": 5}, False)):
+                h._explain({"mode": "chat", "messages": [{"role": "user", "content": "hi"}],
+                            "turns": 1})
+            self.assertEqual(h.status, 200, f"开关关掉后匿名应可用：{h.payload}")
+            self.assertEqual(db.events_list(event="gate_blocked"), [])
+        finally:
+            server.REQUIRE_INVITE = True
+
+    def test_feedback_still_open_without_code(self):
+        """没码的人至少能留言要码——闸门不能把反馈也关掉。"""
+        h = Handler(token="")
+        h._feedback_add({"body": "我想要一个邀请码", "contact": "me@example.com", "can_reply": True})
+        self.assertEqual(h.status, 200)

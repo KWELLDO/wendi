@@ -1233,6 +1233,12 @@ class Handler(SimpleHTTPRequestHandler):
     # ---------- 核心：解释 ----------
     def _explain(self, body: dict):
         user = self._user()
+        # —— 邀请制闸门：内测期没账号就不能提问（注册需邀请码）。落一条事件，方便看「有多少人被门挡住」 ——
+        if not user and REQUIRE_INVITE:
+            self._track("gate_blocked", meta={"mode": str(body.get("mode", ""))[:20]})
+            self._json(403, {"error": "内测阶段需要邀请码。到反馈页留个邮箱，我把码发给你。",
+                             "need_invite": True})
+            return
         # —— 成本闸（硬底线）：hard 硬停；degraded 当日全员降级 ——
         cost_state = _cost_state()
         if cost_state == "hard":

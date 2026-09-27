@@ -620,7 +620,7 @@ def admin_log_list(limit: int = 200) -> list[dict]:
 EVENTS = (
     "app_open", "select_text", "explain_request", "explain_success", "explain_error",
     "drill_down", "go_back", "export", "share_create", "feedback", "register", "login",
-    "system_error",
+    "system_error", "gate_blocked",
 )
 MAX_META_CHARS = 1000
 
