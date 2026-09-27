@@ -84,6 +84,27 @@ def init() -> None:
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'other',
+            body TEXT NOT NULL,
+            contact TEXT NOT NULL DEFAULT '',
+            can_reply INTEGER NOT NULL DEFAULT 0,
+            user_id INTEGER,
+            ip TEXT NOT NULL DEFAULT '',
+            ua TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'new',
+            note TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, id);
+        CREATE TABLE IF NOT EXISTS admin_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            action TEXT NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            ip TEXT NOT NULL DEFAULT ''
+        );
         """)
         try:
             c.execute("ALTER TABLE users ADD COLUMN day_key TEXT NOT NULL DEFAULT ''")
@@ -92,7 +113,8 @@ def init() -> None:
         for ddl in ("ALTER TABLE codes ADD COLUMN batch TEXT NOT NULL DEFAULT ''",
                     "ALTER TABLE codes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0",
                     "ALTER TABLE meter_requests ADD COLUMN depth INTEGER NOT NULL DEFAULT -1",
-                    "ALTER TABLE meter_requests ADD COLUMN turns INTEGER NOT NULL DEFAULT -1"):
+                    "ALTER TABLE meter_requests ADD COLUMN turns INTEGER NOT NULL DEFAULT -1",
+                    "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0"):
             try:
                 c.execute(ddl)
             except sqlite3.OperationalError:
@@ -319,6 +341,12 @@ def sync_get(uid: int) -> dict | None:
         return dict(row) if row else None
 
 
+def sync_delete(uid: int) -> bool:
+    """删除云端副本（数据主权：这份数据是用户的，随时可撤）。"""
+    with _conn() as c:
+        return c.execute("DELETE FROM syncs WHERE user_id=?", (uid,)).rowcount > 0
+
+
 def sync_put(uid: int, data: str) -> str:
     ts = now()
     with _conn() as c:
@@ -405,3 +433,116 @@ def meter_user_ndays(uid: int, n: int) -> list[dict]:
     return [{"day": r["day_key"], "requests": r["n"], "hit_tokens": r["hit"],
              "miss_tokens": r["miss"], "completion_tokens": r["comp"],
              "cost_cents": r["cost"]} for r in rows]
+
+
+# ================= 反馈 =================
+FEEDBACK_KINDS = ("bug", "idea", "other")
+FEEDBACK_STATUSES = ("new", "read", "done")
+
+
+def feedback_add(kind: str, body: str, contact: str = "", can_reply: bool = False,
+                 user_id: int | None = None, ip: str = "", ua: str = "") -> int:
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO feedback (ts, kind, body, contact, can_reply, user_id, ip, ua) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (now(), kind, body, contact, 1 if can_reply else 0, user_id, ip, ua[:200]))
+        return cur.lastrowid
+
+
+def feedback_list(status: str | None = None, limit: int = 200) -> list[dict]:
+    """反馈列表（新→旧）；带登录用户邮箱，未登录只有 IP。"""
+    sql = "SELECT f.*, u.email FROM feedback f LEFT JOIN users u ON u.id = f.user_id"
+    args: list = []
+    if status:
+        sql += " WHERE f.status=?"
+        args.append(status)
+    sql += " ORDER BY f.id DESC LIMIT ?"
+    args.append(limit)
+    with _conn() as c:
+        return [dict(r) for r in c.execute(sql, args).fetchall()]
+
+
+def feedback_set_status(fid: int, status: str, note: str | None = None) -> bool:
+    with _conn() as c:
+        if note is None:
+            cur = c.execute("UPDATE feedback SET status=? WHERE id=?", (status, fid))
+        else:
+            cur = c.execute("UPDATE feedback SET status=?, note=? WHERE id=?", (status, note, fid))
+        return cur.rowcount > 0
+
+
+def feedback_stats() -> dict:
+    with _conn() as c:
+        total = c.execute("SELECT COUNT(*) AS n FROM feedback").fetchone()["n"]
+        rows = c.execute("SELECT status, COUNT(*) AS n FROM feedback GROUP BY status").fetchall()
+    out = {"total": total, "new": 0, "read": 0, "done": 0}
+    for r in rows:
+        if r["status"] in out:
+            out[r["status"]] = r["n"]
+    return out
+
+
+# ================= 用户（管理端） =================
+def list_users(q: str | None = None, limit: int = 200) -> list[dict]:
+    """用户列表（新→旧），含生效套餐、今日用量、云同步体积。禁用用户的会话另有 drop_sessions。"""
+    sql = ("SELECT u.id, u.email, u.created_at, u.plan, u.plan_until, u.day_key, u.day_used, "
+           "u.disabled, s.data AS sync_data, s.updated_at AS sync_at "
+           "FROM users u LEFT JOIN syncs s ON s.user_id = u.id")
+    args: list = []
+    if q:
+        sql += " WHERE u.email LIKE ?"
+        args.append(f"%{q.strip().lower()}%")
+    sql += " ORDER BY u.id DESC LIMIT ?"
+    args.append(limit)
+    with _conn() as c:
+        rows = c.execute(sql, args).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        data = d.pop("sync_data") or ""
+        d["sync_bytes"] = len(data.encode("utf-8")) if data else 0
+        d["plan_effective"] = effective_plan(r)
+        d["day_used"] = r["day_used"] if r["day_key"] == today() else 0
+        out.append(d)
+    return out
+
+
+def set_disabled(uid: int, disabled: bool) -> bool:
+    with _conn() as c:
+        cur = c.execute("UPDATE users SET disabled=? WHERE id=?", (1 if disabled else 0, uid))
+        return cur.rowcount > 0
+
+
+def drop_sessions(uid: int) -> int:
+    """踢掉某用户全部登录会话，返回删除条数。"""
+    with _conn() as c:
+        return c.execute("DELETE FROM sessions WHERE user_id=?", (uid,)).rowcount
+
+
+def user_stats() -> dict:
+    """总览：总用户 / 已禁 / 生效 Pro / 近 7 天新增 / 云同步份数。"""
+    d7 = time.strftime("%Y-%m-%d", time.localtime(time.time() - 7 * 86400))
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(disabled),0) AS disabled, "
+            "COALESCE(SUM(CASE WHEN plan='pro' AND (plan_until IS NULL OR plan_until >= ?) "
+            "THEN 1 ELSE 0 END),0) AS pro, "
+            "COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END),0) AS new7 "
+            "FROM users", (today(), d7)).fetchone()
+        syncs = c.execute("SELECT COUNT(*) AS n FROM syncs").fetchone()["n"]
+    return {"total": row["total"], "disabled": row["disabled"], "pro": row["pro"],
+            "new7": row["new7"], "syncs": syncs}
+
+
+# ================= 管理审计 =================
+def admin_log(action: str, detail: str = "", ip: str = "") -> None:
+    with _conn() as c:
+        c.execute("INSERT INTO admin_log (ts, action, detail, ip) VALUES (?,?,?,?)",
+                  (now(), action, detail[:500], ip))
+
+
+def admin_log_list(limit: int = 200) -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM admin_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]

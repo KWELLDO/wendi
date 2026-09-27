@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>站长后台 · 问底 WenDi</title>
+<link rel="stylesheet" href="/site.css">
+<style>
+  /* 控制台专用：复用 site.css 的纸墨 token，做密度更高的表格/标签/分页样式 */
+  main.wide{max-width:84rem;padding:20px 20px 60px}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:2px solid var(--rule);margin:4px 0 18px}
+  .tabs button{border:1px solid transparent;border-bottom:0;padding:6px 13px;font-size:13.5px;color:var(--ink-2)}
+  .tabs button:hover{color:var(--ink);border-color:transparent;background:var(--accent-wash)}
+  .tabs button.on{color:var(--accent);border-color:var(--hairline);background:var(--surface)}
+  .tabs .sp{margin-left:auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:0 0 22px}
+  .kv{border:1px solid var(--hairline);background:var(--surface);padding:11px 13px}
+  .kv .k{font-size:11.5px;color:var(--ink-3);letter-spacing:.4px}
+  .kv .v{font-family:var(--mono);font-size:19px;line-height:1.4}
+  .kv .v small{font-family:var(--sans);font-size:11.5px;color:var(--ink-3);margin-left:5px}
+  .state{display:inline-block;font-size:12px;padding:0 8px;border:1px solid var(--hairline)}
+  .state.normal{color:var(--ok);border-color:var(--ok)}
+  .state.degraded{color:var(--warn);border-color:var(--warn)}
+  .state.hard{color:var(--err);border-color:var(--err)}
+  table.ct{font-size:12.5px}
+  table.ct th{position:sticky;top:0;background:var(--paper);z-index:1;white-space:nowrap}
+  table.ct td{white-space:nowrap}
+  table.ct td.wrap{white-space:pre-wrap;max-width:46rem;font-size:13px;line-height:1.65}
+  .tag.k{border-color:var(--accent-line);color:var(--accent)}
+  .tag.s-new{color:var(--accent);border-color:var(--accent-line)}
+  .tag.s-read{color:var(--ink-2)}
+  .tag.s-done{color:var(--ok);border-color:var(--ok)}
+  .tag.off{color:var(--err);border-color:var(--err)}
+  .toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+  .toolbar input[type=text],.toolbar select{width:auto;min-width:150px;padding:5px 9px;font-size:13px}
+  .sec{display:none}
+  .sec.on{display:block}
+  .fb{border:1px solid var(--hairline);background:var(--surface);padding:12px 14px;margin:0 0 12px}
+  .fb .meta{font-size:12px;color:var(--ink-3);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .fb .txt{white-space:pre-wrap;margin:9px 0;font-size:14px}
+  .fb.done{opacity:.62}
+  .cfg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .cfg label{margin:0 0 3px}
+  .cfg input{font-family:var(--mono);font-size:13px;padding:6px 8px}
+  .cfg .hint{display:block;margin-top:3px}
+  .hidden{display:none !important}
+  .mono{font-family:var(--mono);font-size:12px}
+  .copy{cursor:pointer;font-size:11.5px;color:var(--ink-3);border:1px solid var(--hairline);padding:0 6px}
+  .copy:hover{color:var(--accent);border-color:var(--accent-line)}
+</style>
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="/">问底<span>WenDi</span></a>
+  <nav>
+    <a href="/about.html">关于</a>
+    <a href="/feedback.html">反馈</a>
+    <a href="/meter.html">计量台</a>
+    <a class="on" href="/admin.html">站长后台</a>
+    <a class="go" href="/">回到工作台</a>
+  </nav>
+</header>
+<main class="wide">
+
+  <div id="gate" class="hidden">
+    <h1>站长后台</h1>
+    <p class="lede">需要管理令牌（服务端启动时的 <code>WENDI_ADMIN_TOKEN</code>）。令牌只存在这台浏览器的 localStorage 里，不会发给除本站以外的任何地方。</p>
+    <label for="tok">管理令牌</label>
+    <div class="row">
+      <input id="tok" type="password" placeholder="WENDI_ADMIN_TOKEN" autocomplete="off" style="max-width:420px">
+      <button class="primary" id="tokGo">进入</button>
+      <button class="ghost" id="tokForget">忘掉已存的令牌</button>
+    </div>
+    <div class="msg err" id="gateMsg"></div>
+    <div class="box warn">
+      <h3>提示</h3>
+      <p class="small" style="margin:0">这个页面是给一个人用的运营台：能看账、发码、停用账号、热改成本闸。它没有多用户权限体系——谁能拿到令牌谁就是站长，所以别把令牌放进任何截图、聊天或公开的 URL 里。</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="toolbar">
+      <h1 style="margin:0;font-size:22px">站长后台</h1>
+      <span class="hint" id="hdrInfo"></span>
+      <span class="sp" style="flex:1"></span>
+      <button id="refresh">刷新</button>
+      <button class="ghost" id="logout">换令牌</button>
+    </div>
+
+    <div class="tabs">
+      <button data-sec="ov" class="on">总览</button>
+      <button data-sec="fb">反馈 <span id="fbBadge" class="muted"></span></button>
+      <button data-sec="users">用户</button>
+      <button data-sec="codes">兑换码</button>
+      <button data-sec="gate">闸门</button>
+      <button data-sec="audit">审计</button>
+      <a class="sp" href="/meter.html" style="align-self:center;font-size:12.5px">计量台（逐日账）→</a>
+    </div>
+
+    <!-- ============ 总览 ============ -->
+    <section id="sec-ov" class="sec on">
+      <div class="cards" id="ovCards"></div>
+      <h2>最新未读反馈</h2>
+      <div id="ovFb"></div>
+    </section>
+
+    <!-- ============ 反馈 ============ -->
+    <section id="sec-fb" class="sec">
+      <div class="toolbar">
+        <select id="fbFilter">
+          <option value="">全部</option>
+          <option value="new" selected>未读</option>
+          <option value="read">已读</option>
+          <option value="done">已处理</option>
+        </select>
+        <button id="fbLoad">载入</button>
+        <span class="hint" id="fbStats"></span>
+      </div>
+      <div id="fbList"></div>
+    </section>
+
+    <!-- ============ 用户 ============ -->
+    <section id="sec-users" class="sec">
+      <div class="toolbar">
+        <input id="uQuery" type="text" placeholder="按邮箱搜">
+        <button id="uLoad">搜索</button>
+        <span class="hint" id="uStats"></span>
+        <span style="flex:1"></span>
+        <button id="uNew">＋ 建号</button>
+        <button id="uCsv">导出 CSV</button>
+      </div>
+      <div id="uNewForm" class="card hidden">
+        <div class="row">
+          <input id="nuEmail" type="text" placeholder="邮箱 / 标识" style="max-width:260px">
+          <input id="nuPw" type="text" placeholder="初始密码（≥6 位）" style="max-width:200px">
+          <select id="nuPlan" style="width:auto">
+            <option value="free">free</option>
+            <option value="pro">pro</option>
+          </select>
+          <input id="nuDays" type="text" value="30" style="width:80px" placeholder="天数">
+          <button class="primary" id="nuGo">创建</button>
+        </div>
+        <div class="hint">pro 天数从今天算起。建号只用于手工给朋友开号；公开注册仍走工作台。</div>
+        <div class="msg" id="nuMsg"></div>
+      </div>
+      <div style="overflow:auto"><table class="ct" id="uTable"></table></div>
+    </section>
+
+    <!-- ============ 兑换码 ============ -->
+    <section id="sec-codes" class="sec">
+      <div class="card">
+        <div class="row">
+          <label for="cN" style="margin:0">数量</label>
+          <input id="cN" type="text" value="10" style="width:70px">
+          <label for="cDays" style="margin:0">天数</label>
+          <input id="cDays" type="text" value="30" style="width:70px">
+          <label for="cNote" style="margin:0">备注</label>
+          <input id="cNote" type="text" placeholder="例：群里发的 30 天体验" style="max-width:240px">
+          <label for="cBatch" style="margin:0">批次（选填）</label>
+          <input id="cBatch" type="text" placeholder="沿用/自定义批次名" style="max-width:170px">
+          <button class="primary" id="cGen">生成</button>
+        </div>
+        <div class="msg" id="cMsg"></div>
+        <pre id="cOut" class="hidden"></pre>
+      </div>
+      <div class="toolbar">
+        <input id="cFilter" type="text" placeholder="按批次筛选" style="min-width:170px">
+        <button id="cLoad">载入</button>
+        <span class="hint" id="cStats"></span>
+        <span style="flex:1"></span>
+        <button id="cVoidBatch">作废该批未用码</button>
+        <button id="cCopyUnused">复制未用码</button>
+        <button id="cCsv">导出 CSV</button>
+      </div>
+      <div style="overflow:auto"><table class="ct" id="cTable"></table></div>
+    </section>
+
+    <!-- ============ 闸门 ============ -->
+    <section id="sec-gate" class="sec">
+      <p class="lede">成本闸与降级档——保存即生效，无需重启。金额单位是「分」（3000 分 = ¥30）。</p>
+      <div class="cards" id="gCards"></div>
+      <div class="cfg" id="gCfg"></div>
+      <div class="row" style="margin-top:16px">
+        <button class="primary" id="gSave">保存改动</button>
+        <button id="gReload">重新载入</button>
+        <span class="hint" id="gHint"></span>
+      </div>
+      <div class="msg" id="gMsg"></div>
+      <div class="box">
+        <h3>这些键是什么</h3>
+        <ul class="small">
+          <li><code>cost_cents_cap</code>：当日累计成本过线 → 全员降级（输出变短、同一人多 15 秒限速，用户侧显示「降速」）。</li>
+          <li><code>cost_cents_hard</code>：再过线 → 当日硬停（429），次日恢复。必须大于 cap。</li>
+          <li><code>degrade_min_interval</code> / <code>degrade_max_tokens</code> / <code>degrade_max_tokens_chat</code>：降级档的间隔与输出上限。</li>
+          <li><code>flash_*</code>：DeepSeek 单价（美元 / 百万 token，峰谷分开），用于把 token 折算成人民币成本；<code>usd_to_cny</code> 是汇率。</li>
+          <li>LLM 密钥、接口地址、模型不在这一页改（走工作台右上角「服务配置」）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ 审计 ============ -->
+    <section id="sec-audit" class="sec">
+      <div class="toolbar">
+        <button id="aLoad">刷新</button>
+        <span class="hint">管理动作流水（发码 / 作废 / 建号 / 改密 / 停用 / 改闸门 / 换密钥）。</span>
+      </div>
+      <div style="overflow:auto"><table class="ct" id="aTable"></table></div>
+    </section>
+  </div>
+</main>
+<footer class="site">
+  <div class="fnav">
+    <a href="/">工作台</a><a href="/about.html">关于 wendi</a><a href="/feedback.html">反馈</a>
+    <a href="/privacy.html">隐私政策</a><a href="/terms.html">服务条款</a><a href="/meter.html">计量台</a>
+  </div>
+  <div>问底 WenDi · 站长后台 · 单文件无依赖 · 最后更新 2026-09-27</div>
+</footer>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+const TOK_KEY = "wendi-admin-token";
+let TOK = localStorage.getItem(TOK_KEY) || "";
+
+/* ---------- 通信 ---------- */
+async function api(path, method, body){
+  const opt = { method: method || "GET", headers: {} };
+  if(TOK) opt.headers["Authorization"] = "Bearer " + TOK;
+  if(body !== undefined){ opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  let d = {}; try{ d = await r.json(); }catch(e){}
+  if(r.status === 401){ gate("令牌不对（或服务端没设 WENDI_ADMIN_TOKEN）。"); throw new Error(d.error || "unauthorized"); }
+  if(!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+  return d;
+}
+function showApp(){ $("#gate").classList.add("hidden"); $("#app").classList.remove("hidden"); }
+function gate(msg){
+  $("#app").classList.add("hidden"); $("#gate").classList.remove("hidden");
+  $("#gateMsg").textContent = msg || "";
+  if(msg) localStorage.removeItem(TOK_KEY);
+}
+
+/* ---------- 小工具 ---------- */
+function money(cents){ return "¥" + (Number(cents || 0) / 100).toFixed(2); }
+function bytes(n){ n = Number(n || 0); return n < 1024 ? n + " B" : (n/1024).toFixed(1) + " KB"; }
+function csv(rows){
+  return rows.map(r => r.map(v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"').join(",")).join("\r\n");
+}
+function download(name, text){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + text], { type: "text/csv;charset=utf-8" }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function copyText(t, el){
+  navigator.clipboard.writeText(t).then(() => { if(el){ const o = el.textContent; el.textContent = "已复制"; setTimeout(()=>el.textContent = o, 1200); } });
+}
+const KIND = { bug: "问题", idea: "建议", other: "其它" };
+
+/* ---------- 总览 ---------- */
+async function loadOverview(){
+  const d = await api("/api/admin/overview");
+  $("#hdrInfo").textContent = d.day + " · " + d.model;
+  const u = d.users, f = d.feedback, c = d.codes;
+  $("#ovCards").innerHTML = [
+    kv("成本闸", '<span class="state ' + d.state + '">' + d.state + '</span>'),
+    kv("今日成本", money(d.cost_cents) + '<small>/ 降级 ' + money(d.cap_cents) + ' · 硬停 ' + money(d.hard_cents) + '</small>'),
+    kv("今日调用", d.calls_today + '<small>次</small>'),
+    kv("用户", u.total + '<small>Pro ' + u.pro + ' · 禁 ' + u.disabled + ' · 7日 +' + u.new7 + '</small>'),
+    kv("反馈", f.new + '<small>未读 / 共 ' + f.total + '</small>'),
+    kv("兑换码", c.unused + '<small>未用 / 已兑 ' + c.used + ' · 已废 ' + c.voided + '</small>'),
+    kv("云同步", u.syncs + '<small>份</small>'),
+    kv("今日 token", d.meter.hit_tokens + '/' + d.meter.miss_tokens + '<small>命中/未命中 · 出 ' + d.meter.completion_tokens + '</small>'),
+  ].join("");
+  $("#fbBadge").textContent = f.new ? "(" + f.new + ")" : "";
+  $("#ovFb").innerHTML = d.feedback_new.length
+    ? d.feedback_new.map(fbCard).join("")
+    : '<p class="muted small">没有未读反馈。</p>';
+}
+function kv(k, v){ return '<div class="kv"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>"; }
+
+/* ---------- 反馈 ---------- */
+function fbCard(it){
+  const src = it.email ? esc(it.email) : ("匿名 " + esc(it.ip));
+  return '<div class="fb' + (it.status === "done" ? " done" : "") + '" data-id="' + it.id + '"'
+    + ' data-status="' + esc(it.status) + '" data-note="' + esc(it.note) + '">'
+    + '<div class="meta">'
+    + '<span class="tag k">' + (KIND[it.kind] || it.kind) + '</span>'
+    + '<span class="tag s-' + it.status + '">' + it.status + '</span>'
+    + '<span class="mono">#' + it.id + '</span><span>' + esc(it.ts) + '</span><span>' + src + '</span>'
+    + (it.contact ? '<span>联系方式：' + esc(it.contact) + (it.can_reply ? "（可回访）" : "") + '</span>' : "")
+    + (it.note ? '<span>备注：' + esc(it.note) + '</span>' : "")
+    + '</div>'
+    + '<div class="txt">' + esc(it.body) + '</div>'
+    + '<div class="row">'
+    + '<button data-act="new">未读</button>'
+    + '<button data-act="read">已读</button>'
+    + '<button data-act="done">已处理</button>'
+    + '<button data-act="note">备注…</button>'
+    + '<button class="ghost" data-act="copy">复制</button>'
+    + '</div></div>';
+}
+async function loadFeedback(){
+  const st = $("#fbFilter").value;
+  const d = await api("/api/admin/feedback" + (st ? "?status=" + st : ""));
+  $("#fbStats").textContent = "未读 " + d.stats.new + " · 已读 " + d.stats.read + " · 已处理 " + d.stats.done + " · 共 " + d.stats.total;
+  $("#fbList").innerHTML = d.items.length
+    ? d.items.map(fbCard).join("")
+    : '<p class="muted small">这里还没有留言。</p>';
+}
+async function fbAction(el, act){
+  const card = el.closest(".fb");
+  const id = Number(card.dataset.id);
+  if(act === "copy"){ copyText(card.querySelector(".txt").textContent, el); return; }
+  let body;
+  if(act === "note"){
+    const note = prompt("站长备注（写给自己看；留空则清掉）：", card.dataset.note || "");
+    if(note === null) return;
+    body = { id: id, status: card.dataset.status, note: note };   // 备注不改状态
+  } else {
+    body = { id: id, status: act };
+  }
+  await api("/api/admin/feedback/status", "POST", body);
+  await loadFeedback();
+}
+
+/* ---------- 用户 ---------- */
+let uRows = [];
+async function loadUsers(){
+  const q = $("#uQuery").value.trim();
+  const d = await api("/api/admin/users" + (q ? "?q=" + encodeURIComponent(q) : ""));
+  uRows = d.users;
+  const s = d.stats;
+  $("#uStats").textContent = "共 " + s.total + " · Pro " + s.pro + " · 已停用 " + s.disabled + " · 7 日新增 " + s.new7 + " · 云同步 " + s.syncs;
+  $("#uTable").innerHTML = "<thead><tr>"
+    + ["id","邮箱","注册","套餐","到期","今日用量","云同步","状态","操作"].map(h => "<th>" + h + "</th>").join("")
+    + "</tr></thead><tbody>"
+    + (uRows.length ? uRows.map(u =>
+        '<tr><td class="mono">' + u.id + "</td><td>" + esc(u.email) + "</td><td>" + esc((u.created_at||"").slice(0,10)) + "</td>"
+        + "<td>" + esc(u.plan_effective) + (u.plan !== u.plan_effective ? '<span class="hint">（原 ' + esc(u.plan) + ' 已过期）</span>' : "") + "</td>"
+        + "<td>" + esc(u.plan_until || "—") + "</td>"
+        + '<td class="mono">' + u.day_used + "</td>"
+        + '<td class="mono">' + (u.sync_bytes ? bytes(u.sync_bytes) + " · " + esc((u.sync_at||"").slice(0,16)) : "—") + "</td>"
+        + "<td>" + (u.disabled ? '<span class="tag off">已停用</span>' : '<span class="tag s-done">正常</span>') + "</td>"
+        + '<td><button data-u="' + u.id + '" data-e="' + esc(u.email) + '" data-d="' + (u.disabled ? 1 : 0) + '" data-act="d">' + (u.disabled ? "恢复" : "停用") + "</button>"
+        + ' <button data-e="' + esc(u.email) + '" data-act="pw">改密</button></td></tr>').join("")
+      : '<tr><td colspan="9" class="muted">没有用户。</td></tr>')
+    + "</tbody>";
+}
+async function userAction(btn){
+  const act = btn.dataset.act;
+  if(act === "d"){
+    const off = btn.dataset.d === "1";
+    const reason = off ? "" : prompt("停用 " + btn.dataset.e + "：原因（写给自己看，可空）", "");
+    if(!off && reason === null) return;
+    if(!confirm(off ? ("恢复 " + btn.dataset.e + " 的登录？") : ("停用 " + btn.dataset.e + "：立刻踢掉它的全部登录会话，之后无法登录。继续？"))) return;
+    await api("/api/admin/users/disable", "POST", { user_id: Number(btn.dataset.u), disabled: !off, reason: reason || "" });
+  } else if(act === "pw"){
+    const pw = prompt("给 " + btn.dataset.e + " 设新密码（≥6 位，会踢掉它全部会话）：", "");
+    if(!pw) return;
+    await api("/api/admin/users/password", "POST", { email: btn.dataset.e, password: pw });
+    alert("已改密并踢掉该用户全部会话。");
+  }
+  await loadUsers();
+}
+
+/* ---------- 兑换码 ---------- */
+let cRows = [];
+async function loadCodes(){
+  const b = $("#cFilter").value.trim();
+  const d = await api("/api/admin/codes" + (b ? "?batch=" + encodeURIComponent(b) : ""));
+  cRows = d.codes;
+  const s = d.summary;
+  $("#cStats").textContent = "共 " + s.n + " · 未用 " + s.unused + " · 已兑 " + s.used + "（" + s.redeemers + " 人）· 已废 " + s.voided;
+  $("#cTable").innerHTML = "<thead><tr>"
+    + ["码","天数","状态","批次","备注","兑换人","兑换时间"].map(h => "<th>" + h + "</th>").join("")
+    + "</tr></thead><tbody>"
+    + (cRows.length ? cRows.map(c =>
+        '<tr><td class="mono">' + esc(c.code) + ' <span class="copy" data-c="' + esc(c.code) + '">复制</span></td>'
+        + "<td>" + c.days + "</td>"
+        + "<td>" + ({unused:'<span class="tag s-done">未用</span>', used:'<span class="tag s-new">已兑</span>', voided:'<span class="tag off">已废</span>'}[c.status] || c.status) + "</td>"
+        + "<td>" + esc(c.batch) + "</td><td>" + esc(c.note) + "</td>"
+        + "<td>" + esc(c.used_by_email || "—") + "</td><td>" + esc(c.used_at || "—") + "</td></tr>").join("")
+      : '<tr><td colspan="7" class="muted">还没有码。</td></tr>')
+    + "</tbody>";
+}
+
+/* ---------- 闸门 ---------- */
+const CFG_LABEL = {
+  cost_cents_cap: ["日成本上限（分）", "过线 → 当天全员降级"],
+  cost_cents_hard: ["硬停上限（分）", "过线 → 当天停止服务（须 > cap）"],
+  degrade_min_interval: ["降级档最小间隔（秒）", "降级时同一用户两问之间要等这么久"],
+  degrade_max_tokens: ["降级档输出上限", "划词解释 / 追问"],
+  degrade_max_tokens_chat: ["降级档输出上限（对话）", "主对话"],
+  flash_in_hit_offpeak: ["单价 · 输入命中（谷）", "美元 / 百万 token"],
+  flash_in_hit_peak: ["单价 · 输入命中（峰）", "周六日与夜间隔为谷价"],
+  flash_in_miss_offpeak: ["单价 · 输入未命中（谷）", ""],
+  flash_in_miss_peak: ["单价 · 输入未命中（峰）", ""],
+  flash_out_offpeak: ["单价 · 输出（谷）", ""],
+  flash_out_peak: ["单价 · 输出（峰）", ""],
+  usd_to_cny: ["汇率（人民币 / 美元）", "用于把美元单价折成人民币成本"]
+};
+async function loadGate(){
+  const d = await api("/api/meter/config");
+  $("#gCards").innerHTML = [
+    kv("成本闸", '<span class="state ' + d.state + '">' + d.state + '</span>'),
+    kv("今日成本", money(d.today_cents) + '<small>/ 降级 ' + money(d.cap_cents) + ' · 硬停 ' + money(d.hard_cents) + '</small>'),
+    kv("降级档", d.degrade.explain_tokens + "/" + d.degrade.chat_tokens + '<small>tokens · 间隔 ' + d.degrade.min_interval + "s</small>"),
+  ].join("");
+  $("#gCfg").innerHTML = Object.keys(CFG_LABEL).map(k =>
+    '<div><label for="cfg-' + k + '">' + CFG_LABEL[k][0] + "</label>"
+    + '<input id="cfg-' + k + '" data-k="' + k + '" type="text" value="' + esc((d.config || {})[k] || "") + '">'
+    + (CFG_LABEL[k][1] ? '<span class="hint">' + CFG_LABEL[k][1] + "</span>" : "")
+    + "</div>").join("");
+  // 记住载入值：保存时只提交改动过的键
+  document.querySelectorAll("#gCfg input").forEach(inp => { inp.dataset.orig = inp.value; });
+  $("#gHint").textContent = "载入于 " + new Date().toLocaleTimeString();
+}
+async function saveGate(){
+  const set = {};
+  document.querySelectorAll("#gCfg input").forEach(inp => {
+    const cur = inp.value.trim();
+    if(cur === "" || cur === (inp.dataset.orig || "")) return;   // 空值不提交、没改的不提交
+    set[inp.dataset.k] = cur;
+  });
+  const msg = $("#gMsg");
+  if(!Object.keys(set).length){ msg.className = "msg"; msg.textContent = "没有改动。"; return; }
+  msg.className = "msg"; msg.textContent = "保存中…";
+  try{
+    await api("/api/admin/meter/config", "POST", { set: set });
+    msg.className = "msg ok";
+    msg.textContent = "已生效：" + Object.keys(set).map(k => k + "=" + set[k]).join("、");
+    await loadGate(); await loadOverview();
+  }catch(e){
+    msg.className = "msg err";
+    msg.textContent = e.message;
+  }
+}
+
+/* ---------- 审计 ---------- */
+async function loadAudit(){
+  const d = await api("/api/admin/audit?limit=200");
+  $("#aTable").innerHTML = "<thead><tr><th>时间</th><th>动作</th><th>详情</th><th>IP</th></tr></thead><tbody>"
+    + (d.items.length ? d.items.map(a =>
+        "<tr><td>" + esc(a.ts) + '</td><td class="mono">' + esc(a.action) + "</td>"
+        + '<td class="wrap">' + esc(a.detail) + '</td><td class="mono">' + esc(a.ip) + "</td></tr>").join("")
+      : '<tr><td colspan="4" class="muted">还没有管理动作。</td></tr>')
+    + "</tbody>";
+}
+
+/* ---------- 事件 ---------- */
+$("#tokGo").onclick = async () => {
+  TOK = $("#tok").value.trim();
+  if(!TOK){ $("#gateMsg").textContent = "先填令牌。"; return; }
+  try{
+    await api("/api/admin/overview");
+    localStorage.setItem(TOK_KEY, TOK);
+    showApp(); loadOverview();
+  }catch(e){ $("#gateMsg").textContent = e.message === "unauthorized" ? "令牌不对。" : e.message; }
+};
+$("#tok").addEventListener("keydown", e => { if(e.key === "Enter") $("#tokGo").click(); });
+$("#tokForget").onclick = () => { localStorage.removeItem(TOK_KEY); $("#tok").value = ""; $("#gateMsg").textContent = "已清掉本地存的令牌。"; };
+$("#logout").onclick = () => { const t = TOK; gate(""); $("#tok").value = t; };
+$("#refresh").onclick = () => refreshAll();
+
+document.querySelectorAll(".tabs button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll(".sec").forEach(s => s.classList.toggle("on", s.id === "sec-" + b.dataset.sec));
+    refreshAll();
+  };
+});
+async function refreshAll(){
+  const on = document.querySelector(".sec.on").id.replace("sec-", "");
+  try{
+    if(on === "ov") await loadOverview();
+    if(on === "fb") await loadFeedback();
+    if(on === "users") await loadUsers();
+    if(on === "codes") await loadCodes();
+    if(on === "gate") await loadGate();
+    if(on === "audit") await loadAudit();
+  }catch(e){ toastErr(e); }
+}
+function toastErr(e){ const el = document.querySelector(".sec.on .msg"); if(el){ el.className = "msg err"; el.textContent = e.message; } else alert(e.message); }
+
+$("#fbLoad").onclick = () => loadFeedback().catch(toastErr);
+$("#fbFilter").onchange = () => loadFeedback().catch(toastErr);
+$("#fbList").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if(btn) fbAction(btn, btn.dataset.act).catch(toastErr);
+});
+$("#ovFb").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if(btn) fbAction(btn, btn.dataset.act).then(loadOverview).catch(toastErr);
+});
+
+$("#uLoad").onclick = () => loadUsers().catch(toastErr);
+$("#uQuery").addEventListener("keydown", e => { if(e.key === "Enter") $("#uLoad").click(); });
+$("#uNew").onclick = () => $("#uNewForm").classList.toggle("hidden");
+$("#nuGo").onclick = async () => {
+  const msg = $("#nuMsg"); msg.className = "msg";
+  try{
+    const d = await api("/api/admin/users", "POST", {
+      email: $("#nuEmail").value.trim(), password: $("#nuPw").value,
+      plan: $("#nuPlan").value, days: $("#nuDays").value
+    });
+    msg.className = "msg ok";
+    msg.textContent = "已建号 " + d.email + "（" + d.plan + (d.plan_until ? " 至 " + d.plan_until : "") + "）";
+    $("#nuEmail").value = $("#nuPw").value = "";
+    await loadUsers();
+  }catch(e){ msg.className = "msg err"; msg.textContent = e.message; }
+};
+$("#uTable").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-act]");
+  if(btn) userAction(btn).catch(toastErr);
+});
+$("#uCsv").onclick = () => download("wendi-users.csv", csv([["id","邮箱","注册","套餐","到期","今日用量","云同步字节","停用"]].concat(
+  uRows.map(u => [u.id, u.email, u.created_at, u.plan_effective, u.plan_until || "", u.day_used, u.sync_bytes, u.disabled ? 1 : 0]))));
+
+$("#cGen").onclick = async () => {
+  const msg = $("#cMsg"); msg.className = "msg"; $("#cOut").classList.add("hidden");
+  try{
+    const d = await api("/api/admin/codes", "POST", {
+      n: $("#cN").value, days: $("#cDays").value,
+      note: $("#cNote").value.trim(), batch: $("#cBatch").value.trim()
+    });
+    msg.className = "msg ok";
+    msg.textContent = "批次 " + d.batch + " 生成了 " + d.codes.length + " 个码。";
+    $("#cOut").textContent = d.codes.join("\n");
+    $("#cOut").classList.remove("hidden");
+    $("#cFilter").value = "";
+    await loadCodes();
+  }catch(e){ msg.className = "msg err"; msg.textContent = e.message; }
+};
+$("#cLoad").onclick = () => loadCodes().catch(toastErr);
+$("#cTable").addEventListener("click", e => {
+  const sp = e.target.closest(".copy");
+  if(sp) copyText(sp.dataset.c, sp);
+});
+$("#cVoidBatch").onclick = async () => {
+  const b = $("#cFilter").value.trim();
+  if(!b){ alert("先在左边填批次名，再作废。"); return; }
+  if(!confirm("作废批次 " + b + " 里所有未使用的码？已兑换的不受影响。")) return;
+  const d = await api("/api/admin/codes/void", "POST", { batch: b });
+  alert("作废 " + d.voided + " 个。");
+  await loadCodes();
+};
+$("#cCopyUnused").onclick = () => {
+  const list = cRows.filter(c => c.status === "unused").map(c => c.code);
+  if(!list.length){ alert("没有未用的码。"); return; }
+  copyText(list.join("\n"));
+  alert("已复制 " + list.length + " 个未用码。");
+};
+$("#cCsv").onclick = () => download("wendi-codes.csv", csv([["码","天数","状态","批次","备注","兑换人","兑换时间"]].concat(
+  cRows.map(c => [c.code, c.days, c.status, c.batch, c.note, c.used_by_email || "", c.used_at || ""]))));
+
+$("#gSave").onclick = () => saveGate().catch(e => { $("#gMsg").className = "msg err"; $("#gMsg").textContent = e.message; });
+$("#gReload").onclick = () => loadGate().catch(toastErr);
+
+/* 闸门输入框记住原值，用于只提交改动 */
+document.addEventListener("focusin", e => {
+  if(e.target.matches && e.target.matches("#gCfg input") && e.target.dataset.orig === undefined)
+    e.target.dataset.orig = e.target.value;
+});
+
+$("#aLoad").onclick = () => loadAudit().catch(toastErr);
+
+/* ---------- 启动 ---------- */
+if(TOK){
+  api("/api/admin/overview").then(() => { showApp(); loadOverview(); })
+    .catch(() => gate("令牌已失效，请重新填入。"));
+} else {
+  gate("");
+}
+setInterval(() => {  // 停在总览页时每分钟刷新（其它页有明确操作点，不自动打扰）
+  if(!$("#app").classList.contains("hidden") && document.querySelector(".sec.on").id === "sec-ov") loadOverview().catch(()=>{});
+}, 60000);
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ rsync -az server.py prompts.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
 rsync -az deploy/gencode.py "$HOST:/opt/wendi/"
 
 echo "== 2) 前端 -> /var/www/kwelldo/know/ =="
-for f in index.html graph2d.html meter.html; do
+for f in index.html graph2d.html meter.html admin.html about.html privacy.html terms.html feedback.html site.css; do
   scp -q "web/$f" "$HOST:/tmp/wendi-$f"
   ssh $HOST "sudo cp /tmp/wendi-$f /var/www/kwelldo/know/$f && rm -f /tmp/wendi-$f"
 done
