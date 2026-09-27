@@ -846,7 +846,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if mode == "explain":
                 msgs = explain_messages(term, body.get("context", ""),
-                                        body.get("style", "standard"))
+                                        body.get("style", "standard"),
+                                        str(body.get("question", "") or ""))
             elif mode == "followup":
                 msgs = followup_messages(term, body.get("previous", ""),
                                          body.get("question", ""))

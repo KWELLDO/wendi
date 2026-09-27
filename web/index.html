@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>问底 WenDi · get to the bottom of it</title>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script defer src="vendor/katex/katex.min.js"></script>
 <style>
   :root{
     /* 纸与墨 */
@@ -145,6 +147,12 @@
   .expbody pre code,.msg .txt pre code,.qa .a pre code{background:none;border:none;padding:0;color:inherit}
   .expbody blockquote,.msg .txt blockquote,.qa .a blockquote{border-left:2px solid var(--accent-line);margin:.5em 0;padding:.1em .8em;color:var(--ink-2)}
   .expbody a,.msg .txt a,.qa .a a{color:var(--accent);text-decoration:underline;text-decoration-color:var(--accent-line);text-underline-offset:3px}
+  /* —— 数学（KaTeX）—— */
+  .katex{white-space:normal}                            /* 容器是 pre-wrap，别把 KaTeX 标记里的空白放大 */
+  .katex-display{overflow-x:auto;overflow-y:hidden;margin:.6em 0}
+  .katex-error{color:var(--err) !important;font-family:var(--mono);font-size:.92em}
+  .mini .katex{font-size:.95em}
+  .mini .m-text .katex-display{margin:.2em 0}
   .inputrow{flex:0 0 auto;display:flex;gap:7px;padding:9px 11px;border-top:1px solid var(--hairline);background:var(--paper)}
   .inputrow input{flex:1;background:var(--surface);border:1px solid var(--hairline);color:var(--ink);
                   padding:7px 11px;font-size:13.5px;font-family:var(--sans)}
@@ -213,10 +221,17 @@
          opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:var(--float)}
   #toast.show{opacity:1}
 
-  /* 气泡 */
-  #bubble{position:absolute;z-index:100;display:none}
-  #bubble button{background:var(--ink);color:var(--paper);border:none;padding:5px 12px;
-       font-weight:600;font-size:13px;box-shadow:var(--float)}
+  /* 气泡（划词：解释 + 可选疑惑） */
+  #bubble{position:absolute;z-index:100;display:none;width:296px;background:var(--surface);
+          border:1px solid var(--rule);box-shadow:var(--float);padding:8px}
+  #bubble .bterm{font-family:var(--serif);font-size:12.5px;color:var(--ink-3);
+                 margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #bubble .brow{display:flex;gap:6px}
+  #bubble input{flex:1;min-width:0;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
+                padding:5px 8px;font-size:12.5px;font-family:var(--sans)}
+  #bubble input:focus{outline:none;border-color:var(--accent)}
+  #bubble button{flex:0 0 auto;background:var(--ink);color:var(--paper);border:none;padding:5px 12px;
+       font-weight:600;font-size:13px;box-shadow:none}
   #bubble button:hover{background:var(--accent)}
   #closedList{position:absolute;top:42px;right:12px;z-index:60;background:var(--surface);border:1px solid var(--hairline);
               padding:8px 10px;display:none;max-width:320px;box-shadow:var(--float)}
@@ -357,7 +372,13 @@
   </div>
 </div>
 <div id="stage"></div>
-<div id="bubble"><button id="explainBtn">解释</button></div>
+<div id="bubble">
+  <div class="bterm" id="bubbleTerm"></div>
+  <div class="brow">
+    <input id="doubtInput" placeholder="（可选）你在疑惑什么？" maxlength="240" autocomplete="off" spellcheck="false">
+    <button id="explainBtn">解释</button>
+  </div>
+</div>
 <div id="closedList"></div>
 
 <script>
@@ -406,6 +427,100 @@ function mdRender(src){
   flushP(); flushL();
   return out.join("");
 }
+/* 数学（KaTeX，内置 web/vendor/katex）：mdRender 的数学版。
+   流程：先把数学段抽成占位符（代码块、行内代码内不解析）→ mdRender → 占位符换回 KaTeX HTML。
+   流式：$$ 未闭合时其后原样保留（不渲染半截公式），下一帧补上；$ 未闭合只当普通字符。
+   缓存：按 (公式, 行内/独立) 存结果，流式反复重渲染同一段公式不做重复计算。 */
+const MATH_CACHE_MAX = 600;
+const _mathCache = new Map();
+function _mathHTML(tex, display){
+  const key = (display ? "D" : "I") + "\u0000" + tex;
+  const hit = _mathCache.get(key);
+  if(hit !== undefined) return hit;
+  let html = null;
+  try{
+    if(window.katex) html = window.katex.renderToString(tex, {
+      displayMode: display, throwOnError: false, strict: false, trust: false, output: "htmlAndMathml" });
+  }catch(e){ html = null; }
+  // KaTeX 缺失/异常 → 回退原文（宁可不好看，也不吞掉公式）
+  if(html == null) html = esc(display ? "$$" + tex + "$$" : "$" + tex + "$");
+  if(_mathCache.size >= MATH_CACHE_MAX) _mathCache.clear();
+  _mathCache.set(key, html);
+  return html;
+}
+/* 在一段非代码文本里把数学抽成 \x00M<n>\x00 占位符 */
+function _scanMathText(text, math){
+  const ph = (tex, display) => { math.push({ tex, display }); return "\u0000M" + (math.length - 1) + "\u0000"; };
+  let out = "", i = 0;
+  const n = text.length;
+  while(i < n){
+    const c = text[i];
+    if(c === "`"){                                   // 行内代码整段跳过
+      const j = text.indexOf("`", i + 1);
+      const end = j < 0 ? n : j + 1;
+      out += text.slice(i, end); i = end; continue;
+    }
+    if(c === "\\"){
+      const d = text[i + 1];
+      if(d === "(" || d === "["){                    // \( \) / \[ \]
+        const j = text.indexOf(d === "(" ? "\\)" : "\\]", i + 2);
+        if(j < 0){ out += text.slice(i); break; }
+        out += ph(text.slice(i + 2, j), d === "[");
+        i = j + 2; continue;
+      }
+      out += text.slice(i, i + 2); i += 2; continue; // 转义对原样
+    }
+    if(c === "$"){
+      if(text[i + 1] === "$"){                       // 独立公式：可跨行
+        const j = text.indexOf("$$", i + 2);
+        if(j < 0){ out += text.slice(i); break; }    // 流式中间态：其后原样等待闭合
+        out += ph(text.slice(i + 2, j), true);
+        i = j + 2; continue;
+      }
+      const prev = text[i - 1], next = text[i + 1];
+      const badOpen = next === undefined || /\s/.test(next) || (prev !== undefined && /[0-9]/.test(prev));
+      if(badOpen){ out += c; i++; continue; }        // $5 / $ 后面跟空格：当普通美元符
+      let j = -1;                                    // 行内公式不跨行
+      for(let k = i + 1; k < n && text[k] !== "\n"; k++){
+        if(text[k] === "$" && !/\s/.test(text[k - 1]) && text[k - 1] !== "\\"){ j = k; break; }
+      }
+      if(j < 0){ out += c; i++; continue; }          // 未闭合：当普通字符，不影响后文
+      out += ph(text.slice(i + 1, j), false);
+      i = j + 1; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+function _splitMath(src){
+  // 划出代码块（``` / ~~~，未闭合则到文末），区块内不做数学解析
+  const spans = [];
+  const re = /^[ \t]{0,3}(```|~~~)[^\n]*\n?/gm;
+  let pos = 0, open = -1, m;
+  while((m = re.exec(src))){
+    if(open < 0) open = m.index;
+    else { spans.push([open, m.index + m[0].length]); open = -1; }
+  }
+  if(open >= 0) spans.push([open, src.length]);
+  const math = [];
+  let out = "";
+  for(const [a, b] of spans){
+    if(a > pos) out += _scanMathText(src.slice(pos, a), math);
+    out += src.slice(a, b);
+    pos = b;
+  }
+  if(pos < src.length) out += _scanMathText(src.slice(pos), math);
+  return { body: out, math };
+}
+function renderRich(src){
+  const { body, math } = _splitMath(String(src == null ? "" : src));
+  let html = mdRender(body);
+  if(math.length) html = html.replace(/\u0000M(\d+)\u0000/g, (s, k) => {
+    const it = math[+k];
+    return it ? _mathHTML(it.tex, it.display) : "";
+  });
+  return html;
+}
 function hhmm(t){ const d=new Date(t); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
 function styleName(s){ return {casual:"说人话",standard:"标准",rigorous:"严谨"}[s]||s; }
 function div(c){ const d=document.createElement("div"); if(c) d.className=c; return d; }
@@ -415,7 +530,6 @@ function div(c){ const d=document.createElement("div"); if(c) d.className=c; ret
             conv: messages[] / exp: term,context,text,style,followups,createdAt,parentTerm,loading,error }
    state = { root, focusPath:[id...]（根=root.id）, selected:{nodeId:childId}, removed:[] } */
 let state = null;
-let lastNav = "zin";
 function newConv(){ return { id: uid(), kind:"conv", children: [], messages: [] }; }
 function newExp(term, context, parentTerm){
   return { id: uid(), kind:"exp", children: [], term, context, parentTerm: parentTerm||null,
@@ -441,7 +555,7 @@ function findByPath(root, path){
 function currentNode(){ return findByPath(state.root, state.focusPath) || state.root; }
 function focusOn(path){
   state.focusPath = path; save();
-  lastNav = "zin"; render();
+  render("zin");
 }
 function enter(node){ focusOn([...state.focusPath, node.id]); tourAfterEnter(); }
 
@@ -473,29 +587,47 @@ function bindSplitter(sp, room){
     sp.addEventListener("pointerup", up);
   });
 }
-function goBack(){ if(state.focusPath.length > 1){ state.focusPath.pop(); save(); lastNav="zout"; render(); } }
+function goBack(){ if(state.focusPath.length > 1){ state.focusPath.pop(); save(); render("zout"); } }
 function selectedChild(node){
   const sel = state.selected[node.id];
   return node.children.find(c => c.id === sel) || node.children[node.children.length-1] || null;
 }
-function selectChild(node, child){ state.selected[node.id] = child.id; save(); render(); }
+function selectChild(node, child){ state.selected[node.id] = child.id; save(); render(""); }
 function depthOf(path){ return path.length - 1; }
 
-/* ================= 渲染 ================= */
-function render(){
+/* ================= 渲染 =================
+   anim 只在导航时给："zin"（进入）/"zout"（返回）/"":数据刷新。
+   数据刷新重放动画 = 每次流式更新都闪一下，所以默认不播。 */
+const SCROLL = {}, AT_BOTTOM = {};   // 按 data-scroll-key 记忆滚动位置（重建 DOM 后复位）
+function saveScroll(){
+  document.querySelectorAll("[data-scroll-key]").forEach(el => {
+    const k = el.dataset.scrollKey;
+    SCROLL[k] = el.scrollTop;
+    AT_BOTTOM[k] = (el.scrollHeight - el.scrollTop - el.clientHeight) < 24;
+  });
+}
+function restoreScroll(){
+  document.querySelectorAll("[data-scroll-key]").forEach(el => {
+    const k = el.dataset.scrollKey;
+    if(AT_BOTTOM[k] !== false) el.scrollTop = el.scrollHeight;   // 首次出现 / 原本贴底 → 贴底
+    else if(SCROLL[k] !== undefined) el.scrollTop = SCROLL[k];
+  });
+}
+function render(anim = ""){
   const stage = $("#stage");
+  saveScroll();
   stage.innerHTML = "";
   const node = currentNode();
-  stage.appendChild(renderRoom(node, "0", lastNav));
+  stage.appendChild(renderRoom(node, "0", anim));
   renderCrumbs();
   $("#closedCount").textContent = state.removed.length;
   $("#backBtn").disabled = state.focusPath.length <= 1;
   bindAll();
-  requestAnimationFrame(() => { const c = document.querySelector(".content .ctext"); if(c && node.kind==="conv") c.scrollTop = c.scrollHeight; });
+  restoreScroll();
 }
 
 function renderRoom(node, key, anim){
-  const room = div("room " + (anim==="zout" ? "back" : "enter"));
+  const room = div("room " + (anim === "zout" ? "back" : anim === "zin" ? "enter" : ""));
   const depth = state.focusPath.length - 1;
   const sp = div("splitter"); sp.title = "拖动调整左右宽度（双击复位）";
   bindSplitter(sp, room);
@@ -512,7 +644,7 @@ function renderMain(node, depth){
     for(const m of node.messages || []){
       const el = div("msg " + m.role);
       el.innerHTML = `<div class="who">${m.role==="user" ? "你" : "AI"}</div>
-        <div class="txt ${m.loading?"loading":""}" ${m.id?`data-msg="${m.id}"`:""} data-quote-scope="1">${m.text ? mdRender(m.text) : esc(m.loading?"…":"")}</div>`;
+        <div class="txt ${m.loading?"loading":""}" ${m.id?`data-msg="${m.id}"`:""} data-quote-scope="1">${m.text ? renderRich(m.text) : esc(m.loading?"…":"")}</div>`;
       body.appendChild(el);
     }
     if(!(node.messages||[]).length)
@@ -523,11 +655,11 @@ function renderMain(node, depth){
     main.appendChild(row);
   } else {
     const head = `<div class="expbody ${node.loading?"loading":(node.error&&!node.text)?"err":""}" data-exp="${node.id}" data-quote-scope="1">${
-      node.error ? (node.text ? mdRender(node.text) + `<div class="errnote">[失败] ${esc(node.error)}</div>` : esc("[失败] "+node.error)) : (node.text ? mdRender(node.text) : esc(node.loading ? "解释中…" : ""))}</div>`;
+      node.error ? (node.text ? renderRich(node.text) + `<div class="errnote">[失败] ${esc(node.error)}</div>` : esc("[失败] "+node.error)) : (node.text ? renderRich(node.text) : esc(node.loading ? "解释中…" : ""))}</div>`;
     body.innerHTML = head;
     (node.followups || []).forEach((f, i) => {
       body.insertAdjacentHTML("beforeend",
-        `<div class="qa" data-fu="${i}"><div class="q">追问：${esc(f.q)}</div><div class="a">${mdRender(f.a)}</div></div>`);
+        `<div class="qa" data-fu="${i}"><div class="q">追问：${esc(f.q)}</div><div class="a">${renderRich(f.a)}</div></div>`);
     });
     main.appendChild(body);
     const row = div("inputrow");
@@ -590,9 +722,10 @@ function renderMini(node){
   mini.dataset.miniOf = node.id;
   const main = div("m-main");
   if(node.kind === "conv"){
-    main.innerHTML = `<div class="m-text serif">${esc((node.messages||[]).slice(-2).map(m => `${m.role==="user"?"你":"AI"}：${m.text||""}`).join("\n\n"))}</div>`;
+    main.innerHTML = `<div class="m-text serif">${(node.messages||[]).slice(-2).map(m => `${m.role==="user"?"你":"AI"}：` + (m.text ? renderRich(m.text) : "")).join("")}</div>`;
   } else {
-    main.innerHTML = `<div class="m-text" data-quote-scope="1">${node.text ? mdRender(node.text) + (node.error ? `<div class="errnote">[失败] ${esc(node.error)}</div>` : "") : (node.error ? esc("[失败] "+node.error) : esc(node.loading ? "解释中…" : ""))}</div>`;
+    // data-exp 与主区同构：流式时一次 patch 掉主区 + 预览（见 requestExplain）
+    main.innerHTML = `<div class="m-text" data-exp="${node.id}" data-quote-scope="1">${node.text ? renderRich(node.text) + (node.error ? `<div class="errnote">[失败] ${esc(node.error)}</div>` : "") : (node.error ? esc("[失败] "+node.error) : esc(node.loading ? "解释中…" : ""))}</div>`;
   }
   const side = div("m-side");
   const list = div("m-list");
@@ -644,11 +777,11 @@ function bindAll(){
       e.stopPropagation();
       const node = currentNode();
       const idx = node.children.findIndex(x => x.id === cid);
-      if(idx >= 0){ state.removed.push(node.children[idx]); node.children.splice(idx, 1); save(); render(); }
+      if(idx >= 0){ state.removed.push(node.children[idx]); node.children.splice(idx, 1); save(); render(""); }
     };
   });
-  // 预览 mini：点击进入
-  document.querySelectorAll(".mini").forEach(m => {
+  // 预览 mini：点击进入（只匹配预览块；button.mini 是列表/头部的按钮，另有各自的处理）
+  document.querySelectorAll(".preview .mini").forEach(m => {
     m.onclick = e => {
       if(e.target.closest("[data-quote-scope]") && window.getSelection() && !window.getSelection().isCollapsed) return; // 正在划词
       enterById(m.dataset.miniOf);
@@ -674,20 +807,20 @@ function bindAll(){
     const fire = async () => {
       const q = input.value.trim(); if(!q || node.loading) return;
       input.value = "";
-      node.followups.push({ q, a: "" }); save(); render();
+      node.followups.push({ q, a: "" }); save(); render("");
       const f = node.followups[node.followups.length-1];
       const live = () => document.querySelector(`[data-fu="${node.followups.indexOf(f)}"] .a`);
       try{
       const r = await apiStream("/api/explain", {mode:"followup",term:node.term,previous:node.text,question:q,stream:true,
         depth: state.focusPath.length - 1, turns: node.followups.length}, d => {
           f.a += d;
-          const el = live(); if(el) el.innerHTML = mdRender(f.a);
+          const el = live(); if(el) el.innerHTML = renderRich(f.a);
         });
         if(!r.ok){ const em = friendlyErr(r.data.error); f.a = f.a ? f.a + "\n[失败] " + em : "[失败] " + em; }
         if (r.data && r.data.quota) renderQuota(r.data.quota);
         if (r.data && r.data.truncated) toast("回答达到长度上限被截断");
       }catch(e){ f.a = f.a ? f.a + "\n[失败] " + e.message : "[失败] " + e.message; }
-      save(); render();
+      save(); render("");
     };
     if(ask) ask.onclick = fire;
     if(input) input.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) fire(); });
@@ -734,7 +867,8 @@ function extractSentence(text, idx, len){
   let b = idx+len; while(b<text.length && !st.includes(text[b])) b++;
   return text.slice(a, Math.min(text.length, b+1)).trim();
 }
-document.addEventListener("mouseup", () => {
+document.addEventListener("mouseup", e => {
+  if(e.target && e.target.closest && e.target.closest("#bubble")) return;  // 点进气泡输入框：别把气泡关掉
   setTimeout(() => {
     const sel = window.getSelection();
     const bub = $("#bubble");
@@ -744,7 +878,7 @@ document.addEventListener("mouseup", () => {
     if(!term || term.length > 80){ hide(); return; }
     let el = sel.anchorNode; el = el.nodeType===1 ? el : el.parentElement;
     const scope = el && el.closest("[data-quote-scope]");
-    const mini = el && el.closest(".mini");
+    const mini = el && el.closest(".preview .mini");
     const main = el && el.closest(".mainpane");
     if(!scope || (!mini && !main)){ hide(); return; }
     const text = scope.innerText || "";
@@ -752,15 +886,26 @@ document.addEventListener("mouseup", () => {
     bubbleInfo = { term, context: extractSentence(text, idx, term.length),
                    fromMini: mini ? mini.dataset.miniOf : null };
     const rect = sel.getRangeAt(0).getBoundingClientRect();
+    $("#bubbleTerm").textContent = term;
+    $("#doubtInput").value = "";
     bub.style.display = "block";
-    bub.style.left = (window.scrollX + rect.left + rect.width/2 - 34) + "px";
+    const w = bub.offsetWidth || 296;
+    bub.style.left = Math.max(8, Math.min(window.innerWidth - w - 8,
+                        window.scrollX + rect.left + rect.width/2 - w/2)) + "px";
     bub.style.top  = (window.scrollY + rect.bottom + 8) + "px";
   }, 10);
+});
+/* 划词解释：气泡里的「疑惑」（可留空）= 让解释先正面回答你卡在哪，而不是泛泛解释这个词 */
+$("#doubtInput").addEventListener("keydown", e => {
+  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("#explainBtn").click(); }
+  else if(e.key === "Escape"){ e.preventDefault(); $("#bubble").style.display = "none"; bubbleInfo = null; }
 });
 $("#explainBtn").addEventListener("click", async () => {
   if(!bubbleInfo) return;
   const { term, context, fromMini } = bubbleInfo;
+  const question = $("#doubtInput").value.trim();
   $("#bubble").style.display = "none";
+  $("#doubtInput").value = "";
   window.getSelection().removeAllRanges();
   if(fromMini){
     // 在预览里划词 = 先进入那层，再在那层划
@@ -769,45 +914,50 @@ $("#explainBtn").addEventListener("click", async () => {
     state.focusPath = [...state.focusPath, fromMini];
     state.selected[target.id] = (target.children[0]||{}).id;
     save();
-    await addExplain(target, term, context);
+    await addExplain(target, term, context, question);
   } else {
-    await addExplain(currentNode(), term, context);
+    await addExplain(currentNode(), term, context, question);
   }
 });
-async function addExplain(node, term, context){
+async function addExplain(node, term, context, question){
   const exp = newExp(term, context, node.kind === "conv" ? null : node.term);
+  if(question) exp.question = question;
   node.children.push(exp);
   state.selected[node.id] = exp.id;
-  save(); render();
+  save(); render("");
   await requestExplain(exp);
   tourAfterExplain();
 }
 
 /* ================= API ================= */
 async function requestExplain(card){
-  card.loading = true; card.error = null; card.text = ""; save(); render();
-  const live = () => document.querySelector(`[data-exp="${card.id}"]`);
+  card.loading = true; card.error = null; card.text = ""; save(); render("");
   let lastPaint = 0;  // 生成中的卡片不在当前视野时:节流整页重绘,让列表/预览跟着长
+  // 同一张卡可能同时出现在主区（[data-exp]）和右下预览（mini 里的 [data-exp]）——一起原地 patch，
+  // 绝不在流式过程中整页 render()：那会重建 DOM、重放 .room 进入动画（就是预览闪屏的根因）。
+  const paint = () => {
+    const els = document.querySelectorAll(`[data-exp="${card.id}"]`);
+    if(els.length){
+      const html = renderRich(card.text);
+      els.forEach(el => { el.classList.remove("loading", "err"); el.innerHTML = html; });
+    } else if(Date.now() - lastPaint > 250){ lastPaint = Date.now(); render(""); }
+  };
   try{
-    const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,stream:true,
-      depth: state.focusPath.length, turns: 0}, d => {
-      card.text += d;
-      const el = live();
-      if(el){ el.classList.remove("loading","err"); el.innerHTML = mdRender(card.text); }
-      else if(Date.now() - lastPaint > 250){ lastPaint = Date.now(); render(); }
-    });
+    const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,
+      question: card.question || "", stream:true,
+      depth: state.focusPath.length, turns: 0}, d => { card.text += d; paint(); });
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
     if (r.data.quota) renderQuota(r.data.quota);
     if (r.data.truncated) toast("回答达到长度上限被截断，可重答");
   }catch(e){ card.loading = false; card.error = String(e.message||e); }
-  save(); render();
+  save(); render("");
 }
 async function sendChat(node, text){
   const history = (node.messages||[]).filter(m => !m.loading).map(m => ({role:m.role, content:m.text}));
   node.messages.push({role:"user", text, at:Date.now()},
                      {role:"assistant", id: uid(), text:"", loading:true, at:Date.now()});
-  save(); render();
+  save(); render("");
   const pending = node.messages[node.messages.length-1];
   const live = () => document.querySelector(`[data-msg="${pending.id}"]`);
   const scroll = () => { const c = document.querySelector(".content .ctext"); if(c) c.scrollTop = c.scrollHeight; };
@@ -816,7 +966,7 @@ async function sendChat(node, text){
       depth: state.focusPath.length - 1, turns: history.filter(m => m.role === "user").length + 1}, d => {
       pending.text += d;
       const el = live();
-      if(el){ el.classList.remove("loading"); el.innerHTML = mdRender(pending.text); scroll(); }
+      if(el){ el.classList.remove("loading"); el.innerHTML = renderRich(pending.text); scroll(); }
     });
     pending.loading = false;
     if(!r.ok){ const em = friendlyErr(r.data.error); pending.text = pending.text ? pending.text + "\n[失败] " + em : "[失败] " + em; }
@@ -827,7 +977,7 @@ async function sendChat(node, text){
     pending.loading = false;
     pending.text = pending.text ? pending.text + "\n[失败] " + e.message : "[失败] " + e.message;
   }
-  save(); render();
+  save(); render("");
 }
 
 /* ================= 顶栏 ================= */
@@ -846,7 +996,7 @@ $("#closedBtn").onclick = () => {
     const it = div("item");
     it.innerHTML = `<span>${esc(c.term)}（${hhmm(c.createdAt)}）</span>`;
     const re = document.createElement("button"); re.className="mini"; re.textContent="恢复";
-    re.onclick = () => { state.removed.splice(i,1); currentNode().children.push(JSON.parse(JSON.stringify(c))); save(); render(); $("#closedBtn").onclick(); };
+    re.onclick = () => { state.removed.splice(i,1); currentNode().children.push(JSON.parse(JSON.stringify(c))); save(); render(""); $("#closedBtn").onclick(); };
     const de = document.createElement("button"); de.className="mini"; de.textContent="彻底删";
     de.onclick = () => { state.removed.splice(i,1); save(); $("#closedBtn").onclick(); };
     it.append(re, de); box.appendChild(it);
@@ -1097,6 +1247,9 @@ $("#redeemBtn").onclick = doRedeem;
 $("#logoutBtn").onclick = doLogout;
 $("#syncBtn").onclick = syncUp;
 $("#coachClose").onclick = coachHide;
+/* 账户引导：TOKEN/ME 必须在下面这个 IIFE 之前声明（let 有 TDZ，声明在后会 ReferenceError） */
+let TOKEN = localStorage.getItem("wendi-token") || "";
+let ME = null;
 (async () => {
   if (TOKEN) {
     const r = await api("/api/me");
@@ -1107,8 +1260,6 @@ $("#coachClose").onclick = coachHide;
 })();
 
 /* ================= 账户 / 配额 ================= */
-let TOKEN = localStorage.getItem("wendi-token") || "";
-let ME = null;
 let authMode = "login";
 
 function apiHeaders(){
@@ -1212,7 +1363,7 @@ async function doAuth(){
   const s = await api("/api/sync");
   if (s.ok && s.data && s.data.data) {
     if (confirm("云端有你的数据（" + s.data.updated_at + "）。\n\n载入云端数据？（取消 = 保留本地，之后可用「同步↑」把本地覆盖上去）")) {
-      try { state = JSON.parse(s.data.data); save(); render(); toast("已载入云端数据"); }
+      try { state = JSON.parse(s.data.data); save(); render(""); toast("已载入云端数据"); }
       catch(e){ toast("云端数据解析失败"); }
     }
   }
@@ -1264,11 +1415,17 @@ function tourAfterEnter(){
   }
 }
 
-/* ================= 启动 ================= */
-load();
-if(!state.focusPath || !state.focusPath.length) state.focusPath = [state.root.id];
-render();
-$("#styleSel").value = state.defaultStyle;
+/* ================= 启动 =================
+   KaTeX 以 defer 加载（defer 脚本先于 DOMContentLoaded 执行），启动放在 DOMContentLoaded 里，
+   保证首次 render 时 window.katex 已就绪。 */
+function boot(){
+  load();
+  if(!state.focusPath || !state.focusPath.length) state.focusPath = [state.root.id];
+  render("zin");
+  $("#styleSel").value = state.defaultStyle;
+}
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
 </script>
 </body>
 </html>

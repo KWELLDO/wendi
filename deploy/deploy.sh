@@ -15,6 +15,9 @@ for f in index.html graph2d.html meter.html; do
   scp -q "web/$f" "$HOST:/tmp/wendi-$f"
   ssh $HOST "sudo cp /tmp/wendi-$f /var/www/kwelldo/know/$f && rm -f /tmp/wendi-$f"
 done
+# 第三方静态资源（KaTeX）；目录结构原样同步，缺它前端会退化回原始 LaTeX 文本
+rsync -az --delete web/vendor/ "$HOST:/tmp/wendi-vendor/"
+ssh $HOST 'sudo rsync -a --delete /tmp/wendi-vendor/ /var/www/kwelldo/know/vendor/ && rm -rf /tmp/wendi-vendor'
 
 echo "== 3) 密钥（仅首次创建） =="
 if ssh $HOST 'test -f /etc/wendi.env'; then
