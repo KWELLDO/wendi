@@ -19,18 +19,25 @@ done
 rsync -az --delete web/vendor/ "$HOST:/tmp/wendi-vendor/"
 ssh $HOST 'sudo rsync -a --delete /tmp/wendi-vendor/ /var/www/kwelldo/know/vendor/ && rm -rf /tmp/wendi-vendor'
 
-echo "== 3) 密钥（仅首次创建） =="
-if ssh $HOST 'test -f /etc/wendi.env'; then
-  echo "   /etc/wendi.env 已存在，跳过"
-else
-  [ -n "${WENDI_API_KEY:-}" ] || { echo "找不到 WENDI_API_KEY，中止"; exit 1; }
-  ADMIN_TOKEN="${WENDI_ADMIN_TOKEN:-$(openssl rand -hex 16)}"
-  # WENDI_REQUIRE_INVITE=1 表示注册必须邀请码（内测默认）；设 0 可临时放开公开注册
-  printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\nWENDI_REQUIRE_INVITE=1\n' "$WENDI_API_KEY" "$ADMIN_TOKEN" \
-    | ssh $HOST 'sudo bash -c "umask 077; cat > /etc/wendi.env; chmod 600 /etc/wendi.env"'
-  echo "   /etc/wendi.env 已创建（600）"
-  echo "   管理 token（请自行保存，用于 /api/meter）：$ADMIN_TOKEN"
+echo "== 3) 密钥（补缺失，不覆盖已有；值走 stdin，不进命令行） =="
+# 值来源：环境变量 > 本机 ~/.secrets（key get）> 缺则现生成管理令牌
+API_KEY="${WENDI_API_KEY:-$(command -v key >/dev/null 2>&1 && key get wendi_API 2>/dev/null || true)}"
+ADMIN_TOKEN="${WENDI_ADMIN_TOKEN:-$(command -v key >/dev/null 2>&1 && key get wendi_admin_token 2>/dev/null || true)}"
+[ -n "$API_KEY" ] || { echo "找不到 API key：设 WENDI_API_KEY=…，或 key set wendi_API=…"; exit 1; }
+if [ -z "$ADMIN_TOKEN" ]; then
+  ADMIN_TOKEN="$(openssl rand -hex 32)"
+  if command -v key >/dev/null 2>&1; then
+    key set "wendi_admin_token=$ADMIN_TOKEN"
+    key note wendi_admin_token note="问底站长令牌（deploy.sh 自动生成）" >/dev/null 2>&1 || true
+    echo "   已生成管理令牌并写进 ~/.secrets：用 key copy wendi_admin_token 取"
+  else
+    echo "   已生成管理令牌（请立即保存，站长后台 /admin.html 用）：$ADMIN_TOKEN"
+  fi
 fi
+scp -q deploy/upsert-env.py "$HOST:/tmp/wendi-upsert-env.py"
+printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\nWENDI_REQUIRE_INVITE=%s\n' \
+  "$API_KEY" "$ADMIN_TOKEN" "${WENDI_REQUIRE_INVITE:-1}" \
+  | ssh $HOST 'sudo python3 /tmp/wendi-upsert-env.py /etc/wendi.env && rm -f /tmp/wendi-upsert-env.py'
 
 echo "== 4) systemd 服务 =="
 scp -q deploy/wendi.service "$HOST:/tmp/wendi.service"
