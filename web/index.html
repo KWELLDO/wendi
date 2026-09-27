@@ -39,9 +39,9 @@
        font:14.5px/1.7 var(--sans);overflow:hidden;
        background-image:radial-gradient(var(--noise) 1px,transparent 1px);background-size:4px 4px}
   ::selection{background:var(--accent-wash)}
-  header{display:flex;align-items:center;gap:14px;padding:9px 18px;border-bottom:1px solid var(--rule);
+  header{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--rule);
          background:var(--paper);flex:0 0 auto;z-index:10;flex-wrap:wrap}
-  header .title{font-family:var(--serif);font-weight:600;font-size:16px;letter-spacing:.01em}
+  header .title{font-family:var(--serif);font-weight:600;font-size:15.5px}
   header .sub{color:var(--ink-3);font-size:12px;margin-left:6px}
   header .grow{flex:1}
   #crumbs{display:flex;align-items:center;gap:2px;font-size:12.5px;color:var(--ink-3);max-width:46vw;overflow:hidden}
@@ -52,27 +52,37 @@
   select,button{background:transparent;color:var(--ink);border:1px solid var(--hairline);
        padding:4px 9px;font-size:12.5px;cursor:pointer;font-family:var(--sans)}
   select:hover,button:hover{border-color:var(--ink)}
-  header select,header button{background:none;border:none;padding:3px 2px;color:var(--ink-2);font-size:12.5px}
-  header select:hover,header button:hover{color:var(--ink);border:none;text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:4px}
+  header select,header button{background:none;border:none;padding:4px 7px;color:var(--ink-2);font-size:12.5px}
+  header select:hover,header button:hover{color:var(--ink);border:none;background:var(--accent-wash)}
+  header #authBtn{border:1px solid var(--hairline);padding:3px 10px}
+  header #authBtn:hover{border-color:var(--ink);background:none;color:var(--ink)}
+  header .qbadge{border:none;padding:0 2px}
+  .hsep{width:1px;height:16px;background:var(--hairline);flex:0 0 auto;margin:0 3px}
   button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:none;border-color:var(--accent)}
   button.mini{padding:1px 6px;font-size:11.5px;color:var(--ink-3)}
   button.mini:hover{color:var(--ink)}
 
   /* ============ 房间 ============ */
-  #stage{flex:1;min-height:0;display:flex}
-  .room{display:flex;flex:1;min-width:0;min-height:0}
+  #stage{flex:1;min-height:0;display:flex;padding:6px}
+  .room{display:flex;flex:1;min-width:0;min-height:0;gap:8px;--split:50}
+  .splitter{flex:0 0 7px;cursor:col-resize;position:relative;align-self:stretch}
+  .splitter::before{content:"";position:absolute;left:3px;top:8px;bottom:8px;width:1px;background:var(--hairline)}
+  .splitter:hover::before,.splitter.drag::before{background:var(--accent);width:2px;left:2.5px}
   .room.enter{animation:zin .24s ease-out}
   .room.back{animation:zout .2s ease-out}
   @keyframes zin{from{opacity:0;transform:scale(.985) translateY(3px)}to{opacity:1;transform:none}}
   @keyframes zout{from{opacity:0;transform:scale(1.008)}to{opacity:1;transform:none}}
 
-  .mainpane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper);overflow:hidden}
-  .side{flex:0 0 330px;min-width:0;display:flex;flex-direction:column;border-left:1px solid var(--hairline)}
-  .lists{flex:1.6;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-  .lists .lhead{flex:0 0 auto;padding:10px 16px;font-family:var(--mono);font-size:10px;color:var(--ink-3);
-                letter-spacing:.1em;border-bottom:1px solid var(--hairline)}
-  .lists .lbody{flex:1;overflow-y:auto;padding:0 12px 8px}
-  .litem{display:flex;align-items:baseline;gap:7px;padding:9px 6px;border-left:2px solid transparent;border-bottom:1px solid var(--hairline);cursor:pointer}
+  .mainpane{min-width:0;display:flex;flex-direction:column;border:1px solid var(--hairline);
+            background:var(--surface);overflow:hidden}
+  .room>.mainpane{flex:0 0 calc(var(--split) * 1%)}
+  .side{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .lists{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--hairline);
+         background:var(--paper-deep);overflow:hidden}
+  .lists .lhead{flex:0 0 auto;padding:6px 10px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+                letter-spacing:.08em;border-bottom:1px solid var(--hairline)}
+  .lists .lbody{flex:1;overflow-y:auto;padding:6px}
+  .litem{display:flex;align-items:baseline;gap:7px;padding:6px 8px;border-left:2px solid transparent;cursor:pointer}
   .litem:hover{background:var(--accent-wash)}
   .litem.sel{border-left-color:var(--accent)}
   .litem.sel .lt{color:var(--accent)}
@@ -86,10 +96,10 @@
   .litem .dot{color:var(--ink-3);font-size:11px}
   .lists .lempty{color:var(--ink-3);font-size:12.5px;padding:12px;line-height:2}
 
-  .preview{flex:1;min-height:180px;border-top:1px solid var(--rule);
+  .preview{flex:1.35;min-height:0;border:1px solid var(--hairline);background:var(--paper-deep);
            overflow:hidden;display:flex;flex-direction:column}
-  .preview .phead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--hairline);
-                  font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.1em}
+  .preview .phead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--hairline);
+                  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.08em}
   .preview .phead .grow{flex:1}
   .preview .pbody{flex:1;min-height:0;overflow:hidden}
 
@@ -112,23 +122,22 @@
 
   /* ============ 内容（主对话 / 解释） ============ */
   .content{flex:1;min-height:0;display:flex;flex-direction:column}
-  .content .ctext{flex:1;min-height:0;overflow-y:auto;padding:30px max(22px, calc((100% - 40em)/2)) 56px}
-  .content .ctext.serif{font-family:var(--serif);font-size:16.5px;line-height:1.95}
-  .msg{margin:0 0 26px}
-  .msg.user{border-left:2px solid var(--accent-line);padding-left:12px}
-  .msg .who{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-bottom:7px;letter-spacing:.08em}
+  .content .ctext{flex:1;min-height:0;overflow-y:auto;padding:14px 18px}
+  .content .ctext.serif{font-family:var(--serif);font-size:15.3px}
+  .msg{margin:0 0 13px}
+  .msg .who{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-bottom:1px}
   .msg.user .who{color:var(--ok)}
-  .msg .txt{white-space:pre-wrap;line-height:1.95;font-size:16px;font-family:var(--serif)}
+  .msg .txt{white-space:pre-wrap;line-height:1.85;font-size:15px;font-family:var(--serif)}
   .msg .txt.loading{color:var(--ink-3)}
-  .expbody{white-space:pre-wrap;line-height:1.95;font-size:16.5px}
+  .expbody{white-space:pre-wrap;line-height:1.85;font-size:14.6px}
   .expbody.loading{color:var(--ink-3)} .expbody.err{color:var(--err)}
   .errnote{color:var(--err);font-size:.88em;margin-top:.9em;border-top:1px dashed var(--accent-line);padding-top:.5em}
-  .qa{border-left:2px solid var(--accent-line);margin:12px 0 0;padding:2px 0 2px 12px;font-size:14px}
+  .qa{border-left:2px solid var(--accent-line);margin:8px 0 0;padding:2px 0 2px 10px;font-size:13.3px}
   .qa .q{color:var(--accent)} .qa .a{white-space:pre-wrap;color:var(--ink-2)}
   .qa .a:empty::before{content:"…";color:var(--ink-3)}
   /* —— markdown 渲染（解释卡/对话/追问共用） —— */
   .expbody p,.msg .txt p,.qa .a p{margin:.45em 0}
-  .expbody h4,.msg .txt h4,.qa .a h4{margin:1.2em 0 .4em;font-size:1.05em;color:var(--ink);border-bottom:1px solid var(--hairline);padding-bottom:.25em}
+  .expbody h4,.msg .txt h4,.qa .a h4{margin:.7em 0 .25em;font-size:1.02em;color:var(--ink)}
   .expbody ul,.expbody ol,.msg .txt ul,.msg .txt ol,.qa .a ul,.qa .a ol{margin:.4em 0;padding-left:1.4em}
   .expbody li,.msg .txt li,.qa .a li{margin:.15em 0}
   .expbody code,.msg .txt code,.qa .a code{background:var(--surface-2);border:1px solid var(--hairline);padding:0 4px;font-size:.92em;font-family:var(--mono)}
@@ -136,13 +145,11 @@
   .expbody pre code,.msg .txt pre code,.qa .a pre code{background:none;border:none;padding:0;color:inherit}
   .expbody blockquote,.msg .txt blockquote,.qa .a blockquote{border-left:2px solid var(--accent-line);margin:.5em 0;padding:.1em .8em;color:var(--ink-2)}
   .expbody a,.msg .txt a,.qa .a a{color:var(--accent);text-decoration:underline;text-decoration-color:var(--accent-line);text-underline-offset:3px}
-  .inputrow{flex:0 0 auto;display:flex;gap:12px;align-items:flex-end;
-            padding:14px max(22px, calc((100% - 40em)/2)) 20px;border-top:1px solid var(--hairline);background:var(--paper)}
-  .inputrow input{flex:1;background:none;border:none;border-bottom:1px solid var(--hairline);color:var(--ink);
-                  padding:6px 2px;font-size:14px;font-family:var(--sans)}
-  .inputrow input::placeholder{color:var(--ink-3)}
-  .inputrow input:focus{outline:none;border-bottom-color:var(--accent)}
-  .inputrow button{background:var(--ink);color:var(--paper);border:none;padding:7px 18px;font-weight:600}
+  .inputrow{flex:0 0 auto;display:flex;gap:7px;padding:9px 11px;border-top:1px solid var(--hairline);background:var(--paper)}
+  .inputrow input{flex:1;background:var(--surface);border:1px solid var(--hairline);color:var(--ink);
+                  padding:7px 11px;font-size:13.5px;font-family:var(--sans)}
+  .inputrow input:focus{outline:none;border-color:var(--accent)}
+  .inputrow button{background:var(--ink);color:var(--paper);border:none;padding:7px 16px;font-weight:600}
   .inputrow button:hover{background:var(--accent);color:var(--paper)}
   mark.hl{background:var(--accent-wash);border-bottom:1.5px solid var(--accent)}
 
@@ -165,7 +172,7 @@
 
   /* 账户 / 配额 / 引导 */
   .hidden{display:none !important}
-  .qbadge{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);border:none;padding:0 2px}
+  .qbadge{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);border:1px solid var(--hairline);padding:2px 8px}
   .qbadge.deg{color:var(--warn);border-color:var(--warn)}
   #authModal,#keyModal{position:fixed;inset:0;background:var(--scrim);z-index:210;display:flex;align-items:center;justify-content:center}
   .acard{width:360px;background:var(--surface);border:1px solid var(--rule);padding:20px 22px}
@@ -233,15 +240,16 @@
              border:1px solid var(--slab-line);font:11px/1.5 var(--mono);padding:8px;display:none;white-space:pre;margin:0}
 
   @media (max-width:820px){
-    header{padding:8px 12px;gap:10px}
+    header{padding:6px 10px}
     #crumbs{max-width:100%}
+    #stage{padding:4px}
     .room{flex-direction:column;overflow-y:auto}
-    .mainpane{flex:1 0 auto;min-height:62vh}
-    .side{flex:0 0 auto;border-left:none;border-top:1px solid var(--rule)}
+    .splitter{display:none}
+    .hsep{display:none}
+    .room>.mainpane{flex:1 0 auto;min-height:62vh}
+    .side{flex:0 0 auto;min-width:0}
     .lists{max-height:46vh}
-    .preview{min-height:180px;border-top:1px solid var(--hairline)}
-    .content .ctext{padding:20px 16px 40px}
-    .inputrow{padding:12px 16px 16px}
+    .preview{min-height:180px}
     .icard{margin:0 12px;padding:24px 18px;max-width:100%}
     .acard{width:min(360px,calc(100vw - 28px))}
   }
@@ -262,11 +270,13 @@
   </select>
   <button id="backBtn" title="返回上一层（Esc）">← 返回</button>
   <button id="closedBtn">已移除 <span id="closedCount">0</span></button>
+  <span class="hsep"></span>
   <button id="sampleBtn">示例问题</button>
   <button id="exportBtn">导出 md</button>
   <button id="exportJsonBtn" title="导出原始数据（JSON），可自行可视化或二次加工">导出 json</button>
   <button id="graphBtn" title="当前会话的 2D 图谱：横轴=解释展开，纵轴=时间">图谱</button>
   <button id="resetBtn">重来</button>
+  <span class="hsep"></span>
   <button id="aboutBtn" title="关于问底">?</button>
   <span id="quotaBadge" class="qbadge hidden" title="今日用量"></span>
   <button id="syncBtn" class="hidden" title="把本地数据备份到云端">同步↑</button>
@@ -434,6 +444,35 @@ function focusOn(path){
   lastNav = "zin"; render();
 }
 function enter(node){ focusOn([...state.focusPath, node.id]); tourAfterEnter(); }
+
+/* 左右分栏:拖动分隔线调宽(默认 50/50,双击复位;localStorage 记忆) */
+const SPLIT_KEY = "wendi-split";
+function bindSplitter(sp, room){
+  const saved = parseFloat(localStorage.getItem(SPLIT_KEY) || "");
+  if (!isNaN(saved)) room.style.setProperty("--split", Math.min(75, Math.max(25, saved)));
+  sp.addEventListener("dblclick", () => {
+    room.style.setProperty("--split", 50);
+    localStorage.setItem(SPLIT_KEY, "50");
+  });
+  sp.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    try{ sp.setPointerCapture(ev.pointerId); }catch(_e){}
+    sp.classList.add("drag");
+    const move = e2 => {
+      const r = room.getBoundingClientRect();
+      const ratio = Math.min(.75, Math.max(.25, (e2.clientX - r.left) / r.width));
+      room.style.setProperty("--split", (ratio * 100).toFixed(1));
+    };
+    const up = () => {
+      sp.classList.remove("drag");
+      sp.removeEventListener("pointermove", move);
+      sp.removeEventListener("pointerup", up);
+      localStorage.setItem(SPLIT_KEY, parseFloat(room.style.getPropertyValue("--split")).toFixed(1));
+    };
+    sp.addEventListener("pointermove", move);
+    sp.addEventListener("pointerup", up);
+  });
+}
 function goBack(){ if(state.focusPath.length > 1){ state.focusPath.pop(); save(); lastNav="zout"; render(); } }
 function selectedChild(node){
   const sel = state.selected[node.id];
@@ -458,7 +497,9 @@ function render(){
 function renderRoom(node, key, anim){
   const room = div("room " + (anim==="zout" ? "back" : "enter"));
   const depth = state.focusPath.length - 1;
-  room.append(renderMain(node, depth), renderSide(node, key));
+  const sp = div("splitter"); sp.title = "拖动调整左右宽度（双击复位）";
+  bindSplitter(sp, room);
+  room.append(renderMain(node, depth), sp, renderSide(node, key));
   return room;
 }
 
@@ -551,7 +592,7 @@ function renderMini(node){
   if(node.kind === "conv"){
     main.innerHTML = `<div class="m-text serif">${esc((node.messages||[]).slice(-2).map(m => `${m.role==="user"?"你":"AI"}：${m.text||""}`).join("\n\n"))}</div>`;
   } else {
-    main.innerHTML = `<div class="m-text" data-quote-scope="1">${node.error ? esc("[失败] "+node.error) : (node.text ? mdRender(node.text) : esc(node.loading ? "解释中…" : ""))}</div>`;
+    main.innerHTML = `<div class="m-text" data-quote-scope="1">${node.text ? mdRender(node.text) + (node.error ? `<div class="errnote">[失败] ${esc(node.error)}</div>` : "") : (node.error ? esc("[失败] "+node.error) : esc(node.loading ? "解释中…" : ""))}</div>`;
   }
   const side = div("m-side");
   const list = div("m-list");
@@ -746,12 +787,14 @@ async function addExplain(node, term, context){
 async function requestExplain(card){
   card.loading = true; card.error = null; card.text = ""; save(); render();
   const live = () => document.querySelector(`[data-exp="${card.id}"]`);
+  let lastPaint = 0;  // 生成中的卡片不在当前视野时:节流整页重绘,让列表/预览跟着长
   try{
     const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,stream:true,
       depth: state.focusPath.length, turns: 0}, d => {
       card.text += d;
       const el = live();
       if(el){ el.classList.remove("loading","err"); el.innerHTML = mdRender(card.text); }
+      else if(Date.now() - lastPaint > 250){ lastPaint = Date.now(); render(); }
     });
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
@@ -766,7 +809,7 @@ async function sendChat(node, text){
                      {role:"assistant", id: uid(), text:"", loading:true, at:Date.now()});
   save(); render();
   const pending = node.messages[node.messages.length-1];
-  const live = () => document.querySelector(`[data-msg="${pending.id}"] .txt`);
+  const live = () => document.querySelector(`[data-msg="${pending.id}"]`);
   const scroll = () => { const c = document.querySelector(".content .ctext"); if(c) c.scrollTop = c.scrollHeight; };
   try{
     const r = await apiStream("/api/explain", {mode:"chat", stream:true, messages:[...history, {role:"user", content:text}],
