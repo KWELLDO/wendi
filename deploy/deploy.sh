@@ -11,10 +11,10 @@ rsync -az server.py prompts.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
 rsync -az deploy/gencode.py "$HOST:/opt/wendi/"
 
 echo "== 2) 前端 -> /var/www/kwelldo/know/ =="
-for f in index.html graph2d.html meter.html admin.html about.html privacy.html terms.html feedback.html site.css; do
-  scp -q "web/$f" "$HOST:/tmp/wendi-$f"
-  ssh $HOST "sudo cp /tmp/wendi-$f /var/www/kwelldo/know/$f && rm -f /tmp/wendi-$f"
-done
+# 整目录一次 rsync。原来 9 个文件 × (scp + ssh) = 18 次连接，腾讯云 sshd 在连接突发里会直接
+# 断开（2026-09-28 实测：Connection closed by ... 部署跑到一半 abort，前一次还撞 300s 超时）。
+rsync -az --exclude 'vendor/' --exclude 'graph3d-test.html' web/ "$HOST:/tmp/wendi-web/"
+ssh $HOST 'sudo rsync -a --exclude vendor/ /tmp/wendi-web/ /var/www/kwelldo/know/ && rm -rf /tmp/wendi-web'
 # 第三方静态资源（KaTeX）；目录结构原样同步，缺它前端会退化回原始 LaTeX 文本
 rsync -az --delete web/vendor/ "$HOST:/tmp/wendi-vendor/"
 ssh $HOST 'sudo rsync -a --delete /tmp/wendi-vendor/ /var/www/kwelldo/know/vendor/ && rm -rf /tmp/wendi-vendor'
