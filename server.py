@@ -41,8 +41,8 @@ TIMEOUT = float(os.environ.get("WENDI_TIMEOUT", "90"))
 WEB_DIR = HERE / "web"
 
 # —— 输出长度（主对话更容易被截断，给得宽些） ——
-MAX_TOKENS = int(os.environ.get("WENDI_MAX_TOKENS", "1600"))
-MAX_TOKENS_CHAT = int(os.environ.get("WENDI_MAX_TOKENS_CHAT", "2000"))
+MAX_TOKENS = int(os.environ.get("WENDI_MAX_TOKENS", "3000"))
+MAX_TOKENS_CHAT = int(os.environ.get("WENDI_MAX_TOKENS_CHAT", "8000"))
 
 # —— 限流 ——
 LIMIT_ANON_PER_MIN = int(os.environ.get("WENDI_ANON_PER_MIN", "6"))
@@ -926,11 +926,16 @@ class Handler(SimpleHTTPRequestHandler):
                     "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
             if finish == "length":
                 done["truncated"] = True
+            if not finish:
+                # 上游没给 finish_reason 就断流：回答不完整，按失败上报（已出的内容保留）
+                done["error"] = "连接中断，回答可能不完整（可重试）"
+                if not sent and user and consumed:
+                    db.refund_quota(user["id"])
             if degraded:
                 done["degraded"] = True
                 done["reason"] = degrade_reason
             emit(done)
-            _record_usage(user, mode, "standard", True, usage, ok=True, depth=depth, turns=turns)
+            _record_usage(user, mode, "standard", True, usage, ok=bool(finish), depth=depth, turns=turns)
             kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                         term=term, parent_term=None, style="standard",
                         ms=round((time.time() - t0) * 1000), stream=True, chunks=sent,
@@ -942,7 +947,7 @@ class Handler(SimpleHTTPRequestHandler):
             kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
                         term=term, error=str(e))
             try:
-                emit({"error": str(e)})
+                emit({"error": "连接中断，内容可能不完整（" + str(e) + "）"})
                 if not sent and user and consumed:  # 一个字都没出且真扣了次 → 退款
                     db.refund_quota(user["id"])
             except OSError:
