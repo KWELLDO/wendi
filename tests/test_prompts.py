@@ -11,8 +11,9 @@ class TestExplainMessages(unittest.TestCase):
         msgs = explain_messages("熵", "这里熵增意味着什么", "standard", "为什么不是能量守恒？")
         user = msgs[1]["content"]
         self.assertIn("为什么不是能量守恒？", user)
-        self.assertIn("正面回应这个疑惑", user)
-        self.assertIn('**熵**', user)
+        self.assertIn("疑惑", user)                       # 带上了「这是读者的疑惑」的框
+        self.assertIn("**熵**", user)
+        self.assertLess(user.index("疑惑"), user.index("解释它是什么意思"))  # 疑惑在通用指令之前
 
     def test_no_doubt_leaves_message_unchanged(self):
         for q in ("", "   ", None):
