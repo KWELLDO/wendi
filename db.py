@@ -6,7 +6,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import secrets
 import sqlite3
 import time
 from pathlib import Path
@@ -98,6 +101,45 @@ def init() -> None:
             note TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, id);
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts INTEGER NOT NULL,
+            day_key TEXT NOT NULL,
+            event TEXT NOT NULL,
+            session_id TEXT NOT NULL DEFAULT '',
+            user_id INTEGER,
+            code TEXT NOT NULL DEFAULT '',
+            room_id TEXT NOT NULL DEFAULT '',
+            card_id TEXT NOT NULL DEFAULT '',
+            depth INTEGER NOT NULL DEFAULT -1,
+            meta TEXT NOT NULL DEFAULT '{}',
+            ip_hash TEXT NOT NULL DEFAULT '',
+            ua_hash TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+        CREATE INDEX IF NOT EXISTS idx_events_day_event ON events(day_key, event);
+        CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_events_code ON events(code, ts);
+        CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id, ts);
+        CREATE TABLE IF NOT EXISTS daily_metrics (
+            day TEXT PRIMARY KEY,
+            active_users INTEGER NOT NULL DEFAULT 0,
+            new_users INTEGER NOT NULL DEFAULT 0,
+            sessions INTEGER NOT NULL DEFAULT 0,
+            app_opens INTEGER NOT NULL DEFAULT 0,
+            explains INTEGER NOT NULL DEFAULT 0,
+            explain_errors INTEGER NOT NULL DEFAULT 0,
+            drill_downs INTEGER NOT NULL DEFAULT 0,
+            go_backs INTEGER NOT NULL DEFAULT 0,
+            shares INTEGER NOT NULL DEFAULT 0,
+            exports INTEGER NOT NULL DEFAULT 0,
+            feedbacks INTEGER NOT NULL DEFAULT 0,
+            llm_calls INTEGER NOT NULL DEFAULT 0,
+            cost_cents INTEGER NOT NULL DEFAULT 0,
+            errors INTEGER NOT NULL DEFAULT 0,
+            d1_return INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS admin_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL,
@@ -114,7 +156,12 @@ def init() -> None:
                     "ALTER TABLE codes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0",
                     "ALTER TABLE meter_requests ADD COLUMN depth INTEGER NOT NULL DEFAULT -1",
                     "ALTER TABLE meter_requests ADD COLUMN turns INTEGER NOT NULL DEFAULT -1",
-                    "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0"):
+                    "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE users ADD COLUMN invite_code TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE codes ADD COLUMN kind TEXT NOT NULL DEFAULT 'pro'",
+                    "ALTER TABLE codes ADD COLUMN tester_label TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE meter_requests ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE meter_requests ADD COLUMN room_id TEXT NOT NULL DEFAULT ''"):
             try:
                 c.execute(ddl)
             except sqlite3.OperationalError:
@@ -167,6 +214,12 @@ def get_user_by_email(email: str) -> sqlite3.Row | None:
 def get_user(uid: int) -> sqlite3.Row | None:
     with _conn() as c:
         return c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+
+
+def set_invite_code(uid: int, code: str) -> None:
+    """记下账号归属的邀请码（归因/传播链用；注册成功后写一次）。"""
+    with _conn() as c:
+        c.execute("UPDATE users SET invite_code=? WHERE id=?", ((code or "").strip().upper(), uid))
 
 
 def set_plan(uid: int, plan: str, until: str) -> None:
@@ -247,9 +300,12 @@ def refund_quota(uid: int) -> None:
 _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 去掉易混字符
 
 
-def gen_codes(n: int, days: int, note: str = "", batch: str | None = None) -> tuple[str, list[str]]:
-    """生成 n 个兑换码，返回 (batch, codes)。batch 缺省自动生成 YYYYMMDD-XXXX。
+def gen_codes(n: int, days: int, note: str = "", batch: str | None = None,
+              kind: str = "pro", tester_label: str = "") -> tuple[str, list[str]]:
+    """生成 n 个码，返回 (batch, codes)。batch 缺省自动生成 YYYYMMDD-XXXX。
 
+    kind='pro'    → 登录后兑换 Pro；
+    kind='invite' → 注册邀请码（days>0 则注册即得 Pro 天数，tester_label 记「谁」）。
     撞库（INSERT OR IGNORE 未插入）时重试，绝不把已存在的码返回给调用方。
     """
     import secrets as _s
@@ -259,25 +315,31 @@ def gen_codes(n: int, days: int, note: str = "", batch: str | None = None) -> tu
     with _conn() as c:
         while len(out) < n:
             code = "WD-" + "-".join("".join(_s.choice(_CODE_ALPHABET) for _ in range(4)) for _ in range(3))
-            cur = c.execute("INSERT OR IGNORE INTO codes (code, days, note, batch) VALUES (?,?,?,?)",
-                            (code, days, note, batch))
+            cur = c.execute(
+                "INSERT OR IGNORE INTO codes (code, days, note, batch, kind, tester_label) "
+                "VALUES (?,?,?,?,?,?)",
+                (code, days, note, batch, kind, tester_label))
             if cur.rowcount:  # 0 = 撞库，重试
                 out.append(code)
     return batch, out
 
 
-def list_codes(batch: str | None = None) -> list[dict]:
-    """列兑换码（可按批次过滤），带兑换人邮箱与 status：unused / used / voided。"""
-    q = ("SELECT c.code, c.days, c.note, c.batch, c.used_by, c.used_at, c.voided, "
-         "u.email AS used_by_email FROM codes c LEFT JOIN users u ON u.id = c.used_by")
-    args: tuple = ()
+def list_codes(batch: str | None = None, kind: str | None = None) -> list[dict]:
+    """列码（可按批次/类型过滤），带兑换人邮箱与 status：unused / used / voided。"""
+    q = ("SELECT c.code, c.days, c.note, c.batch, c.kind, c.tester_label, c.used_by, "
+         "c.used_at, c.voided, u.email AS used_by_email "
+         "FROM codes c LEFT JOIN users u ON u.id = c.used_by WHERE 1=1")
+    args: list = []
     if batch:
-        q += " WHERE c.batch=?"
-        args = (batch,)
+        q += " AND c.batch=?"
+        args.append(batch)
+    if kind:
+        q += " AND c.kind=?"
+        args.append(kind)
     q += " ORDER BY c.batch DESC, c.code"
     out = []
     with _conn() as c:
-        for r in c.execute(q, args):
+        for r in c.execute(q, tuple(args)):
             d = dict(r)
             d["status"] = "voided" if d["voided"] else ("used" if d["used_by"] else "unused")
             out.append(d)
@@ -360,18 +422,24 @@ def sync_put(uid: int, data: str) -> str:
 def meter_record(user_id, plan: str, mode: str, style, stream: bool,
                  prompt_cache_hit_tokens: int, prompt_cache_miss_tokens: int,
                  completion_tokens: int, cost_cents: int, ok: bool,
-                 depth: int = -1, turns: int = -1) -> None:
-    """记一笔 LLM 调用的真实 token 消耗与折算成本。depth/turns 为行为信号（-1=未上报）。"""
+                 depth: int = -1, turns: int = -1,
+                 session_id: str = "", room_id: str = "") -> None:
+    """记一笔 LLM 调用的真实 token 消耗与折算成本。
+
+    depth/turns 为行为信号（-1=未上报）；session_id/room_id 用于把成本关联到一次前端会话/一层房间。
+    """
     with _conn() as c:
         c.execute(
             "INSERT INTO meter_requests (ts, day_key, user_id, plan, mode, style, stream, "
             "prompt_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, "
-            "completion_tokens, cost_cents, ok, depth, turns) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "completion_tokens, cost_cents, ok, depth, turns, session_id, room_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (now(), today(), user_id, plan, mode, style,
              1 if stream else 0,
              prompt_cache_hit_tokens + prompt_cache_miss_tokens,
              prompt_cache_hit_tokens, prompt_cache_miss_tokens,
-             completion_tokens, cost_cents, 1 if ok else 0, depth, turns))
+             completion_tokens, cost_cents, 1 if ok else 0, depth, turns,
+             (session_id or "")[:64], (room_id or "")[:64]))
 
 
 def meter_set(key: str, value: str) -> None:
@@ -546,3 +614,298 @@ def admin_log_list(limit: int = 200) -> list[dict]:
     with _conn() as c:
         rows = c.execute("SELECT * FROM admin_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ================= 事件流水（内测采集：只记动作，不记正文） =================
+EVENTS = (
+    "app_open", "select_text", "explain_request", "explain_success", "explain_error",
+    "drill_down", "go_back", "export", "share_create", "feedback", "register", "login",
+    "system_error",
+)
+MAX_META_CHARS = 1000
+
+# 事件身份口径：码 > 账号 > IP 哈希。一条事件只算一个身份，避免同一人在 active_users 里被算两次。
+_IDENT = ("COALESCE(NULLIF(code,''), CASE WHEN user_id IS NOT NULL THEN 'u' || user_id "
+          "ELSE 'i' || ip_hash END)")
+
+
+def ip_hash(ip: str) -> str:
+    """IP 只留哈希：sha256(salt + ip) 前 16 hex。salt 存 meter_config（首次自动生成）。"""
+    salt = meter_get("ip_hash_salt")
+    if not salt:
+        salt = secrets.token_hex(16)
+        meter_set("ip_hash_salt", salt)
+    return hashlib.sha256((salt + (ip or "")).encode("utf-8")).hexdigest()[:16]
+
+
+def _ua_hash(ua: str) -> str:
+    return hashlib.sha256((ua or "").encode("utf-8")).hexdigest()[:16]
+
+
+def event_add(event: str, session_id: str = "", user_id: int | None = None, code: str = "",
+              room_id: str = "", card_id: str = "", depth: int = -1, meta: dict | None = None,
+              ip: str = "", ua: str = "") -> None:
+    """写一条事件。调用方负责吞异常（埋点绝不阻塞主干，但错误要能被看见）。"""
+    ts = int(time.time() * 1000)
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO events (ts, day_key, event, session_id, user_id, code, room_id, "
+            "card_id, depth, meta, ip_hash, ua_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (ts, time.strftime("%Y-%m-%d"), event, (session_id or "")[:64], user_id,
+             (code or "").strip().upper()[:32], (room_id or "")[:64], (card_id or "")[:64],
+             int(depth), json.dumps(meta or {}, ensure_ascii=False)[:MAX_META_CHARS],
+             ip_hash(ip), _ua_hash(ua)))
+
+
+def events_list(day: str | None = None, event: str | None = None, session_id: str | None = None,
+                code: str | None = None, limit: int = 200) -> list[dict]:
+    """事件流（新→旧）。meta 已解析成对象，方便直接喂看板/agent。"""
+    q = "SELECT * FROM events WHERE 1=1"
+    args: list = []
+    if day:
+        q += " AND day_key=?"
+        args.append(day)
+    if event:
+        q += " AND event=?"
+        args.append(event)
+    if session_id:
+        q += " AND session_id=?"
+        args.append(session_id)
+    if code:
+        q += " AND code=?"
+        args.append(code.strip().upper())
+    q += " ORDER BY id DESC LIMIT ?"
+    args.append(int(limit))
+    with _conn() as c:
+        rows = [dict(r) for r in c.execute(q, args).fetchall()]
+    for r in rows:
+        try:
+            r["meta"] = json.loads(r["meta"] or "{}")
+        except json.JSONDecodeError:
+            r["meta"] = {}
+    return rows
+
+
+def event_day_counts(day: str) -> dict:
+    """某日各事件条数 + 独立会话数（漏斗的原始素材）。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT event, COUNT(*) AS n, COUNT(DISTINCT session_id) AS s "
+            "FROM events WHERE day_key=? GROUP BY event", (day,)).fetchall()
+    return {r["event"]: {"n": r["n"], "sessions": r["s"]} for r in rows}
+
+
+def _metric_row(day: str) -> dict:
+    """按 events + meter_requests + users 重算某日聚合（纯函数，rollup_day 调它）。"""
+    with _conn() as c:
+        e = dict(c.execute(
+            "SELECT COUNT(*) AS n, COUNT(DISTINCT session_id) AS sessions, "
+            f"COUNT(DISTINCT {_IDENT}) AS active "
+            "FROM events WHERE day_key=?", (day,)).fetchone())
+        counts = {r["event"]: r["n"] for r in c.execute(
+            "SELECT event, COUNT(*) AS n FROM events WHERE day_key=? GROUP BY event", (day,))}
+        new_users = c.execute(
+            "SELECT COUNT(*) AS n FROM users WHERE substr(created_at,1,10)=?", (day,)).fetchone()["n"]
+        m = dict(c.execute(
+            "SELECT COUNT(*) AS calls, COALESCE(SUM(cost_cents),0) AS cost, "
+            "COALESCE(SUM(CASE WHEN ok=0 THEN 1 ELSE 0 END),0) AS failed "
+            "FROM meter_requests WHERE day_key=?", (day,)).fetchone())
+        prev = c.execute(
+            f"SELECT DISTINCT {_IDENT} AS k FROM events WHERE day_key=? AND event='app_open'",
+            (day,)).fetchall()
+        yesterday = _day_shift(day, -1)
+        prevday = {r["k"] for r in c.execute(
+            f"SELECT DISTINCT {_IDENT} AS k FROM events WHERE day_key=? AND event='app_open'",
+            (yesterday,)).fetchall()}
+    today_keys = {r["k"] for r in prev}
+    return {
+        "day": day,
+        "active_users": e["active"], "new_users": new_users, "sessions": e["sessions"],
+        "app_opens": counts.get("app_open", 0),
+        "explains": counts.get("explain_success", 0),
+        "explain_errors": counts.get("explain_error", 0),
+        "drill_downs": counts.get("drill_down", 0),
+        "go_backs": counts.get("go_back", 0),
+        "shares": counts.get("share_create", 0),
+        "exports": counts.get("export", 0),
+        "feedbacks": counts.get("feedback", 0),
+        "llm_calls": m["calls"], "cost_cents": m["cost"],
+        "errors": counts.get("system_error", 0) + m["failed"],
+        "d1_return": len(today_keys & prevday),
+    }
+
+
+def _day_shift(day: str, delta: int) -> str:
+    t = time.mktime(time.strptime(day, "%Y-%m-%d")) + delta * 86400
+    return time.strftime("%Y-%m-%d", time.localtime(t))
+
+
+def rollup_day(day: str) -> dict:
+    """幂等重算某日聚合并写入 daily_metrics（先删后插，可安全重复跑）。"""
+    row = _metric_row(day)
+    with _conn() as c:
+        c.execute("DELETE FROM daily_metrics WHERE day=?", (day,))
+        c.execute(
+            "INSERT INTO daily_metrics (day, active_users, new_users, sessions, app_opens, "
+            "explains, explain_errors, drill_downs, go_backs, shares, exports, feedbacks, "
+            "llm_calls, cost_cents, errors, d1_return, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (row["day"], row["active_users"], row["new_users"], row["sessions"], row["app_opens"],
+             row["explains"], row["explain_errors"], row["drill_downs"], row["go_backs"],
+             row["shares"], row["exports"], row["feedbacks"], row["llm_calls"],
+             row["cost_cents"], row["errors"], row["d1_return"], int(time.time() * 1000)))
+    return row
+
+
+def metrics_get(day: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM daily_metrics WHERE day=?", (day,)).fetchone()
+    return dict(r) if r else None
+
+
+def metrics_range(days: int = 14) -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM daily_metrics ORDER BY day DESC LIMIT ?",
+                         (int(days),)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def funnel(day: str) -> dict:
+    """当日漏斗（独立会话数）：划词 → 解释成功 → 下钻 → 回退 → 分享。"""
+    out = {}
+    for ev in ("select_text", "explain_success", "drill_down", "go_back", "share_create"):
+        with _conn() as c:
+            out[ev] = c.execute(
+                "SELECT COUNT(DISTINCT CASE WHEN session_id != '' THEN session_id "
+                "                          ELSE 'e' || ip_hash END) AS n "
+                "FROM events WHERE day_key=? AND event=? AND event != 'system_error'",
+                (day, ev)).fetchone()["n"]
+    return out
+
+
+def prune_events(keep_days: int = 90) -> int:
+    """删掉保留期外的事件流水（聚合指标永久保留）。返回删除条数。"""
+    cutoff = _day_shift(time.strftime("%Y-%m-%d"), -int(keep_days))
+    with _conn() as c:
+        return c.execute("DELETE FROM events WHERE day_key < ?", (cutoff,)).rowcount
+
+
+def tester_rows() -> list[dict]:
+    """每人一行：邀请码 → 账号 → 事件统计 → 成本 → D1/D7 回访。"""
+    with _conn() as c:
+        base = [dict(r) for r in c.execute(
+            "SELECT c.code, c.kind, c.days, c.batch, c.note, c.tester_label, c.voided, "
+            "c.used_at, u.id AS user_id, u.email, u.plan, u.plan_until, u.disabled, "
+            "u.created_at AS registered_at, u.invite_code "
+            "FROM codes c LEFT JOIN users u ON u.invite_code = c.code "
+            "WHERE c.kind='invite' ORDER BY c.code").fetchall()]
+        stats = {r["code"]: dict(r) for r in c.execute(
+            "SELECT code, COUNT(*) AS n, COUNT(DISTINCT day_key) AS days_active, "
+            "MAX(ts) AS last_ts, MIN(day_key) AS first_day, MAX(day_key) AS last_day, "
+            "SUM(event='app_open') AS opens, SUM(event='explain_success') AS explains, "
+            "SUM(event='drill_down') AS drills, SUM(event='go_back') AS backs "
+            "FROM events WHERE code != '' GROUP BY code").fetchall()}
+        cost = {r["code"]: r["cost"] for r in c.execute(
+            "SELECT u.invite_code AS code, COALESCE(SUM(m.cost_cents),0) AS cost "
+            "FROM meter_requests m JOIN users u ON u.id = m.user_id "
+            "WHERE u.invite_code != '' GROUP BY u.invite_code").fetchall()}
+        open_days: dict[str, list[str]] = {}
+        for r in c.execute("SELECT DISTINCT code, day_key FROM events "
+                           "WHERE code != '' AND event='app_open' ORDER BY day_key"):
+            open_days.setdefault(r["code"], []).append(r["day_key"])
+    for row in base:
+        code = row["code"]
+        st = stats.get(code, {})
+        row["events"] = st.get("n") or 0
+        row["days_active"] = st.get("days_active") or 0
+        row["explains"] = st.get("explains") or 0
+        row["drills"] = st.get("drills") or 0
+        row["opens"] = st.get("opens") or 0
+        row["last_ts"] = st.get("last_ts")
+        row["first_day"] = st.get("first_day")
+        row["last_day"] = st.get("last_day")
+        row["cost_cents"] = cost.get(code) or 0
+        days = open_days.get(code, [])
+        row["returned"] = len(days) >= 2
+        row["d1"] = _within(days, 1, 2)
+        row["d7"] = _within(days, 6, 8)
+    return base
+
+
+def _within(days: list[str], lo: int, hi: int) -> bool:
+    """首次打开之后，是否在第 lo–hi 天之间又打开过（回访信号，带一天容差）。"""
+    if len(days) < 2:
+        return False
+    first = time.mktime(time.strptime(days[0], "%Y-%m-%d"))
+    return any(lo <= (time.mktime(time.strptime(d, "%Y-%m-%d")) - first) / 86400 <= hi
+               for d in days[1:])
+
+
+def meter_session_cost(session_id: str, within_s: int = 900) -> int | None:
+    """该会话最近一次 LLM 调用的折算成本（分）。给 explain_success 事件附着用；没有则 None。
+
+    这样前端只需上报「解释成功 + 耗时」，成本由服务端从计量表取真值——成本不经过前端。
+    """
+    if not session_id:
+        return None
+    cutoff = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - within_s))
+    with _conn() as c:
+        row = c.execute("SELECT cost_cents FROM meter_requests WHERE session_id=? AND ts>=? "
+                        "ORDER BY id DESC LIMIT 1", (session_id, cutoff)).fetchone()
+    return row["cost_cents"] if row else None
+
+
+# ================= 邀请码（kind='invite'：注册门槛，可携带赠送天数） =================
+def register_with_invite(email: str, salt: str, pw_hash: str,
+                         code: str = "") -> tuple[dict | None, str, int]:
+    """一条事务里完成注册：校验邀请码 → 建号 → 记归属 → （days>0 时）赠 Pro。
+
+    返回 (user | None, err, days)。err='' 表示成功；code 为空且允许空码时也可建号。
+    """
+    email = email.lower().strip()
+    code = (code or "").strip().upper()
+    with _conn() as c:
+        if code:
+            row = c.execute("SELECT * FROM codes WHERE code=?", (code,)).fetchone()
+            if not row:
+                return None, "邀请码不存在", 0
+            if row["voided"]:
+                return None, "邀请码已作废", 0
+            if row["used_by"]:
+                return None, "邀请码已经被用过了", 0
+            if (row["kind"] or "pro") != "invite":
+                return None, "这是兑换码，不是邀请码", 0
+            days = int(row["days"] or 0)
+        else:
+            days = 0
+        try:
+            cur = c.execute(
+                "INSERT INTO users (email, pw_salt, pw_hash, created_at, invite_code) "
+                "VALUES (?,?,?,?,?)", (email, salt, pw_hash, now(), code))
+        except sqlite3.IntegrityError:
+            return None, "这个邮箱已经注册过了", 0
+        uid = cur.lastrowid
+        if code:
+            c.execute("UPDATE codes SET used_by=?, used_at=? WHERE code=?", (uid, now(), code))
+        if days:
+            until = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 86400))
+            c.execute("UPDATE users SET plan='pro', plan_until=? WHERE id=?", (until, uid))
+        user = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        return dict(user), "", days
+def invite_claim(code: str, uid: int) -> tuple[bool, str, int]:
+    """注册时用邀请码：校验 → 标记用掉 → 返回 (ok, message, 赠送天数)。账号归属由调用方写。"""
+    code = (code or "").strip().upper()
+    if not code:
+        return False, "需要邀请码", 0
+    with _conn() as c:
+        row = c.execute("SELECT * FROM codes WHERE code=?", (code,)).fetchone()
+        if not row:
+            return False, "邀请码不存在", 0
+        if row["voided"]:
+            return False, "邀请码已作废", 0
+        if row["used_by"]:
+            return False, "邀请码已被使用", 0
+        if (row["kind"] or "pro") != "invite":
+            return False, "这是兑换码，不是邀请码", 0
+        c.execute("UPDATE codes SET used_by=?, used_at=? WHERE code=?", (uid, now(), code))
+        return True, "ok", int(row["days"] or 0)

@@ -48,6 +48,15 @@
   .mono{font-family:var(--mono);font-size:12px}
   .copy{cursor:pointer;font-size:11.5px;color:var(--ink-3);border:1px solid var(--hairline);padding:0 6px}
   .copy:hover{color:var(--accent);border-color:var(--accent-line)}
+  /* 指标页：漏斗横条（纯 div 宽度百分比，不引外部库） */
+  .funnel{margin:0 0 20px}
+  .funnel .frow{display:grid;grid-template-columns:9rem 5rem 1fr;gap:10px;align-items:center;
+    font-size:13px;margin:0 0 7px}
+  .funnel .frow .fn{color:var(--ink-2)}
+  .funnel .frow .fv{font-family:var(--mono);text-align:right}
+  .funnel .frow .fb-wrap{background:var(--accent-wash);height:14px}
+  .funnel .frow .fb-wrap > i{display:block;height:14px;background:var(--accent);min-width:1px}
+  .mtbl td .tag{margin-right:3px}
 </style>
 </head>
 <body>
@@ -93,6 +102,9 @@
       <button data-sec="fb">反馈 <span id="fbBadge" class="muted"></span></button>
       <button data-sec="users">用户</button>
       <button data-sec="codes">兑换码</button>
+      <button data-sec="testers">测试者</button>
+      <button data-sec="metrics">指标</button>
+      <button data-sec="events">事件流</button>
       <button data-sec="gate">闸门</button>
       <button data-sec="audit">审计</button>
       <a class="sp" href="/meter.html" style="align-self:center;font-size:12.5px">计量台（逐日账）→</a>
@@ -153,12 +165,22 @@
         <div class="row">
           <label for="cN" style="margin:0">数量</label>
           <input id="cN" type="text" value="10" style="width:70px">
+          <label for="cKind" style="margin:0">类型</label>
+          <select id="cKind" style="width:auto">
+            <option value="pro">pro（兑换码：登录后换 Pro）</option>
+            <option value="invite">invite（注册邀请码）</option>
+          </select>
           <label for="cDays" style="margin:0">天数</label>
           <input id="cDays" type="text" value="30" style="width:70px">
           <label for="cNote" style="margin:0">备注</label>
           <input id="cNote" type="text" placeholder="例：群里发的 30 天体验" style="max-width:240px">
           <label for="cBatch" style="margin:0">批次（选填）</label>
           <input id="cBatch" type="text" placeholder="沿用/自定义批次名" style="max-width:170px">
+        </div>
+        <div class="row">
+          <label for="cLabel" style="margin:0">测试者标签</label>
+          <input id="cLabel" type="text" placeholder="测试者标签，例：A 研究者" style="max-width:240px">
+          <span class="hint">仅 invite 有意义；pro 码忽略它。</span>
           <button class="primary" id="cGen">生成</button>
         </div>
         <div class="msg" id="cMsg"></div>
@@ -166,6 +188,11 @@
       </div>
       <div class="toolbar">
         <input id="cFilter" type="text" placeholder="按批次筛选" style="min-width:170px">
+        <select id="cKindFilter" style="width:auto">
+          <option value="">全部类型</option>
+          <option value="pro">pro</option>
+          <option value="invite">invite</option>
+        </select>
         <button id="cLoad">载入</button>
         <span class="hint" id="cStats"></span>
         <span style="flex:1"></span>
@@ -174,6 +201,85 @@
         <button id="cCsv">导出 CSV</button>
       </div>
       <div style="overflow:auto"><table class="ct" id="cTable"></table></div>
+    </section>
+
+    <!-- ============ 测试者 ============ -->
+    <section id="sec-testers" class="sec">
+      <div class="toolbar">
+        <h2 style="margin:0;font-size:19px">测试者</h2>
+        <span class="hint" id="tStats">一行 = 一个测试者（一条 invite 码及其带来的账号与行为）</span>
+        <span style="flex:1"></span>
+        <button id="tNewToggle">＋ 批量发邀请码</button>
+        <button id="tCopyUnused">复制全部未用邀请码</button>
+        <button id="tCsv">导出 CSV</button>
+      </div>
+      <div class="msg" id="tListMsg"></div>
+      <div id="tNewForm" class="card hidden">
+        <div class="row">
+          <label for="invLabels" style="margin:0">测试者标签（每行一个）</label>
+        </div>
+        <textarea id="invLabels" rows="4" placeholder="A 研究者&#10;B 同学" style="width:100%;max-width:520px"></textarea>
+        <div class="row">
+          <label for="invDays" style="margin:0">赠送天数</label>
+          <input id="invDays" type="text" value="30" style="width:80px">
+          <label for="invNote" style="margin:0">备注</label>
+          <input id="invNote" type="text" placeholder="例：第一批内测" style="max-width:240px">
+          <label for="invBatch" style="margin:0">批次（选填）</label>
+          <input id="invBatch" type="text" placeholder="例：ITEST" style="max-width:170px">
+          <button class="primary" id="invGo">按标签逐个发码</button>
+        </div>
+        <div class="hint">逐行串行调用（一次一个人），避免并发写库。完成后在下方列出「标签 → 码」。</div>
+        <div class="msg" id="tMsg"></div>
+        <pre id="invOut" class="hidden"></pre>
+      </div>
+      <div style="overflow:auto"><table class="ct" id="tTable"></table></div>
+    </section>
+
+    <!-- ============ 指标 ============ -->
+    <section id="sec-metrics" class="sec">
+      <div class="toolbar">
+        <h2 style="margin:0;font-size:19px">指标</h2>
+        <input id="mDay" type="date" style="width:auto">
+        <button id="mLoad">载入</button>
+        <span class="hint" id="mHint"></span>
+      </div>
+      <div id="mWarn"></div>
+      <div class="cards" id="mCards"></div>
+      <h2>否决漏斗（独立会话数）</h2>
+      <div class="funnel" id="mFunnel"></div>
+      <h2>近 14 天</h2>
+      <div style="overflow:auto"><table class="ct mtbl" id="mTable"></table></div>
+      <div class="msg" id="mMsg"></div>
+    </section>
+
+    <!-- ============ 事件流 ============ -->
+    <section id="sec-events" class="sec">
+      <p class="lede">只记动作与元数据，不记提问 / 解释正文。新→旧。</p>
+      <div class="toolbar">
+        <input id="evDay" type="date" style="width:auto" title="留空 = 全部日期">
+        <select id="evName" style="width:auto">
+          <option value="">全部事件</option>
+          <option value="app_open">app_open</option>
+          <option value="select_text">select_text</option>
+          <option value="explain_request">explain_request</option>
+          <option value="explain_success">explain_success</option>
+          <option value="explain_error">explain_error</option>
+          <option value="drill_down">drill_down</option>
+          <option value="go_back">go_back</option>
+          <option value="export">export</option>
+          <option value="share_create">share_create</option>
+          <option value="feedback">feedback</option>
+          <option value="register">register</option>
+          <option value="login">login</option>
+          <option value="system_error">system_error</option>
+        </select>
+        <input id="evSession" type="text" placeholder="session_id" style="min-width:150px">
+        <input id="evCode" type="text" placeholder="邀请码 / 归属码" style="min-width:140px">
+        <button id="evLoad">载入</button>
+        <span class="hint" id="evStats"></span>
+      </div>
+      <div class="msg" id="evMsg"></div>
+      <div style="overflow:auto"><table class="ct" id="evTable"></table></div>
     </section>
 
     <!-- ============ 闸门 ============ -->
@@ -271,6 +377,9 @@ async function loadOverview(){
     kv("兑换码", c.unused + '<small>未用 / 已兑 ' + c.used + ' · 已废 ' + c.voided + '</small>'),
     kv("云同步", u.syncs + '<small>份</small>'),
     kv("今日 token", d.meter.hit_tokens + '/' + d.meter.miss_tokens + '<small>命中/未命中 · 出 ' + d.meter.completion_tokens + '</small>'),
+    kv("今日事件", (d.events_today == null ? "—" : d.events_today) + '<small>条</small>'),
+    kv("今日漏斗", (d.funnel ? d.funnel.select_text : "—") + ' → ' + (d.funnel ? d.funnel.explain_success : "—")
+        + '<small>划词 → 解释成功（独立会话）</small>'),
   ].join("");
   $("#fbBadge").textContent = f.new ? "(" + f.new + ")" : "";
   $("#ovFb").innerHTML = d.feedback_new.length
@@ -368,20 +477,181 @@ async function userAction(btn){
 let cRows = [];
 async function loadCodes(){
   const b = $("#cFilter").value.trim();
-  const d = await api("/api/admin/codes" + (b ? "?batch=" + encodeURIComponent(b) : ""));
+  const k = $("#cKindFilter").value;
+  const qs = [];
+  if(b) qs.push("batch=" + encodeURIComponent(b));
+  if(k) qs.push("kind=" + encodeURIComponent(k));
+  const d = await api("/api/admin/codes" + (qs.length ? "?" + qs.join("&") : ""));
   cRows = d.codes;
   const s = d.summary;
   $("#cStats").textContent = "共 " + s.n + " · 未用 " + s.unused + " · 已兑 " + s.used + "（" + s.redeemers + " 人）· 已废 " + s.voided;
   $("#cTable").innerHTML = "<thead><tr>"
-    + ["码","天数","状态","批次","备注","兑换人","兑换时间"].map(h => "<th>" + h + "</th>").join("")
+    + ["码","类型","天数","状态","批次","备注","兑换人","兑换时间"].map(h => "<th>" + h + "</th>").join("")
     + "</tr></thead><tbody>"
     + (cRows.length ? cRows.map(c =>
         '<tr><td class="mono">' + esc(c.code) + ' <span class="copy" data-c="' + esc(c.code) + '">复制</span></td>'
+        + "<td>" + (c.kind === "invite"
+            ? '<span class="tag k">invite</span>' + (c.tester_label ? ' <span class="hint">' + esc(c.tester_label) + '</span>' : "")
+            : '<span class="tag">pro</span>') + "</td>"
         + "<td>" + c.days + "</td>"
         + "<td>" + ({unused:'<span class="tag s-done">未用</span>', used:'<span class="tag s-new">已兑</span>', voided:'<span class="tag off">已废</span>'}[c.status] || c.status) + "</td>"
         + "<td>" + esc(c.batch) + "</td><td>" + esc(c.note) + "</td>"
         + "<td>" + esc(c.used_by_email || "—") + "</td><td>" + esc(c.used_at || "—") + "</td></tr>").join("")
-      : '<tr><td colspan="7" class="muted">还没有码。</td></tr>')
+      : '<tr><td colspan="8" class="muted">还没有码。</td></tr>')
+    + "</tbody>";
+}
+
+/* ---------- 测试者 ---------- */
+let tRows = [];
+function testerStatus(t){
+  if(t.voided) return '<span class="tag off">已作废</span>';
+  if(t.disabled) return '<span class="tag off">已停用</span>';
+  if(t.user_id) return '<span class="tag s-done">已注册</span>';
+  if(!t.tester_label) return '<span class="tag">未发</span>';
+  return '<span class="tag">未注册（码未用）</span>';
+}
+function testerReturn(t){
+  const out = [];
+  if(t.d1) out.push('<span class="tag s-done">D1</span>');
+  if(t.d7) out.push('<span class="tag s-done">D7</span>');
+  if(!t.d1 && !t.d7 && t.returned) out.push('<span class="tag">回访</span>');
+  if(!t.d1 && !t.d7 && !t.returned) out.push('<span class="tag off">无回访</span>');
+  return out.join(" ");
+}
+function testerStatusText(t){
+  if(t.voided) return "已作废";
+  if(t.disabled) return "已停用";
+  if(t.user_id) return "已注册";
+  return t.tester_label ? "未注册（码未用）" : "未发";
+}
+function tsLocal(ms){ return ms ? new Date(Number(ms)).toLocaleString() : "—"; }
+async function loadTesters(){
+  const d = await api("/api/admin/testers");
+  tRows = d.items || [];
+  $("#tStats").textContent = "共 " + tRows.length + " 个测试者（邀请码）· 已注册 "
+    + tRows.filter(t => t.user_id).length + " · 未注册 " + tRows.filter(t => !t.user_id && !t.voided).length;
+  $("#tTable").innerHTML = "<thead><tr>"
+    + ["标签","码","账号","注册时间","解释次数","事件数","成本","最近出现","回访","状态"].map(h => "<th>" + h + "</th>").join("")
+    + "</tr></thead><tbody>"
+    + (tRows.length ? tRows.map(t =>
+        '<tr><td>' + esc(t.tester_label || "—") + "</td>"
+        + '<td class="mono">' + esc(t.code) + ' <span class="copy" data-c="' + esc(t.code) + '">复制</span></td>'
+        + "<td>" + esc(t.email || "—") + "</td>"
+        + "<td>" + esc(t.registered_at ? String(t.registered_at).slice(0, 16) : "—") + "</td>"
+        + '<td class="mono">' + (t.explains || 0) + "</td>"
+        + '<td class="mono">' + (t.events || 0) + "</td>"
+        + '<td class="mono">' + money(t.cost_cents) + "</td>"
+        + "<td>" + esc(tsLocal(t.last_ts)) + "</td>"
+        + "<td>" + testerReturn(t) + "</td>"
+        + "<td>" + testerStatus(t) + "</td></tr>").join("")
+      : '<tr><td colspan="10" class="muted">还没有 invite 码。去「兑换码」页生成，或在上方批量发码。</td></tr>')
+    + "</tbody>";
+}
+async function batchInvite(){
+  const msg = $("#tMsg"); msg.className = "msg"; $("#invOut").classList.add("hidden");
+  const labels = $("#invLabels").value.split("\n").map(s => s.trim()).filter(Boolean);
+  if(!labels.length){ msg.className = "msg err"; msg.textContent = "先填标签，每行一个。"; return; }
+  const days = $("#invDays").value.trim() || "30";
+  const note = $("#invNote").value.trim();
+  const batch = $("#invBatch").value.trim();
+  msg.textContent = "发码中（" + labels.length + " 个，逐个提交）…";
+  const out = [], fail = [];
+  for(const label of labels){
+    try{
+      const d = await api("/api/admin/codes", "POST", {
+        n: 1, days: days, note: note, batch: batch, kind: "invite", tester_label: label
+      });
+      out.push(label + " → " + d.codes[0]);
+    }catch(e){ fail.push(label + " → " + e.message); }
+  }
+  $("#invOut").textContent = out.concat(fail).join("\n");
+  $("#invOut").classList.remove("hidden");
+  if(fail.length){ msg.className = "msg err"; msg.textContent = "已生成 " + out.length + " 个，失败 " + fail.length + " 个（见下方）。"; }
+  else{
+    msg.className = "msg ok";
+    msg.textContent = "已生成 " + out.length + " 个，可点下面的码复制（或「复制全部未用邀请码」）。";
+    try{ await navigator.clipboard.writeText(out.map(s => s.split(" → ")[1]).join("\n")); msg.textContent = "已生成 " + out.length + " 个，已复制全部码。"; }
+    catch(e){ /* 剪贴板不可用时保留上面的提示 */ }
+  }
+  await loadTesters();
+}
+
+/* ---------- 指标 ---------- */
+function funnelRow(label, n, max){
+  const pct = max > 0 ? Math.max(0, Math.min(100, n / max * 100)) : 0;
+  return '<div class="frow"><span class="fn">' + label + '</span><span class="fv">' + n + "</span>"
+    + '<span class="fb-wrap"><i style="width:' + pct.toFixed(1) + '%"></i></span></div>';
+}
+async function loadMetrics(){
+  const day = $("#mDay").value.trim();
+  const d = await api("/api/admin/metrics" + (day ? "?day=" + encodeURIComponent(day) : ""));
+  const m = d.metrics || {};
+  const rec = d.recent || [];
+  // rollup 行不带 updated_at 时，退回近 14 天表里同一天的那行
+  const same = rec.filter(r => r.day === d.day)[0];
+  const upd = m.updated_at || (same && same.updated_at);
+  $("#mHint").textContent = d.day + " · " + d.state + " · 更新于 " + tsLocal(upd);
+  if(!$("#mDay").value) $("#mDay").value = d.day;
+  $("#mCards").innerHTML = [
+    kv("活跃用户", (m.active_users || 0)),
+    kv("新增用户", (m.new_users || 0)),
+    kv("会话", (m.sessions || 0)),
+    kv("解释成功", (m.explains || 0)),
+    kv("成本", money(m.cost_cents) + '<small>闸 ' + money(d.hard_cents) + '</small>'),
+    kv("错误", (m.errors || 0) + '<small>解释失败 ' + (m.explain_errors || 0) + '</small>'),
+    kv("D1 回访", (m.d1_return || 0)),
+    kv("LLM 调用", (m.llm_calls || 0) + '<small>次</small>'),
+  ].join("");
+  const f = d.funnel || {};
+  const vals = [["划词", f.select_text || 0], ["解释成功", f.explain_success || 0], ["下钻", f.drill_down || 0],
+                ["回退", f.go_back || 0], ["分享", f.share_create || 0]];
+  const max = Math.max(1, ...vals.map(v => v[1]));
+  $("#mFunnel").innerHTML = vals.map(v => funnelRow(v[0], v[1], max)).join("");
+  $("#mTable").innerHTML = "<thead><tr>"
+    + ["日期","活跃","新增","解释","下钻","成本","错误","D1"].map(h => "<th>" + h + "</th>").join("")
+    + "</tr></thead><tbody>"
+    + (rec.length ? rec.map(r =>
+        "<tr><td>" + esc(r.day) + "</td><td>" + (r.active_users || 0) + "</td><td>" + (r.new_users || 0)
+        + "</td><td>" + (r.explains || 0) + "</td><td>" + (r.drill_downs || 0) + "</td>"
+        + "<td>" + money(r.cost_cents) + "</td><td>" + (r.errors || 0) + "</td><td>" + (r.d1_return || 0) + "</td></tr>").join("")
+      : '<tr><td colspan="8" class="muted">还没有聚合数据。</td></tr>')
+    + "</tbody>";
+  const th = d.thresholds || {};
+  const warns = [];
+  if(th.cost_cents_day != null && (m.cost_cents || 0) > th.cost_cents_day)
+    warns.push("成本阈值：当日成本 " + money(m.cost_cents) + " 已超过 " + money(th.cost_cents_day) + "（cost_cents_day）。");
+  if(th.error_rate != null && (m.explains || 0) > 0 && (m.explain_errors || 0) / m.explains > th.error_rate)
+    warns.push("错误率阈值：解释失败率 " + ((m.explain_errors || 0) / m.explains * 100).toFixed(1)
+      + "% 超过 " + (th.error_rate * 100).toFixed(1) + "%（error_rate）。");
+  if(th.d1_zero && (m.d1_return || 0) === 0 && (m.active_users || 0) > 0)
+    warns.push("D1 回访阈值：当日 D1 回访为 0（d1_zero），留意次日留存。");
+  $("#mWarn").innerHTML = warns.length
+    ? '<div class="box warn"><h3>阈值告警</h3><ul class="small">' + warns.map(w => "<li>" + w + "</li>").join("") + "</ul></div>"
+    : "";
+}
+
+/* ---------- 事件流 ---------- */
+async function loadEvents(){
+  const qs = [];
+  const day = $("#evDay").value.trim(); if(day) qs.push("day=" + encodeURIComponent(day));
+  const ev = $("#evName").value; if(ev) qs.push("event=" + encodeURIComponent(ev));
+  const se = $("#evSession").value.trim(); if(se) qs.push("session_id=" + encodeURIComponent(se));
+  const co = $("#evCode").value.trim(); if(co) qs.push("code=" + encodeURIComponent(co));
+  const d = await api("/api/admin/events" + (qs.length ? "?" + qs.join("&") : ""));
+  const items = d.items || [];
+  $("#evStats").textContent = "共 " + items.length + " 条（最多 200）";
+  $("#evTable").innerHTML = "<thead><tr>"
+    + ["时间","事件","会话","账号","码","深度","meta"].map(h => "<th>" + h + "</th>").join("")
+    + "</tr></thead><tbody>"
+    + (items.length ? items.map(e =>
+        "<tr><td>" + esc(new Date(Number(e.ts)).toLocaleTimeString()) + "</td>"
+        + '<td class="mono">' + esc(e.event) + "</td>"
+        + '<td class="mono">' + esc((e.session_id || "—").slice(0, 8)) + "</td>"
+        + '<td class="mono">' + (e.user_id == null ? "—" : e.user_id) + "</td>"
+        + '<td class="mono">' + esc(e.code || "—") + "</td>"
+        + '<td class="mono">' + (e.depth == null ? "—" : e.depth) + "</td>"
+        + '<td class="mono wrap">' + (e.meta && Object.keys(e.meta).length ? esc(JSON.stringify(e.meta)) : "") + "</td></tr>").join("")
+      : '<tr><td colspan="7" class="muted">没有事件。</td></tr>')
     + "</tbody>";
 }
 
@@ -477,6 +747,9 @@ async function refreshAll(){
     if(on === "fb") await loadFeedback();
     if(on === "users") await loadUsers();
     if(on === "codes") await loadCodes();
+    if(on === "testers") await loadTesters();
+    if(on === "metrics") await loadMetrics();
+    if(on === "events") await loadEvents();
     if(on === "gate") await loadGate();
     if(on === "audit") await loadAudit();
   }catch(e){ toastErr(e); }
@@ -519,19 +792,23 @@ $("#uCsv").onclick = () => download("wendi-users.csv", csv([["id","邮箱","注�
 
 $("#cGen").onclick = async () => {
   const msg = $("#cMsg"); msg.className = "msg"; $("#cOut").classList.add("hidden");
+  const kind = $("#cKind").value;
   try{
     const d = await api("/api/admin/codes", "POST", {
-      n: $("#cN").value, days: $("#cDays").value,
-      note: $("#cNote").value.trim(), batch: $("#cBatch").value.trim()
+      n: $("#cN").value, days: $("#cDays").value, kind: kind,
+      note: $("#cNote").value.trim(), batch: $("#cBatch").value.trim(),
+      tester_label: $("#cLabel").value.trim()
     });
     msg.className = "msg ok";
-    msg.textContent = "批次 " + d.batch + " 生成了 " + d.codes.length + " 个码。";
+    msg.textContent = "批次 " + d.batch + " 生成了 " + d.codes.length + " 个" + (d.kind || kind)
+      + "码（" + (d.days != null ? d.days : $("#cDays").value) + " 天）。";
     $("#cOut").textContent = d.codes.join("\n");
     $("#cOut").classList.remove("hidden");
     $("#cFilter").value = "";
     await loadCodes();
   }catch(e){ msg.className = "msg err"; msg.textContent = e.message; }
 };
+$("#cKindFilter").onchange = () => loadCodes().catch(toastErr);
 $("#cLoad").onclick = () => loadCodes().catch(toastErr);
 $("#cTable").addEventListener("click", e => {
   const sp = e.target.closest(".copy");
@@ -551,8 +828,40 @@ $("#cCopyUnused").onclick = () => {
   copyText(list.join("\n"));
   alert("已复制 " + list.length + " 个未用码。");
 };
-$("#cCsv").onclick = () => download("wendi-codes.csv", csv([["码","天数","状态","批次","备注","兑换人","兑换时间"]].concat(
-  cRows.map(c => [c.code, c.days, c.status, c.batch, c.note, c.used_by_email || "", c.used_at || ""]))));
+$("#cCsv").onclick = () => download("wendi-codes.csv", csv([["码","类型","天数","状态","批次","备注","兑换人","兑换时间"]].concat(
+  cRows.map(c => [c.code, c.kind || "pro", c.days, c.status, c.batch, c.note, c.used_by_email || "", c.used_at || ""]))));
+
+/* ---------- 测试者 ---------- */
+$("#tNewToggle").onclick = () => $("#tNewForm").classList.toggle("hidden");
+$("#invGo").onclick = () => batchInvite().catch(e => {
+  const msg = $("#tMsg"); msg.className = "msg err"; msg.textContent = e.message;
+});
+$("#tTable").addEventListener("click", e => {
+  const sp = e.target.closest(".copy");
+  if(sp) copyText(sp.dataset.c, sp);
+});
+$("#tCopyUnused").onclick = () => {
+  const list = tRows.filter(t => !t.voided && !t.used_at).map(t => t.code);
+  if(!list.length){ alert("没有未用的邀请码。"); return; }
+  copyText(list.join("\n"));
+  alert("已复制 " + list.length + " 个未用邀请码。");
+};
+$("#tCsv").onclick = () => download("wendi-testers.csv", csv([["标签","码","账号","注册时间","解释次数","事件数","成本元","最近出现","回访","状态"]].concat(
+  tRows.map(t => [t.tester_label || "", t.code, t.email || "", t.registered_at || "", t.explains || 0, t.events || 0,
+    (Number(t.cost_cents || 0) / 100).toFixed(2), t.last_ts ? new Date(Number(t.last_ts)).toLocaleString() : "",
+    (t.d1 ? "D1 " : "") + (t.d7 ? "D7 " : "") + (t.d1 || t.d7 ? "" : (t.returned ? "回访" : "无回访")),
+    testerStatusText(t)]))));
+
+/* ---------- 指标 ---------- */
+$("#mLoad").onclick = () => loadMetrics().catch(toastErr);
+$("#mDay").addEventListener("keydown", e => { if(e.key === "Enter") $("#mLoad").click(); });
+
+/* ---------- 事件流 ---------- */
+$("#evLoad").onclick = () => loadEvents().catch(toastErr);
+["#evName"].forEach(s => { $(s).onchange = () => loadEvents().catch(toastErr); });
+["#evDay","#evSession","#evCode"].forEach(s => {
+  $(s).addEventListener("keydown", e => { if(e.key === "Enter") $("#evLoad").click(); });
+});
 
 $("#gSave").onclick = () => saveGate().catch(e => { $("#gMsg").className = "msg err"; $("#gMsg").textContent = e.message; });
 $("#gReload").onclick = () => loadGate().catch(toastErr);

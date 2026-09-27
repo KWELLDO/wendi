@@ -25,7 +25,8 @@ if ssh $HOST 'test -f /etc/wendi.env'; then
 else
   [ -n "${WENDI_API_KEY:-}" ] || { echo "找不到 WENDI_API_KEY，中止"; exit 1; }
   ADMIN_TOKEN="${WENDI_ADMIN_TOKEN:-$(openssl rand -hex 16)}"
-  printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\n' "$WENDI_API_KEY" "$ADMIN_TOKEN" \
+  # WENDI_REQUIRE_INVITE=1 表示注册必须邀请码（内测默认）；设 0 可临时放开公开注册
+  printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\nWENDI_REQUIRE_INVITE=1\n' "$WENDI_API_KEY" "$ADMIN_TOKEN" \
     | ssh $HOST 'sudo bash -c "umask 077; cat > /etc/wendi.env; chmod 600 /etc/wendi.env"'
   echo "   /etc/wendi.env 已创建（600）"
   echo "   管理 token（请自行保存，用于 /api/meter）：$ADMIN_TOKEN"
@@ -34,6 +35,11 @@ fi
 echo "== 4) systemd 服务 =="
 scp -q deploy/wendi.service "$HOST:/tmp/wendi.service"
 ssh $HOST 'sudo mv /tmp/wendi.service /etc/systemd/system/wendi.service && sudo systemctl daemon-reload && sudo systemctl enable wendi >/dev/null 2>&1 || true; sudo systemctl restart wendi && sleep 1 && systemctl is-active wendi'
+
+echo "== 4b) 内测日报（脚本 + 每日 timer） =="
+scp -q scripts/daily_report.py "$HOST:/tmp/wendi-daily_report.py"
+scp -q deploy/wendi-report.service deploy/wendi-report.timer "$HOST:/tmp/"
+ssh $HOST 'sudo mv /tmp/wendi-daily_report.py /opt/wendi/daily_report.py && sudo mkdir -p /opt/wendi/reports && sudo chown -R ubuntu:ubuntu /opt/wendi/reports && sudo mv /tmp/wendi-report.service /tmp/wendi-report.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now wendi-report.timer >/dev/null && systemctl is-active wendi-report.timer'
 
 echo "== 5) nginx 反代（幂等） =="
 scp -q deploy/nginx-know.py "$HOST:/tmp/nginx-know.py"

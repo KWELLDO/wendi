@@ -66,6 +66,8 @@ python3 server.py        # → http://127.0.0.1:8899
 | `WENDI_ADMIN_IPS` | — | 管理端 IP 白名单（逗号分隔；空=不限制）。走 nginx 时认 `X-Real-IP` |
 | `WENDI_FEEDBACK_PER_DAY` | 5 | 反馈入口：每 IP 每天最多几条 |
 | `WENDI_FEEDBACK_INTERVAL` | 30 | 反馈入口：同一 IP 两条之间的最小间隔（秒） |
+| `WENDI_REQUIRE_INVITE` | 1 | 注册是否必须邀请码（设 0 临时放开公开注册） |
+| `WENDI_EVENT_PER_MIN` | 90 | 每 IP 每分钟事件上限（超出静默丢弃） |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |
@@ -92,6 +94,7 @@ web/feedback.html 反馈表单（进站长后台，匿名可发）
 web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸 / 审计）
 web/meter.html   计量台（逐日账、单用户 drill-down）
 web/site.css     文档页共用样式（大报编辑体 token）
+scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
 deploy/          部署件（systemd / nginx / 部署脚本）
 tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
@@ -118,6 +121,16 @@ docs/            理论文档 + 架构图（wendi-architecture.html，可交互�
 - [x] **v0.2.0** 引导教程（30 秒上手）· 账户与配额 · 云同步 · 兑换码 + Pro 方案
 - [ ] 知识图谱视图（术语卡积累成网）
 - [ ] 团队版
+
+## 内测第一阶段：测试支撑与采集
+
+- 注册需**邀请码**（`codes.kind='invite'`，可携带赠送天数）：发码 → 对方注册即得账号（可能直接是 Pro）。
+- 前端 12 个动作事件 + 服务端事件（注册/登录/反馈/系统错误）走 `POST /api/event`，落 `events` 表；
+  **只记动作与元数据，不记正文**；IP 只存加盐哈希。
+- 每请求一行 JSON 日志（stderr，journal 可查）；LLM 计量补 `session_id` / `room_id`。
+- `daily_metrics` 按天聚合（幂等重算），看板：`/api/admin/metrics`、`/api/admin/events`、`/api/admin/testers`。
+- 日报：`python3 daily_report.py [YYYY-MM-DD]`（服务器上由 `wendi-report.timer` 每天 23:55 跑）。
+- 设计口径与取舍见 `docs/plans/2026-09-27-internal-test-phase1.md`。
 
 ## 账户与配额
 

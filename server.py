@@ -50,6 +50,9 @@ LIMIT_GLOBAL_DAY = int(os.environ.get("WENDI_LIMIT_GLOBAL_DAY", "4000"))
 MAX_BODY = 64 * 1024
 MAX_SYNC_BYTES = 1024 * 1024  # 云同步单用户上限 1MB
 ADMIN_TOKEN = os.environ.get("WENDI_ADMIN_TOKEN", "")  # 空则 meter 端点拒绝一切请求
+# 内测：注册是否必须邀请码（WENDI_REQUIRE_INVITE=0 可临时放开公开注册）
+REQUIRE_INVITE = os.environ.get("WENDI_REQUIRE_INVITE", "1") != "0"
+EVENT_PER_MIN = int(os.environ.get("WENDI_EVENT_PER_MIN", "90"))   # 每 IP 每分钟事件上限（超出静默丢弃）
 # 可选的管理端 IP 白名单（逗号分隔；空=不限制）。只认 X-Real-IP/X-Forwarded-For 的第一跳。
 ADMIN_IPS = [ip.strip() for ip in os.environ.get("WENDI_ADMIN_IPS", "").split(",") if ip.strip()]
 FEEDBACK_MAX = 2000                     # 单条反馈正文字数上限
@@ -72,6 +75,7 @@ _global = {"day": 0, "daykey": ""}
 _cost_global = {"day": 0, "daykey": "", "cost_cents": 0, "alerted": False, "hard_alerted": False}
 _degrade_last: dict[str, float] = {}  # 降级档：同一用户上次放行时刻（内存态，与 _anon 同债）
 _feedback_rate: dict[str, dict] = defaultdict(lambda: {"day": 0, "daykey": "", "last": 0.0})
+_event_rate: dict[str, list] = defaultdict(list)   # ip -> [最近一分钟的事件时刻]
 log = logging.getLogger("wendi.meter")
 
 
@@ -124,18 +128,21 @@ def _cost_cents(hit_tokens: int, miss_tokens: int, completion_tokens: int) -> in
 
 
 def _record_usage(user, mode: str, style, stream: bool, usage: dict, ok: bool,
-                  depth: int = -1, turns: int = -1) -> None:
-    """落库一次计量 + 成本闸推进。任何内部异常都不向上抛。"""
+                  depth: int = -1, turns: int = -1,
+                  session_id: str = "", room_id: str = "") -> int:
+    """落库一次计量 + 成本闸推进，返回折算成本（分）。任何内部异常都不向上抛。"""
     try:
         hit, miss, comp = _usage_split(usage)
         cost = _cost_cents(hit, miss, comp) if ok else 0
         plan = db.effective_plan(user) if user else "anon"
         uid = user["id"] if user else None
         db.meter_record(uid, plan, mode, style, stream, hit, miss, comp, cost,
-                        ok, depth, turns)
+                        ok, depth, turns, session_id, room_id)
         _tick_cost_gate(cost)
+        return cost
     except Exception:  # noqa: BLE001
         log.exception("计量落库失败（已忽略，不影响主干）")
+        return 0
 
 
 def _cost_caps() -> tuple[int, int]:
@@ -436,7 +443,85 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB_DIR), **kwargs)
 
+    # ---------- 日志与埋点（都不允许影响响应） ----------
+    def _sid(self) -> str:
+        """前端会话 id：优先请求里显式给的值（埋点从 body 来），退回 X-Wendi-Session 头。
+
+        用于把请求日志、事件、成本串成一条线（同一次浏览 = 同一个 session_id）。
+        """
+        return (getattr(self, "_sid_hint", "") or self.headers.get("X-Wendi-Session") or "")[:64]
+
+    def _track(self, event: str, code: str = "", meta: dict | None = None,
+               user_id: int | None = None, depth: int = -1) -> None:
+        """服务端自己记一条事件（注册/登录/反馈/系统错误）。异常吞掉。"""
+        try:
+            uid = user_id if user_id is not None else getattr(self, "_uid", None)
+            db.event_add(event, session_id=self._sid(), user_id=uid, code=code,
+                         depth=depth, meta=meta, ip=self._ip(),
+                         ua=self.headers.get("User-Agent", ""))
+        except Exception:  # noqa: BLE001
+            log.exception("事件落库失败（已忽略）")
+
+    def log_request(self, code="-", size="-"):
+        """每请求一行 JSON（含延迟/用户/会话/成本），journal 里可被 agent 直接解析。"""
+        self._http_log(code)
+
     def log_message(self, fmt, *args):
+        """http.server 的其它日志（含 send_error）也走 JSON，附原文便于排障。"""
+        self._http_log(getattr(self, "_status", None), extra=(fmt % args) if args else str(fmt))
+
+    def _http_log(self, status=None, extra=""):
+        try:
+            line = {
+                "ts": int(time.time() * 1000),
+                "level": "error" if (self._error or (isinstance(status, int) and status >= 500)) else (
+                    "warn" if (isinstance(status, int) and status >= 400) else "info"),
+                "kind": "http", "method": getattr(self, "command", ""),
+                "path": (self.path or "").split("?")[0],
+                "status": status if status is not None else getattr(self, "_status", None),
+                "latency_ms": int((time.time() - getattr(self, "_t0", time.time())) * 1000),
+                "user_id": getattr(self, "_uid", None), "session_id": self._sid(),
+                "cost_cents": getattr(self, "_cost_cents", 0),
+            }
+            if extra:
+                line["msg"] = extra[:300]
+            if self._error:
+                line["error"] = self._error[:300]
+            sys.stderr.write(json.dumps(line, ensure_ascii=False) + "\n")
+        except Exception:  # noqa: BLE001
+            pass
+
+    def send_response(self, code, message=None):
+        self._status = code
+        super().send_response(code, message)
+
+    def do_GET(self):
+        self._t0, self._status, self._error, self._cost_cents = time.time(), 200, "", 0
+        try:
+            self._do_GET()
+        finally:
+            self._flush_error_event()
+
+    def do_POST(self):
+        self._t0, self._status, self._error, self._cost_cents = time.time(), 200, "", 0
+        try:
+            self._do_POST()
+        finally:
+            self._flush_error_event()
+
+    def _flush_error_event(self):
+        """5xx/异常时补一条 system_error 事件（日志之外的行为面留痕）。"""
+        if not self._error:
+            return
+        try:
+            db.event_add("system_error", session_id=self._sid(),
+                         user_id=getattr(self, "_uid", None),
+                         meta={"path": (self.path or "").split("?")[0], "error": self._error[:200]},
+                         ip=self._ip())
+        except Exception:  # noqa: BLE001
+            pass
+
+    def log_message_raw(self, fmt, *args):
         sys.stderr.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
 
     # ---------- 工具 ----------
@@ -447,6 +532,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _ok_empty(self):
+        """埋点端点的唯一响应：200 + 最小 JSON 正文。
+
+        为什么不是 204、也不是 Content-Length: 0：http.server 走 HTTP/1.0，不带正文的
+        响应被 Chromium 记成 net::ERR_ABORTED（其实服务端已处理完）。给一个一两字节的
+        JSON 正文，浏览器就当成正常完成的请求，控制台不再有假错误。
+        """
+        self._json(200, {"ok": True})
 
     def _body(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
@@ -466,7 +560,9 @@ class Handler(SimpleHTTPRequestHandler):
         token = auth[7:].strip() if auth.startswith("Bearer ") else ""
         user = db.get_session_user(token)
         # 被禁用的账号：已有会话立即失效（登录入口也会拒），退回匿名身份（按 IP 限额）
-        return None if (user and user["disabled"]) else user
+        user = None if (user and user["disabled"]) else user
+        self._uid = user["id"] if user else None   # 请求日志要用
+        return user
 
     def _quota_payload(self, user) -> dict:
         if user:
@@ -477,7 +573,7 @@ class Handler(SimpleHTTPRequestHandler):
         return {"plan": "anon", "used": used, "limit": db.QUOTA_ANON}
 
     # ---------- GET ----------
-    def do_GET(self):
+    def _do_GET(self):
         from urllib.parse import urlparse, parse_qs
         path = self.path.split("?")[0]
         qs = parse_qs(urlparse(self.path).query)
@@ -518,7 +614,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if not self._admin_ok(qs):
                     return
                 batch = qs.get("batch", [None])[0] or None
-                self._json(200, {"codes": db.list_codes(batch), "summary": db.code_stats(batch)})
+                kind = qs.get("kind", [None])[0] or None
+                self._json(200, {"codes": db.list_codes(batch, kind),
+                                 "summary": db.code_stats(batch)})
                 return
             if path == "/api/admin/llmkey":
                 self._admin_llmkey_get()
@@ -543,6 +641,24 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, {"items": db.feedback_list(status, self._qint(qs, "limit", 200, hi=1000)),
                                  "stats": db.feedback_stats()})
                 return
+            if path == "/api/admin/metrics":
+                self._admin_metrics(qs)
+                return
+            if path == "/api/admin/events":
+                if not self._admin_ok(qs):
+                    return
+                self._json(200, {"items": db.events_list(
+                    day=qs.get("day", [None])[0] or None,
+                    event=qs.get("event", [None])[0] or None,
+                    session_id=qs.get("session_id", [None])[0] or None,
+                    code=qs.get("code", [None])[0] or None,
+                    limit=self._qint(qs, "limit", 200, hi=1000))})
+                return
+            if path == "/api/admin/testers":
+                if not self._admin_ok(qs):
+                    return
+                self._json(200, {"items": db.tester_rows()})
+                return
             if path == "/api/admin/audit":
                 if not self._admin_ok(qs):
                     return
@@ -566,6 +682,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, data if data else {"data": None, "updated_at": None})
                 return
         except Exception as e:  # noqa: BLE001
+            self._error = f"{type(e).__name__}: {e}"
             self._json(500, {"error": str(e)})
             return
         super().do_GET()
@@ -601,7 +718,7 @@ class Handler(SimpleHTTPRequestHandler):
         return True
 
     # ---------- POST ----------
-    def do_POST(self):
+    def _do_POST(self):
         path = self.path.split("?")[0]
         try:
             body = self._body()
@@ -623,6 +740,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._explain(body)
             elif path == "/api/feedback":
                 self._feedback_add(body)
+            elif path == "/api/event":
+                self._event_add(body)
             elif path == "/api/admin/codes":
                 self._admin_gen_codes(body)
             elif path == "/api/admin/codes/void":
@@ -644,28 +763,39 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 self._json(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
+            self._error = f"{type(e).__name__}: {e}"
             self._json(500, {"error": str(e)})
 
     # ---------- 账户 ----------
     def _register(self, body: dict):
+        """注册（内测期需邀请码）。邀请码可携带赠送天数 → 注册即得 Pro。"""
         email = str(body.get("email", "")).strip()
         pw = str(body.get("password", ""))
+        code = str(body.get("invite", "") or body.get("code", "")).strip().upper()
         if not EMAIL_RE.match(email):
             self._json(400, {"error": "邮箱格式不正确"})
             return
         if len(pw) < 6:
             self._json(400, {"error": "密码至少 6 位"})
             return
+        if REQUIRE_INVITE and not code:
+            self._json(403, {"error": "内测阶段需要邀请码。没有码的话，在反馈页留个邮箱，我把码发给你。",
+                             "need_invite": True})
+            return
         salt, h = hash_password(pw)
-        user = db.create_user(email, salt, h)
+        user, err, days = db.register_with_invite(email, salt, h, code)
         if not user:
-            self._json(409, {"error": "这个邮箱已经注册过了"})
+            need = "邀请码" in err
+            self._json(409 if "注册过" in err else 403, {"error": err, "need_invite": need})
             return
         token = new_token()
         db.create_session(token, user["id"])
         row = db.get_user(user["id"])
+        self._uid = user["id"]
+        self._track("register", code=code, meta={"plan": db.effective_plan(row)})
         self._json(200, {"token": token, "email": user["email"],
-                         "plan": db.effective_plan(row), "plan_until": None,
+                         "plan": db.effective_plan(row), "plan_until": row["plan_until"],
+                         "invite_days": days,
                          "quota": db.quota_state(row)})
 
     def _login(self, body: dict):
@@ -680,6 +810,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         token = new_token()
         db.create_session(token, row["id"])
+        self._uid = row["id"]
+        self._track("login", user_id=row["id"])
         self._json(200, {"token": token, "email": row["email"],
                          "plan": db.effective_plan(row), "plan_until": row["plan_until"],
                          "quota": db.quota_state(row)})
@@ -739,8 +871,46 @@ class Handler(SimpleHTTPRequestHandler):
                               self.headers.get("User-Agent", ""))
         h["day"] += 1
         h["last"] = now
+        self._track("feedback", meta={"kind": kind, "can_reply": can_reply})   # 只记动作，不记内容
         kernel.emit("feedback.new", id=fid, kind=kind, user_id=user["id"] if user else None)
         self._json(200, {"ok": True, "id": fid})
+
+    # ---------- 埋点（公开；白名单 + 限流；任何情况都空 200，绝不打扰用户） ----------
+    def _event_add(self, body: dict):
+        try:
+            ip = self._ip()
+            now = time.time()
+            hits = _event_rate[ip]
+            hits[:] = [t for t in hits if now - t < 60]
+            if len(hits) < EVENT_PER_MIN:
+                hits.append(now)
+                event = str(body.get("event", ""))[:40]
+                if event in db.EVENTS:
+                    user = self._user()
+                    code = str(body.get("code", "")).strip().upper()
+                    if not code and user:
+                        code = user["invite_code"] or ""
+                    meta = body.get("meta")
+                    meta = dict(meta) if isinstance(meta, dict) else {}
+                    depth = body.get("depth")
+                    # 会话 id：优先 body（sendBeacon 不能带头），退回 X-Wendi-Session 头
+                    sid = str(body.get("session_id", "")).strip() or self._sid()
+                    self._sid_hint = sid          # 请求日志也用这个 id
+                    if event == "explain_success" and sid:
+                        # 成本不经过前端：服务端从计量表取该会话最近一次的真实成本
+                        cost = db.meter_session_cost(sid)
+                        if cost is not None:
+                            meta["cost_cents"] = cost
+                    db.event_add(
+                        event, session_id=sid,
+                        user_id=user["id"] if user else None, code=code,
+                        room_id=str(body.get("room_id", "")), card_id=str(body.get("card_id", "")),
+                        depth=depth if isinstance(depth, int) and -1 <= depth <= 99 else -1,
+                        meta=meta, ip=ip, ua=self.headers.get("User-Agent", ""))
+        except Exception:  # noqa: BLE001
+            log.exception("事件落库失败（已忽略）")
+        finally:
+            self._ok_empty()
 
     # ---------- 管理端（WENDI_ADMIN_TOKEN；空则一律拒绝） ----------
     def _admin_gen_codes(self, body: dict):
@@ -756,10 +926,20 @@ class Handler(SimpleHTTPRequestHandler):
             return
         note = str(body.get("note", ""))[:200]
         batch = str(body.get("batch", "")).strip() or None
-        batch, codes = db.gen_codes(n, days, note, batch)
-        kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days, note=note)
-        db.admin_log("codes.gen", f"batch={batch} n={len(codes)} days={days} note={note}", self._ip())
-        self._json(200, {"batch": batch, "codes": codes})
+        kind = str(body.get("kind", "pro")).strip() or "pro"
+        if kind not in ("pro", "invite"):
+            self._json(400, {"error": "kind 只能是 pro / invite"})
+            return
+        label = str(body.get("tester_label", ""))[:60]
+        if kind == "invite" and days < 0:
+            self._json(400, {"error": "邀请码赠送天数不能为负"})
+            return
+        batch, codes = db.gen_codes(n, days, note, batch, kind, label)
+        kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days,
+                    note=note, kind=kind)
+        db.admin_log("codes.gen", f"batch={batch} kind={kind} n={len(codes)} days={days} "
+                                  f"label={label} note={note}", self._ip())
+        self._json(200, {"batch": batch, "codes": codes, "kind": kind, "days": days})
 
     def _admin_void_codes(self, body: dict):
         if not self._admin_ok():
@@ -911,7 +1091,32 @@ class Handler(SimpleHTTPRequestHandler):
             "codes": {"n": codes["n"], "used": codes["used"],
                       "unused": codes["unused"], "voided": codes["voided"]},
             "meter": meter,
+            "funnel": db.funnel(day),
+            "events_today": sum(v["n"] for v in db.event_day_counts(day).values()),
             "feedback_new": db.feedback_list("new", 5),
+        })
+
+    def _admin_metrics(self, qs: dict):
+        """看板：当日聚合（现算并落 daily_metrics）+ 漏斗 + 近 14 天 + 成本闸状态。"""
+        if not self._admin_ok(qs):
+            return
+        day = qs.get("day", [_today()])[0] or _today()
+        try:
+            time.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            self._json(400, {"error": "day 形如 2026-09-27"})
+            return
+        row = db.rollup_day(day)
+        db.rollup_day(db._day_shift(day, -1))      # 昨天重算一次，D1 才准
+        cap, hard = _cost_caps()
+        self._json(200, {
+            "day": day, "metrics": row, "funnel": db.funnel(day),
+            "recent": db.metrics_range(self._qint(qs, "days", 14, hi=90)),
+            "state": _cost_state(), "cap_cents": cap, "hard_cents": hard,
+            "cost_today_cents": db.meter_totals(day)["cost_cents"],
+            "by_mode": db.meter_totals(day)["by_mode"],
+            "by_plan": db.meter_totals(day)["by_plan"],
+            "thresholds": {"cost_cents_day": 5000, "error_rate": 0.05, "d1_zero": True},
         })
 
     def _admin_user_disable(self, body: dict):
@@ -1093,7 +1298,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0,
                                             depth=depth, turns=turns,
                                             degraded=degraded, degrade_reason=degrade_reason,
-                                            consumed=consumed)
+                                            consumed=consumed, session_id=self._sid(),
+                                            room_id=str(body.get("room_id", "")))
             text, usage, truncated = call_llm(msgs, max_tokens)
         except Exception as e:  # noqa: BLE001
             if user and consumed:
@@ -1101,11 +1307,14 @@ class Handler(SimpleHTTPRequestHandler):
             kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
                         term=term, error=str(e))
             _record_usage(user, mode, body.get("style", "standard"), False, {}, ok=False,
-                          depth=depth, turns=turns)
+                          depth=depth, turns=turns, session_id=self._sid(),
+                          room_id=str(body.get("room_id", "")))
             self._json(500, {"error": str(e)})
             return
-        _record_usage(user, mode, body.get("style", "standard"), False, usage, ok=True,
-                      depth=depth, turns=turns)
+        self._cost_cents = _record_usage(user, mode, body.get("style", "standard"), False,
+                                        usage, ok=True, depth=depth, turns=turns,
+                                        session_id=self._sid(),
+                                        room_id=str(body.get("room_id", "")))
         kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                     term=term, parent_term=None, style=body.get("style", "standard"),
                     ms=round((time.time() - t0) * 1000), stream=False, chunks=1,
@@ -1123,7 +1332,8 @@ class Handler(SimpleHTTPRequestHandler):
                         mode: str = "explain", term: str = "", t0: float = 0.0,
                         depth: int = -1, turns: int = -1,
                         degraded: bool = False, degrade_reason: str | None = None,
-                        consumed: bool = True):
+                        consumed: bool = True,
+                        session_id: str = "", room_id: str = ""):
         """SSE 流式解释。事件：data: {"delta": "…"} … data: {"done": true, "quota": {…}} / {"error": "…"}"""
         try:
             resp = call_llm_stream(msgs, max_tokens)
@@ -1166,7 +1376,9 @@ class Handler(SimpleHTTPRequestHandler):
                 done["degraded"] = True
                 done["reason"] = degrade_reason
             emit(done)
-            _record_usage(user, mode, "standard", True, usage, ok=bool(finish), depth=depth, turns=turns)
+            self._cost_cents = _record_usage(user, mode, "standard", True, usage,
+                                             ok=bool(finish), depth=depth, turns=turns,
+                                             session_id=session_id, room_id=room_id)
             kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                         term=term, parent_term=None, style="standard",
                         ms=round((time.time() - t0) * 1000), stream=True, chunks=sent,
@@ -1174,7 +1386,9 @@ class Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return  # 客户端中途离开
         except Exception as e:  # noqa: BLE001
-            _record_usage(user, mode, "standard", True, usage, ok=False, depth=depth, turns=turns)
+            self._cost_cents = _record_usage(user, mode, "standard", True, usage, ok=False,
+                                             depth=depth, turns=turns,
+                                             session_id=session_id, room_id=room_id)
             kernel.emit("explain.error", mode=mode, user_id=user["id"] if user else None,
                         term=term, error=str(e))
             try:
