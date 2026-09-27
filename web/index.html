@@ -1162,13 +1162,18 @@ function openShare(card){
   drawShare(shareOpts());
   $("#shareJson").style.display = "none"; $("#shareJsonBtn").textContent = "查看 JSON";
 }
-["optPath", "optCtx", "optFu"].forEach(id => $("#" + id).onchange = () => drawShare(shareOpts()));
+const shareJsonText = () => JSON.stringify(sharePayload(shareOpts()), null, 2);
+function refreshShareJson(){                     // JSON 面板开着时，勾选项一变就重算——否则改完勾选看到的还是旧内容
+  const pre = $("#shareJson");
+  if (pre.style.display === "block") pre.textContent = shareJsonText();
+}
+["optPath", "optCtx", "optFu"].forEach(id => $("#" + id).onchange = () => { drawShare(shareOpts()); refreshShareJson(); });
 $("#shareClose").onclick = () => $("#shareModal").classList.add("hidden");
 $("#shareModal").onclick = ev => { if (ev.target.id === "shareModal") $("#shareModal").classList.add("hidden"); };
 $("#shareJsonBtn").onclick = () => {
   const pre = $("#shareJson");
   if (pre.style.display === "block"){ pre.style.display = "none"; $("#shareJsonBtn").textContent = "查看 JSON"; return; }
-  pre.textContent = JSON.stringify(sharePayload(shareOpts()), null, 2);
+  pre.textContent = shareJsonText();
   pre.style.display = "block"; $("#shareJsonBtn").textContent = "收起 JSON";
 };
 $("#shareDl").onclick = () => {
