@@ -35,9 +35,16 @@ EXPLAIN_USER = """材料上下文（读者正在读的段落）：
 {context}
 ---
 
-读者划出的词/短语：**{term}**
+读者划出的词/短语：**{term}**"""
 
-请在"{term}"当前出现的这个句子/段落的语境里，解释它是什么意思。"""
+# 划词时读者写下的具体疑惑（可选）。有它时，解释先正面回应疑惑。
+EXPLAIN_USER_DOUBT = """读者划这个词时带着一个具体疑惑：
+---
+{question}
+---
+解释请正面回应这个疑惑（不评判疑惑本身、不出现"这是个好问题"），再补这个词的语境义。"""
+
+EXPLAIN_USER_TAIL = """请在"{term}"当前出现的这个句子/段落的语境里，解释它是什么意思。"""
 
 # —— 卡内追问 ——
 FOLLOWUP_SYSTEM = """你是"解释场"里的解释器。读者正在追问你对某个词的解释。
@@ -60,11 +67,16 @@ CHAT_SYSTEM = """你处在一个"解释场"里：你的回答会成为用户进�
 不确定就说不确定；不知道就说不知道。"""
 
 
-def explain_messages(term: str, context: str, style: str = "standard"):
+def explain_messages(term: str, context: str, style: str = "standard", question: str = ""):
     style_instruction = STYLE_INSTRUCTIONS.get(style, STYLE_INSTRUCTIONS["standard"])
+    doubt = (question or "").strip()
+    parts = [EXPLAIN_USER.format(context=context, term=term)]
+    if doubt:
+        parts.append(EXPLAIN_USER_DOUBT.format(question=doubt))
+    parts.append(EXPLAIN_USER_TAIL.format(term=term))
     return [
         {"role": "system", "content": EXPLAIN_SYSTEM.format(style_instruction=style_instruction)},
-        {"role": "user", "content": EXPLAIN_USER.format(context=context, term=term)},
+        {"role": "user", "content": "\n\n".join(parts)},
     ]
 
 
