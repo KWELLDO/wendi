@@ -146,6 +146,8 @@
   <span class="badge">滚轮缩放 · 拖拽平移 · 双击复位 · 点击节点看详情</span>
   <button id="panelBtn">详情</button>
   <a class="badge" href="/">← 回解释场</a>
+  <button id="pngBtn" title="导出当前视图为 PNG；纸色印刷版式，带落款，不随夜版反色">导出图片</button>
+  <button id="jsonBtn" title="导出图谱结构 JSON（含解释卡正文与追问；不含对话原文）">导出 json</button>
   <button id="rebtn">刷新</button>
 </header>
 <div id="main">
@@ -464,6 +466,152 @@ window.addEventListener("mousemove", e => {
 });
 window.addEventListener("mouseup", () => { drag = null; svg.classList.remove("drag"); });
 svg.addEventListener("dblclick", () => { if(VIEW) setVB(VIEW.split(/\s+/).map(Number)); });
+
+/* ============ 导出：图片（自包含 SVG → PNG）/ JSON ============ */
+const EX_SANS = `-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif`;
+const EX_SERIF = `"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif`;
+
+// 导出图是印刷物（照 ADR 0001：分享卡不随夜版反色）→ 颜色写死为亮色纸墨，
+// 并强制 animation:none：画面上 .edge 的入场描画靠 stroke-dashoffset，
+// 静态图片里没有动画会残留 dashoffset:100 → 枝干整条不可见，必须在这里归零。
+const EX_CSS = `*{animation:none!important;transition:none!important}
+  .edge{stroke:rgba(21,19,15,.28);stroke-width:1.3;fill:none}
+  .edge.hot,.edge.sel{stroke:rgba(165,40,28,.85);stroke-width:1.8}
+  .halo{fill:#15130f;opacity:.07}
+  .core{fill:#15130f;stroke:none}
+  .ring{display:none}
+  .n-exp.ghost .core{fill:none;stroke:#8a8478;stroke-dasharray:3 3}
+  .n-exp.ghost .halo{opacity:.08}
+  .n-exp.err .core{fill:none;stroke:#8f2317}
+  .n-exp.err .halo{fill:#8f2317;opacity:.18}
+  .n-conv .core{fill:none;stroke:#8a8478;stroke-width:1.2}
+  .lab{font:500 12px ${EX_SANS};fill:#15130f;paint-order:stroke;stroke:#fbf8f1;
+       stroke-width:3.2px;stroke-linejoin:round;letter-spacing:.01em}
+  .n-conv .lab{fill:#8a8478;font-weight:400}
+  .fu{fill:#a5281c;font-size:10.5px;font-weight:600}`;
+
+const FOOT_H = 68;      // 落款带高度（视图外附加，不占 viewBox）
+const pad2 = n => String(n).padStart(2, "0");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const stamp = () => { const d = new Date();
+  return `${today()}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`; };  // 文件名：连导多张也不互相覆盖
+const escXml = s => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+
+/* 当前视图 + 落款带 → 自包含 SVG（不依赖页面 CSS，任何地方打开都同一样子） */
+function buildExportSvg(){
+  const v = parseVB();
+  const src = svg.cloneNode(true);
+  src.querySelectorAll(".sel").forEach(n => n.classList.remove("sel"));   // 分享图不带本机选中态
+  src.querySelectorAll("[style]").forEach(n => n.removeAttribute("style")); // 去掉入场动画 delay
+  const H = v[3] + FOOT_H, fy = v[1] + v[3];
+  const exps = DATA.nodes.filter(n => n.kind === "exp" && !n.ref.loading);
+  const fu = exps.reduce((s, n) => s + (n.ref.followups || []).length, 0);
+  const depth = Math.max(0, ...DATA.nodes.map(n => n.depth)) + 1;
+  const l1 = `${exps.length} 张解释卡 · ${fu} 条追问 · ${depth} 层`;
+  const l2 = `know.kwelldo.cn · ${today()}`;
+  const SUB = "碰到不懂的词，就划它";
+  const IN = 28, fx = v[0] + IN, fr = v[0] + v[2] - IN;
+  const mctx = document.createElement("canvas").getContext("2d");
+  const wOf = (font, s) => { mctx.font = font; return mctx.measureText(s).width; };
+  const F_T = `600 15px ${EX_SERIF}`, F_S = `11px ${EX_SANS}`;
+  const avail = Math.max(0, v[2] - IN * 2);      // 视图被缩窄（放大后导出）时落款要改版，别让两栏叠字
+  const w = { t: wOf(F_T, "问底 WenDi"), sub: wOf(F_S, SUB), l1: wOf(F_S, l1), l2: wOf(F_S, l2) };
+  const parts = [];
+  const put = (x, y, font, fill, anchor, s) => parts.push(
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" style='font:${font}' fill="${fill}">${escXml(s)}</text>`);
+  if (w.t + 24 + w.l1 <= avail && w.sub + 24 + w.l2 <= avail){   // 宽：两栏两行
+    put(fx, fy + 28, F_T, "#15130f", "start", "问底 WenDi");
+    put(fr, fy + 28, F_S, "#4a463e", "end", l1);
+    put(fx, fy + 48, F_S, "#8a8478", "start", SUB);
+    put(fr, fy + 48, F_S, "#8a8478", "end", l2);
+  } else if (w.t + 24 + w.l2 <= avail){                          // 中：统计移到左下行，网址与牌子同行
+    put(fx, fy + 28, F_T, "#15130f", "start", "问底 WenDi");
+    put(fr, fy + 28, F_S, "#8a8478", "end", l2);
+    put(fx, fy + 48, F_S, "#4a463e", "start", l1);
+  } else {                                                       // 窄：单列，只留牌子 + 网址（水印优先）
+    put(fx, fy + 28, F_T, "#15130f", "start", "问底 WenDi");
+    put(fx, fy + 48, F_S, "#8a8478", "start", l2);
+  }
+  const foot = `<rect x="${v[0]}" y="${fy}" width="${v[2]}" height="${FOOT_H}" fill="#fbf8f1"/>` +
+    `<path d="M${v[0]},${fy + .5}H${v[0] + v[2]}" stroke="#d8d2c4" fill="none"/>` + parts.join("");
+  const text = `<svg xmlns="http://www.w3.org/2000/svg" width="${v[2]}" height="${H}" ` +
+    `viewBox="${v[0]} ${v[1]} ${v[2]} ${H}"><style>${EX_CSS}</style>` +
+    `<rect x="${v[0]}" y="${v[1]}" width="${v[2]}" height="${v[3]}" fill="#fbf8f1"/>` +
+    src.innerHTML + foot + `</svg>`;
+  return { text, W: v[2], H };
+}
+
+function svgToPng(text, W, H, S, cb){
+  const url = URL.createObjectURL(new Blob([text], { type: "image/svg+xml;charset=utf-8" }));
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement("canvas");
+    cv.width = Math.max(1, Math.round(W * S)); cv.height = Math.max(1, Math.round(H * S));
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fbf8f1"; g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(img, 0, 0, cv.width, cv.height);
+    URL.revokeObjectURL(url);
+    cv.toBlob(b => cb(b, cv.width, cv.height), "image/png");
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); cb(null, 0, 0); };
+  img.src = url;
+}
+
+function dl(blob, name){
+  const a = document.createElement("a"), href = URL.createObjectURL(blob);
+  a.href = href; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(href), 10000);
+}
+
+/* 图谱 JSON：结构 + 解释卡内容（对话原文不导出——那是另一份数据，见解释场「导出 json」） */
+function graphJson(){
+  if(!DATA || !DATA.nodes.length) return null;
+  const nodes = DATA.nodes.filter(n => !n.ref.loading).map(n => {
+    const o = { id: n.id, kind: n.kind, term: n.term || null, depth: n.depth,
+                parent: n.parent ? n.parent.id : null,
+                t: n.t == null ? null : new Date(n.t).toISOString() };
+    const r = n.ref;
+    if(n.kind === "exp"){
+      if(r.style) o.style = r.style;
+      o.chars = typeof r.text === "string" ? r.text.length : 0;
+      o.text = typeof r.text === "string" ? r.text : "";
+      if(r.context) o.context = r.context;
+      if((r.followups || []).length) o.followups = r.followups.map(f => ({ q: f.q, a: f.a || "" }));
+      if(r.error) o.error = String(r.error);
+    }
+    return o;
+  });
+  const ids = new Set(nodes.map(n => n.id));
+  const exps = nodes.filter(n => n.kind === "exp");
+  return { v: 1, app: "问底 WenDi", kind: "graph",
+    note: "图谱结构 + 解释卡内容（正文/语境/追问）；对话原文不在此文件",
+    exported: new Date().toISOString(),
+    stats: { cards: exps.length,
+             followups: exps.reduce((s, n) => s + (n.followups || []).length, 0),
+             depth: Math.max(0, ...nodes.map(n => n.depth)) + 1,
+             conv: nodes.filter(n => n.kind === "conv").length },
+    nodes,
+    edges: DATA.edges.filter(e => ids.has(e.a.id) && ids.has(e.b.id)).map(e => [e.a.id, e.b.id]) };
+}
+
+const pngBtn = document.getElementById("pngBtn"), jsonBtn = document.getElementById("jsonBtn");
+pngBtn.onclick = () => {
+  if(!DATA || !DATA.nodes.length){ alert("没有可导出的图谱数据"); return; }
+  const label = pngBtn.textContent;
+  pngBtn.disabled = true; pngBtn.textContent = "导出中…";
+  const { text, W, H } = buildExportSvg();
+  const S = Math.max(.35, Math.min(2, 3200 / Math.max(W, H)));   // 2 倍清晰，长边封顶 3200px
+  svgToPng(text, W, H, S, (blob, w, h) => {
+    pngBtn.disabled = false; pngBtn.textContent = label;
+    if(!blob){ alert("导出失败：图片渲染出错"); return; }
+    dl(blob, `问底-图谱-${stamp()}.png`);
+  });
+};
+jsonBtn.onclick = () => {
+  const p = graphJson();
+  if(!p){ alert("没有可导出的图谱数据"); return; }
+  dl(new Blob([JSON.stringify(p, null, 2)], { type: "application/json" }), `问底-图谱-${stamp()}.json`);
+};
 
 window.addEventListener("storage", e => { if(e.key === SKEY) render(); });  // 解释场改数据时本页自动刷新
 render();
