@@ -836,10 +836,14 @@ function enterById(id){
   if(child) enter(child);
 }
 
-/* 键盘：Esc 返回 / Enter 进入选中 / ↑↓ 切换选中 */
+/* 键盘：Esc 返回 / Enter 进入选中 / ↑↓ 切换选中
+   守卫必须看 e.target（事件来源），不能看 document.activeElement：输入框的 Enter 处理里会
+   同步 render() 重建 DOM，输入框被摘掉后 activeElement 变成 body，同一个事件继续冒泡到这儿
+   就会被当成全局快捷键（主对话第二轮按 Enter 会顺手钻进选中的子解释）。 */
 document.addEventListener("keydown", e => {
-  const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
-  if(tag === "input" || tag === "textarea" || tag === "select") return;
+  const t = e.target;
+  const tag = (t && t.tagName || "").toLowerCase();
+  if(tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
   if(e.key === "Escape" && !$("#authModal").classList.contains("hidden")) {
     $("#authModal").classList.add("hidden"); return;
   }
