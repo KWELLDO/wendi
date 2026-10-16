@@ -4,3 +4,6 @@ codes*.txt
 wendi.db
 .pi/
 reports/
+
+# Playwright MCP 工具产物（截图/console 日志），不进版本库
+.playwright-mcp/
