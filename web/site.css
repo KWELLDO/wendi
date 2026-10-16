@@ -122,3 +122,8 @@ textarea{min-height:150px;resize:vertical;line-height:1.7}
   main{padding:24px 15px 6px}
   .site nav{gap:11px;font-size:13px}
 }
+
+/* —— 焦点可见性（键盘用户）——
+   输入类已有 accent 描边（见上 L112），描边为 0 的按钮/链接原来看不见焦点，这里补真实焦点环。
+   注意：`input:focus` 的选择器权重高于 `:focus-visible`，所以输入框仍走描边，不会多套一圈。 */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
