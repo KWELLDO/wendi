@@ -8,74 +8,12 @@
 <script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
 <link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <script defer src="/vendor/katex/katex.min.js"></script>
+<link rel="stylesheet" href="/tokens.css">
 <style>
-  /* 主题契约与 site.css 一致（见 web/site.css 顶部注释）：
+  /* 设计 token（亮色 + --dk-* + 两个暗色映射块 + color-scheme）已抽到单源 /tokens.css，
+     由上面的 <link> 引入；主题契约与 site.css 一致（见 web/site.css 顶部注释）：
      localStorage["wendi-theme"]="light"|"dark"，缺失/非法=跟随系统；
-     手动选定时 <html data-theme>，跟随系统时该属性被移除。
-     注：工作台是单文件、token 内联，与 site.css 是历史遗留的重复（本次不合并）。 */
-  :root{
-    /* 纸与墨 */
-    --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
-    --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
-    --rule:#15130f; --hairline:#d8d2c4;
-    /* 编辑红:入口专用 */
-    --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
-    /* 语义墨 */
-    --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
-    /* 反白版口 / 浮层 / 纸面噪点 */
-    --slab-bg:#1b1813; --slab-fg:#f4f0e4; --slab-line:rgba(244,240,228,.18);
-    --scrim:rgba(21,19,15,.55); --float:0 6px 18px rgba(21,19,15,.16);
-    --noise:rgba(21,19,15,.05);
-    /* 字体三层 */
-    --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
-    --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
-
-    /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
-       下面「暗色映射」两块只做「公共 token 名 → --dk-*」改名，不含色值。 */
-    --dk-paper:#1a1713; --dk-paper-deep:#14110d; --dk-surface:#211d18; --dk-surface-2:#1b1713;
-    --dk-ink:#ece5d6; --dk-ink-2:#beb5a4; --dk-ink-3:#8d8474;
-    --dk-rule:#ece5d6; --dk-hairline:#3a342b;
-    --dk-accent:#d76a5f; --dk-accent-wash:rgba(215,106,95,.12); --dk-accent-line:rgba(215,106,95,.50);
-    --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
-    --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
-    --dk-scrim:rgba(0,0,0,.62); --dk-float:0 6px 18px rgba(0,0,0,.55);
-    --dk-noise:rgba(236,229,214,.03);
-
-    /* 滚动条 / 原生表单控件的配色：默认跟随系统 */
-    color-scheme:light dark;
-  }
-
-  /* =============================================================================
-     暗色映射 · 【下面这两个块必须逐行同步修改】
-     为什么是两块：契约要求「跟随系统时 <html> 不带 data-theme」，
-     系统暗色只能靠媒体查询命中、手动选暗只能靠属性命中；CSS 无法把两者合并成一条规则。
-     怎么去重：具体色值只在上面 --dk-* 写了一处，这两块只是同一份映射的两个入口，
-     故紧挨着放、逐行相同。 */
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){         /* 跟随系统 + 系统暗色 */
-      --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
-      --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
-      --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
-      --rule:var(--dk-rule); --hairline:var(--dk-hairline);
-      --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
-      --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
-      --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
-      --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
-    }
-  }
-  :root[data-theme="dark"]{                  /* 手动选暗（两块内容必须一致） */
-      --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
-      --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
-      --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
-      --rule:var(--dk-rule); --hairline:var(--dk-hairline);
-      --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
-      --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
-      --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
-      --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
-  }
-  :root[data-theme="light"]{ color-scheme:light }
-  :root[data-theme="dark"]{ color-scheme:dark }
+     手动选定时 <html data-theme>，跟随系统时该属性被移除。 */
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);

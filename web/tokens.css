@@ -1,0 +1,90 @@
+/* 问底 WenDi · 设计 token · 单源（single source of truth）
+   -------------------------------------------------------------------------------------
+   本文件只放设计 token，不放 reset / focus-visible / z-index 等页面规则。
+
+   谁在用：
+     · 文档页族（about / privacy / terms / feedback / admin / meter …）→ 经 site.css 顶部的
+       `@import url("/tokens.css")` 自动获得（各页只 link 了 site.css，无需改 HTML）；
+     · 工作台 web/app/index.html 与 web/graph2d.html → <head> 里直接 <link rel="stylesheet"
+       href="/tokens.css">（启动脚本仍在其前面，防首帧闪色）。
+
+   主题契约（与各页 <head> 启动脚本、设置面板一致，勿改）：
+     localStorage["wendi-theme"] = "light" | "dark"；键缺失 / 非法值 = 跟随系统
+     手动选定时 <html data-theme="light|dark">；跟随系统时该属性被【移除】
+
+   值的来源：本文件的亮色 token 与 --dk-* 是三处旧副本（site.css / app/index.html /
+   graph2d.html）的并集，同名 token 的值逐字取自重构前的版本，未做任何调色。
+   视觉契约见 docs/adr/0001：新闻纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
+   亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
+   ===================================================================================== */
+:root{
+  /* —— 亮色 token（默认）—— */
+  --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
+  --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
+  --rule:#15130f; --hairline:#d8d2c4;
+  --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
+  --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
+  --slab-bg:#1b1813; --slab-fg:#f4f0e4; --slab-line:rgba(244,240,228,.18);
+  --scrim:rgba(21,19,15,.55);
+  --float:0 6px 18px rgba(21,19,15,.16);
+  --noise:rgba(21,19,15,.05);
+  --edge:rgba(21,19,15,.28); --edge-hot:rgba(165,40,28,.85);
+  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
+  --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+
+  /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
+     下面的「暗色映射」两块只做「公共 token 名 → --dk-*」的改名，不含色值。
+     改暗色只需改这里，两个映射块不会漂移。 */
+  --dk-paper:#1a1713; --dk-paper-deep:#14110d; --dk-surface:#211d18; --dk-surface-2:#1b1713;
+  --dk-ink:#ece5d6; --dk-ink-2:#beb5a4; --dk-ink-3:#8d8474;
+  --dk-rule:#ece5d6; --dk-hairline:#3a342b;
+  --dk-accent:#d76a5f; --dk-accent-wash:rgba(215,106,95,.12); --dk-accent-line:rgba(215,106,95,.50);
+  --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
+  --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
+  --dk-scrim:rgba(0,0,0,.62);
+  --dk-float:0 6px 18px rgba(0,0,0,.55);
+  --dk-noise:rgba(236,229,214,.03);
+  --dk-edge:rgba(236,229,214,.28); --dk-edge-hot:rgba(215,106,95,.9);
+
+  /* 滚动条 / 原生表单控件的配色：默认跟随系统 */
+  color-scheme:light dark;
+}
+
+/* =====================================================================================
+   暗色映射 · 【下面这两个块必须逐行同步修改】
+   -------------------------------------------------------------------------------------
+   为什么是两块：契约要求「跟随系统时 <html> 不带 data-theme」，
+   于是「系统暗色」只能靠媒体查询命中，「手动选暗」只能靠属性选择器命中；
+   CSS 无法把「媒体查询」和「属性选择器」合并进同一条规则，所以只能写两遍。
+   怎么去重：具体色值只在上面 :root 的 --dk-* 里写了一次，
+   这两块只是同一份「token 名 → --dk-*」映射的两个入口；
+   为了两个入口不漂移，它们紧挨着放，且内容逐行相同。
+   ===================================================================================== */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){          /* 跟随系统 + 系统暗色 */
+    --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+    --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+    --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+    --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+    --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+    --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+    --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+    --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+  }
+}
+:root[data-theme="dark"]{                    /* 手动选暗（两块内容必须一致） */
+    --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+    --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+    --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+    --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+    --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+    --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+    --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+    --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+}
+/* 手动选定时浏览器也按选定主题渲染原生控件（两块映射的 color-scheme 收尾） */
+:root[data-theme="light"]{ color-scheme:light }
+:root[data-theme="dark"]{ color-scheme:dark }

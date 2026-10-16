@@ -3,116 +3,115 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>问底 · 计量台</title>
+<meta name="robots" content="noindex, nofollow">
+<title>计量台 · 问底 WenDi</title>
+<script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
+<link rel="stylesheet" href="/site.css">
 <style>
-:root{
-  --bg:#faf7f5; --surface:#fff; --surface2:#f3eeea; --border:rgba(41,32,28,.10);
-  --text:#2d2420; --dim:#7a6c63; --faint:#a99a90;
-  --terra:#c2410c; --terra-dim:rgba(194,65,12,.09);
-  --sage:#5f7f3a; --sage-dim:rgba(95,127,58,.10);
-  --gold:#a07617; --gold-dim:rgba(160,118,23,.10);
-  --blood:#8c2f39; --blood-dim:rgba(140,47,57,.08);
-  --ink-line:rgba(41,32,28,.22);
-}
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#191412; --surface:#211b18; --surface2:#2a221e; --border:rgba(240,225,215,.09);
-    --text:#ece2da; --dim:#a99788; --faint:#6f5f55;
-    --terra:#e0703a; --terra-dim:rgba(224,112,58,.13);
-    --sage:#93b06a; --sage-dim:rgba(147,176,106,.13);
-    --gold:#cfa04a; --gold-dim:rgba(207,160,74,.13);
-    --blood:#d06a75; --blood-dim:rgba(208,106,117,.12);
-    --ink-line:rgba(240,225,215,.22); }
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font:15px/1.7 "Noto Serif SC","Songti SC",Georgia,serif;
-  background-image:radial-gradient(rgba(41,32,28,.035) 1px,transparent 1px);background-size:26px 26px}
-@media (prefers-color-scheme: dark){body{background-image:radial-gradient(rgba(240,225,215,.04) 1px,transparent 1px)}}
-code,.mono{font-family:"JetBrains Mono","SF Mono",Consolas,monospace;font-size:.86em}
-.wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
-.kicker{font-family:"JetBrains Mono",monospace;font-size:.7rem;letter-spacing:.22em;color:var(--terra);
-  text-transform:uppercase;display:flex;align-items:center;gap:10px}
-.kicker::before{content:"";width:24px;height:1px;background:var(--terra)}
-h1{font-weight:900;font-size:1.9rem;margin:.3em 0 .1em}
-.sub{color:var(--dim);font-size:.88rem;margin-bottom:26px}
-section{margin-top:38px}
-h2{font-weight:900;font-size:1.2rem;margin-bottom:14px;display:flex;align-items:center;gap:10px}
-h2::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--terra)}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  /* 计量台控制台专用：色值 token 全部取自 site.css（纸墨编辑体），本页不定义任何色值，
+     所以亮/暗三态主题自动跟随；这里只放 site.css 没有的、密度更高的表格 / 状态块 / KPI / 趋势图。 */
+  .wrap{max-width:72rem;margin:0 auto;padding:24px 20px 64px}
 
-/* token gate */
-#gate{max-width:420px;margin:60px auto;text-align:center}
-#gate .card{padding:28px}
-#gate input{width:100%;margin:14px 0 10px}
-input,button,select{font:inherit;color:inherit}
-input{background:var(--surface2);border:1px solid var(--ink-line);border-radius:8px;padding:8px 12px;outline:none}
-input:focus{border-color:var(--terra)}
-button{background:var(--terra-dim);border:1px solid var(--terra);color:var(--terra);border-radius:8px;
-  padding:8px 18px;cursor:pointer;font-weight:600}
-button:hover{background:var(--terra);color:var(--bg)}
-button.ghost{background:none;border-color:var(--ink-line);color:var(--dim)}
-.hint{color:var(--faint);font-size:.78rem}
+  /* —— 页首（与站长后台同一套排版语言）—— */
+  .kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-3);display:flex;align-items:center;gap:9px}
+  .kicker::before{content:"";width:18px;height:1px;background:var(--hairline)}
+  .sub{color:var(--ink-2);font-size:13.5px;margin:0 0 24px;padding-bottom:14px;
+    border-bottom:2px solid var(--rule)}
+  .mono{font-family:var(--mono)}
 
-/* KPI row */
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
-.kpi .n{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:1.5rem;line-height:1.15}
-.kpi .l{color:var(--dim);font-size:.75rem;margin-top:3px}
-.kpi .n small{font-size:.85rem;color:var(--dim);font-weight:400}
+  /* —— 门（admin token）—— */
+  #gate{max-width:440px;margin:64px auto;padding:0 20px}
+  #gate .card{padding:26px 24px;margin:0;text-align:center}
+  #gate .kicker{justify-content:center}
+  #gate input{width:100%;margin:14px 0 10px}
+  #gate button{width:100%}
 
-/* gate bar */
-.gbar{height:10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);overflow:hidden;margin:10px 0 6px}
-.gbar i{display:block;height:100%;background:var(--sage);transition:width .4s}
-.gbar.warn i{background:var(--gold)} .gbar.hot i{background:var(--blood)}
-.gcap{display:flex;justify-content:space-between;color:var(--faint);font-size:.72rem}
-.stpill{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:600;
-  padding:2px 12px;border-radius:999px;border:1px solid}
-.st-normal{color:var(--sage);border-color:var(--sage);background:var(--sage-dim)}
-.st-degraded{color:var(--gold);border-color:var(--gold);background:var(--gold-dim)}
-.st-hard{color:var(--blood);border-color:var(--blood);background:var(--blood-dim)}
+  /* —— 表单控件：补齐无 type 的 input（site.css 的规则只选中有 type 的）—— */
+  input,select,textarea{font:13.5px var(--sans);color:var(--ink);background:var(--surface);
+    border:1px solid var(--hairline);padding:7px 9px}
 
-/* chips + tables */
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.chip{font-family:"JetBrains Mono",monospace;font-size:.72rem;padding:2px 11px;border-radius:999px;
-  border:1px solid var(--border);background:var(--surface2);color:var(--dim)}
-.tw{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:.85rem}
-th{text-align:left;font-size:.74rem;letter-spacing:.04em;color:var(--dim);padding:8px 12px;
-  border-bottom:1px solid var(--ink-line);white-space:nowrap}
-td{padding:7px 12px;border-bottom:1px solid var(--border)}
-tr:last-child td{border-bottom:none}
-tbody tr:hover{background:var(--terra-dim)}
-td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-.dim{color:var(--dim)} .faint{color:var(--faint)}
+  /* —— KPI —— */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .kpi{border:1px solid var(--hairline);background:var(--surface);padding:11px 13px}
+  .kpi .n{font-family:var(--mono);font-size:19px;line-height:1.4}
+  .kpi .n small{font-family:var(--sans);font-size:11.5px;color:var(--ink-3);margin-left:5px}
+  .kpi .l{color:var(--ink-3);font-size:11.5px;letter-spacing:.4px;margin-top:3px}
 
-/* trend bars */
-.trend{display:flex;align-items:flex-end;gap:6px;height:130px;margin:16px 0 6px}
-.trend .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
-.trend .bar{width:100%;max-width:34px;border-radius:4px 4px 0 0;background:var(--terra);min-height:2px;
-  transition:height .4s;position:relative}
-.trend .bar.req{background:var(--gold)}
-.trend .col:hover .bar{opacity:.75}
-.trend .d{font-family:"JetBrains Mono",monospace;font-size:.58rem;color:var(--faint);white-space:nowrap}
-.trend .v{font-family:"JetBrains Mono",monospace;font-size:.6rem;color:var(--dim)}
-.legend{display:flex;gap:16px;color:var(--faint);font-size:.72rem;margin-top:8px}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  /* —— 成本闸 —— */
+  .gbar{height:12px;background:var(--surface-2);border:1px solid var(--hairline);
+    overflow:hidden;margin:12px 0 7px}
+  .gbar i{display:block;height:100%;background:var(--ok);transition:width .4s}
+  .gbar.warn i{background:var(--warn)}
+  .gbar.hot i{background:var(--err)}
+  .gcap{display:flex;justify-content:space-between;gap:10px;color:var(--ink-3);
+    font-size:11.5px;font-family:var(--mono)}
 
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:760px){.row2{grid-template-columns:1fr}}
-.qrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-.qrow input{width:130px}
-.err{color:var(--blood);font-size:.82rem;margin-top:8px}
-footer{margin-top:70px;color:var(--faint);font-size:.74rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  /* —— 状态块（方角描边，抄站长后台 .state：sans 12px，无色块底）—— */
+  .stpill{display:inline-block;font-size:12px;padding:0 8px;border:1px solid var(--hairline)}
+  .st-normal{color:var(--ok);border-color:var(--ok)}
+  .st-degraded{color:var(--warn);border-color:var(--warn)}
+  .st-hard{color:var(--err);border-color:var(--err)}
+
+  /* —— 标签（方角描边，不用胶囊）—— */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:0 8px;border:1px solid var(--hairline);
+    color:var(--ink-2);background:var(--surface-2)}
+
+  /* —— 表格（密度高于文档页）—— */
+  .tw{overflow-x:auto}
+  table{font-size:12.5px;margin:12px 0 0}
+  th{padding:7px 12px;white-space:nowrap}
+  td{padding:6px 12px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .dim{color:var(--ink-2)} .faint{color:var(--ink-3)}
+
+  /* —— 近 14 天趋势 —— */
+  .trend{display:flex;align-items:flex-end;gap:6px;height:132px;margin:14px 0 8px;
+    overflow-x:auto;overflow-y:hidden}
+  .trend .col{flex:1;min-width:34px;display:flex;flex-direction:column;justify-content:flex-end;
+    align-items:center;gap:4px;height:100%}
+  .trend .bar{width:100%;max-width:32px;background:var(--accent);min-height:2px;transition:height .4s}
+  .trend .bar.req{background:var(--ink-3)}
+  .trend .col:hover .bar{opacity:.7}
+  .trend .v,.trend .d{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap}
+  .legend{display:flex;gap:16px;color:var(--ink-3);font-size:11.5px;margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+
+  /* —— 用户查询 —— */
+  .qrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .qrow input{width:130px}
+  .qrow select{width:auto}
+
+  .err{color:var(--err);font-size:13px;margin-top:8px}
+  footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--hairline);
+    color:var(--ink-3);font-size:12px;display:flex;justify-content:space-between;
+    flex-wrap:wrap;gap:8px}
+
+  @media (max-width:640px){
+    .wrap{padding:20px 15px 48px}
+  }
 </style>
 </head>
 <body>
+<header class="site">
+  <a class="brand" href="/">问底<span>WenDi</span></a>
+  <nav>
+    <a href="/about.html">关于</a>
+    <a href="/feedback.html">反馈</a>
+    <a class="on" href="/meter.html">计量台</a>
+    <a href="/admin.html">站长后台</a>
+    <a class="go" href="/app/">回到工作台</a>
+  </nav>
+</header>
 
 <div id="gate">
   <div class="card">
     <div class="kicker" style="justify-content:center">WenDi Meter</div>
-    <h1 style="font-size:1.5rem">计量台</h1>
+    <h1>计量台</h1>
     <p class="hint" style="margin-top:6px">需要管理 token（WENDI_ADMIN_TOKEN）</p>
     <input id="tok" type="password" placeholder="admin token" autocomplete="off">
-    <button id="go">进入</button>
+    <button class="primary" id="go">进入</button>
     <p class="err" id="gerr" style="text-align:center"></p>
   </div>
 </div>
@@ -154,8 +153,8 @@ footer{margin-top:70px;color:var(--faint);font-size:.74rem;display:flex;justify-
     <div class="card">
       <div class="trend" id="trend"></div>
       <div class="legend">
-        <span><i style="background:var(--terra)"></i>成本(¥,按日)</span>
-        <span><i style="background:var(--gold)"></i>请求次数</span>
+        <span><i style="background:var(--accent)"></i>成本(¥,按日)</span>
+        <span><i style="background:var(--ink-3)"></i>请求次数</span>
         <span class="faint" style="margin-left:auto" id="trendSum"></span>
       </div>
       <div class="tw" style="margin-top:12px"><table id="dtab">
@@ -170,10 +169,10 @@ footer{margin-top:70px;color:var(--faint);font-size:.74rem;display:flex;justify-
     <div class="card">
       <div class="qrow">
         <input id="uid" placeholder="user_id" inputmode="numeric">
-        <select id="days" class="mono" style="background:var(--surface2);border:1px solid var(--ink-line);border-radius:8px;padding:8px">
+        <select id="days" class="mono">
           <option>7</option><option>14</option><option>30</option><option>90</option>
         </select>
-        <button id="q">查账</button>
+        <button class="primary" id="q">查账</button>
         <span class="hint">user_id 见 /api/meter/user；匿名调用无此维度</span>
       </div>
       <div class="tw"><table id="utab">
