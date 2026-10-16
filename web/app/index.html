@@ -4,9 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>问底 WenDi · get to the bottom of it</title>
+<!-- 主题启动脚本：必须在任何 <link rel="stylesheet"> 之前，防首帧闪白/闪暗（契约见 site.css 顶部） -->
+<script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
 <link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <script defer src="/vendor/katex/katex.min.js"></script>
 <style>
+  /* 主题契约与 site.css 一致（见 web/site.css 顶部注释）：
+     localStorage["wendi-theme"]="light"|"dark"，缺失/非法=跟随系统；
+     手动选定时 <html data-theme>，跟随系统时该属性被移除。
+     注：工作台是单文件、token 内联，与 site.css 是历史遗留的重复（本次不合并）。 */
   :root{
     /* 纸与墨 */
     --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
@@ -24,17 +30,52 @@
     --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
     --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+
+    /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
+       下面「暗色映射」两块只做「公共 token 名 → --dk-*」改名，不含色值。 */
+    --dk-paper:#1a1713; --dk-paper-deep:#14110d; --dk-surface:#211d18; --dk-surface-2:#1b1713;
+    --dk-ink:#ece5d6; --dk-ink-2:#beb5a4; --dk-ink-3:#8d8474;
+    --dk-rule:#ece5d6; --dk-hairline:#3a342b;
+    --dk-accent:#d76a5f; --dk-accent-wash:rgba(215,106,95,.12); --dk-accent-line:rgba(215,106,95,.50);
+    --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
+    --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
+    --dk-scrim:rgba(0,0,0,.62); --dk-float:0 6px 18px rgba(0,0,0,.55);
+    --dk-noise:rgba(236,229,214,.03);
+
+    /* 滚动条 / 原生表单控件的配色：默认跟随系统 */
+    color-scheme:light dark;
   }
-  @media (prefers-color-scheme: dark){ :root{
-    --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
-    --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
-    --rule:#ece5d6; --hairline:#3a342b;
-    --accent:#d76a5f; --accent-wash:rgba(215,106,95,.12); --accent-line:rgba(215,106,95,.50);
-    --ok:#6bb3a4; --warn:#d9ac47; --err:#d76a5f;
-    --slab-bg:#0f0d0a; --slab-fg:#ece5d6; --slab-line:rgba(236,229,214,.16);
-    --scrim:rgba(0,0,0,.62); --float:0 6px 18px rgba(0,0,0,.55);
-    --noise:rgba(236,229,214,.03);
-  }}
+
+  /* =============================================================================
+     暗色映射 · 【下面这两个块必须逐行同步修改】
+     为什么是两块：契约要求「跟随系统时 <html> 不带 data-theme」，
+     系统暗色只能靠媒体查询命中、手动选暗只能靠属性命中；CSS 无法把两者合并成一条规则。
+     怎么去重：具体色值只在上面 --dk-* 写了一处，这两块只是同一份映射的两个入口，
+     故紧挨着放、逐行相同。 */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){         /* 跟随系统 + 系统暗色 */
+      --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+      --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+      --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+      --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+      --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+      --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+      --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+      --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+    }
+  }
+  :root[data-theme="dark"]{                  /* 手动选暗（两块内容必须一致） */
+      --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+      --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+      --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+      --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+      --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+      --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+      --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+      --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+  }
+  :root[data-theme="light"]{ color-scheme:light }
+  :root[data-theme="dark"]{ color-scheme:dark }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);
@@ -227,6 +268,19 @@
   .shint{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin-top:6px}
   .shint a{color:var(--ink-2)}
   #settingsAuth{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 外观：三态分段控件（跟随系统 / 亮 / 暗）
+     选中态 = 反白版口（沿用 button.primary / .acard .primary 的既有语言），
+     真源是 aria-checked，故只按属性选择器上色，JS 不必再管类名。
+     键盘：roving tabindex + 方向键（见脚本「外观」段），焦点环走全局 :focus-visible。 */
+  .seg{display:inline-flex;border:1px solid var(--hairline);background:var(--paper);vertical-align:middle}
+  .seg button{appearance:none;background:none;border:0;border-right:1px solid var(--hairline);
+              border-radius:0;padding:5px 15px;color:var(--ink-2);font-size:12.5px;font-family:var(--sans);
+              cursor:pointer;line-height:1.5}
+  .seg button:last-child{border-right:0}
+  .seg button:hover{background:var(--accent-wash);color:var(--ink)}
+  .seg button[aria-checked="true"]{background:var(--ink);color:var(--paper);font-weight:600}
+  .seg button[aria-checked="true"]:hover{background:var(--accent);color:var(--paper)}
+  .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   #adminGroup .shint{color:var(--ink-3)}
   .acard{width:360px;background:var(--surface);border:1px solid var(--rule);padding:20px 22px}
   .acard .atabs{display:flex;gap:14px;align-items:center;margin-bottom:14px;font-size:15px}
@@ -418,6 +472,14 @@
       <button id="syncBtn2" class="hidden" title="把本地数据备份到云端">同步↑ 云端</button>
     </div>
     <div class="shint" id="settingsPlan"></div>
+
+    <div class="sgroup">外观</div>
+    <div class="seg" id="themeSeg" role="radiogroup" aria-label="外观主题">
+      <button type="button" role="radio" data-theme-val="system" aria-checked="true" tabindex="0">跟随系统</button>
+      <button type="button" role="radio" data-theme-val="light" aria-checked="false" tabindex="-1">亮</button>
+      <button type="button" role="radio" data-theme-val="dark" aria-checked="false" tabindex="-1">暗</button>
+    </div>
+    <div class="shint">「跟随系统」跟着电脑 / 手机的明暗自动切换；选「亮」或「暗」则固定，系统怎么变都不受影响。</div>
 
     <div class="sgroup">数据</div>
     <div class="srow2">
@@ -1425,6 +1487,65 @@ if(!localStorage.getItem("wendi-intro")) intro.classList.remove("hidden");
 $("#introGo").onclick = () => { intro.classList.add("hidden"); localStorage.setItem("wendi-intro", "1"); };
 /* 顶栏的「?」入口已删：重看引导走「设置 → 关于 → 重看首次引导」(#settingsAbout) */
 
+/* ================= 外观：三态主题（跟随系统 / 亮 / 暗） =================
+   契约（与 <head> 启动脚本、site.css 顶部注释一致，勿改）：
+     localStorage["wendi-theme"] = "light" | "dark"；键缺失 / 非法值 = 跟随系统
+     生效方式：<html data-theme="light|dark">；跟随系统时【移除】该属性（不是设成 "system"）
+     切换后派发 window 事件 "wendi:theme"，detail.theme ∈ {"system","light","dark"}
+   与启动脚本共用同一套判断：首帧由 <head> 脚本定，这里只管运行期与 UI 回显。 */
+const THEME_KEY = "wendi-theme";
+const themeMq = window.matchMedia("(prefers-color-scheme: dark)");
+/* 存储态："system" | "light" | "dark"（UI 与行为的单一真源始终是 localStorage） */
+function themeStored(){
+  try{ const t = localStorage.getItem(THEME_KEY);
+       return (t === "light" || t === "dark") ? t : "system"; }
+  catch(e){ return "system"; }
+}
+/* 把存储态落到 <html>（跟随系统 = 移除属性，交给 CSS 媒体查询） */
+function themeApply(t){
+  const el = document.documentElement;
+  if(t === "light" || t === "dark") el.setAttribute("data-theme", t);
+  else el.removeAttribute("data-theme");
+  window.dispatchEvent(new CustomEvent("wendi:theme", { detail:{ theme:t } }));
+}
+function themeSet(t){
+  try{ if(t === "light" || t === "dark") localStorage.setItem(THEME_KEY, t);
+       else localStorage.removeItem(THEME_KEY); }catch(e){}
+  themeApply(t);
+}
+/* 系统明暗在运行期变化时：只在「跟随系统」态响应；手动选亮/暗时系统变化不影响页面 */
+themeMq.addEventListener("change", () => { if(themeStored() === "system") themeApply("system"); });
+
+const themeSeg = $("#themeSeg");
+const themeRadios = Array.from(themeSeg.querySelectorAll('[role="radio"]'));
+/* 回显：打开设置面板时按 localStorage 现状刷 aria-checked / roving tabindex（不猜上一轮 UI） */
+function renderThemeSeg(){
+  const cur = themeStored();
+  themeRadios.forEach(b => {
+    const on = b.dataset.themeVal === cur;
+    b.setAttribute("aria-checked", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1;                        // roving tabindex：Tab 只停在当前选中项
+  });
+}
+function themeSegSelect(i, focus){
+  themeSet(themeRadios[i].dataset.themeVal);
+  renderThemeSeg();
+  if(focus) themeRadios[i].focus();
+}
+themeRadios.forEach((b, i) => {
+  b.onclick = () => themeSegSelect(i, false);
+  b.onkeydown = e => {
+    const n = themeRadios.length;
+    let j = null;
+    if(e.key === "ArrowRight" || e.key === "ArrowDown") j = (i + 1) % n;
+    else if(e.key === "ArrowLeft" || e.key === "ArrowUp") j = (i - 1 + n) % n;
+    else if(e.key === "Home") j = 0;
+    else if(e.key === "End") j = n - 1;
+    if(j !== null){ e.preventDefault(); themeSegSelect(j, true); return; }   // radiogroup：方向键=移动并选中
+    if(e.key === " " || e.key === "Enter"){ e.preventDefault(); themeSegSelect(i, true); }
+  };
+});
+
 /* ================= 设置（用户配置） =================
    面向用户：反馈 / 账号与同步 / 数据 / 关于。
    站长那一套（服务端密钥、站长后台、计量台）默认不出现，只有本地存过 admin token
@@ -1437,6 +1558,7 @@ function adminGroupVisible(){
 }
 function openSettings(){
   $("#adminGroup").classList.toggle("hidden", !adminGroupVisible());
+  renderThemeSeg();                                 // 外观行按 localStorage 回显当前状态
   renderAccount();                                  // 账号行随登录态刷新
   $("#closedList").style.display = "none";
   $("#settingsModal").classList.remove("hidden");

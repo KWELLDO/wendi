@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>解释场 · 2D 图谱</title>
+<script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
 <style>
   :root{
+    color-scheme: light;
     --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
     --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
     --rule:#15130f; --hairline:#d8d2c4;
@@ -17,7 +19,8 @@
     --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
   }
-  @media (prefers-color-scheme: dark){ :root{
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    color-scheme: dark;
     --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
     --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
     --rule:#ece5d6; --hairline:#3a342b;
@@ -26,6 +29,17 @@
     --edge:rgba(236,229,214,.28); --edge-hot:rgba(215,106,95,.9);
     --float:0 6px 18px rgba(0,0,0,.55);
   }}
+  /* ↑ 与上面的 prefers-color-scheme 块必须同步修改：暗色值只有这两个出口 */
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
+    --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
+    --rule:#ece5d6; --hairline:#3a342b;
+    --accent:#d76a5f; --accent-wash:rgba(215,106,95,.12); --accent-line:rgba(215,106,95,.50);
+    --err:#d76a5f; --ok:#6bb3a4;
+    --edge:rgba(236,229,214,.28); --edge-hot:rgba(215,106,95,.9);
+    --float:0 6px 18px rgba(0,0,0,.55);
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--ink);
        font:14px/1.6 var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
