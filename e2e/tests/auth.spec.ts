@@ -136,19 +136,12 @@ test.describe('注册 / 登录（真实前后端）', () => {
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBeNull();
   });
 
-  test('登录响应里的 quota 缺 plan，Pro 账号被瞬间标成「免费」（已知缺陷）', async ({
+  test('登录响应 quota 带 plan：Pro 账号登录瞬间即显示 Pro', async ({
     page,
     request,
   }) => {
-    // 已知产品缺陷（记录在案，不修产品代码）：
-    // server.py _login/_register 返回的 quota 是 db.quota_state() → {used, limit, date}，没有 plan；
-    // 而前端 renderQuota() 依赖 q.plan 生成标题：pro→Pro / anon→未登录 / 其他→免费。
-    // 结果是 Pro 用户登录瞬间 tooltip 显示「免费」，刷新（/api/me 走 _quota_payload，带 plan）后才正确。
-    test.fail(
-      true,
-      '登录/注册响应 quota 缺 plan，Pro 用户被标成「免费」；刷新 /api/me 后才恢复',
-    );
-
+    // 原缺陷曾用 test.fail 留证：登录/注册响应 quota 缺 plan，Pro 被瞬间标成「免费」。
+    // product-dev 已修复（db.quota_state 统一形状且与 /api/me 同源；见 db.py / server.py _login）。
     const account = await registerAccount(request, { tag: 'quota-plan' });
 
     await page.goto('/app/?login=1');
@@ -164,8 +157,8 @@ test.describe('注册 / 登录（真实前后端）', () => {
 
     const body = await response.json();
     expect(body.plan).toBe('pro');
-    expect(body.quota).not.toHaveProperty('plan'); // 后端响应形状就是这个
+    expect(body.quota).toHaveProperty('plan', 'pro'); // 修复后：quota 与 /api/me 同形
     await expect(page.locator('#quotaBadge')).toHaveText('0/300');
-    await expect(page.locator('#quotaBadge')).toHaveAttribute('title', /^Pro ·/);
+    await expect(page.locator('#quotaBadge')).toHaveAttribute('title', /^Pro /);
   });
 });
