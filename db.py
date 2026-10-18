@@ -318,9 +318,11 @@ def consume_quota(uid: int, limit: int) -> tuple[bool, int, int]:
 
 
 def quota_state(user: sqlite3.Row) -> dict:
+    """配额快照（登录/注册/兑换/me 共用同一形状，前端读 quota.plan）。"""
     d = today()
     used = user["day_used"] if user["day_key"] == d else 0
-    return {"used": used, "limit": quota_limit(user), "date": d}
+    return {"plan": effective_plan(user), "used": used,
+            "limit": quota_limit(user), "date": d}
 
 
 def refund_quota(uid: int) -> None:

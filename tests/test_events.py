@@ -308,6 +308,61 @@ class TestInviteRegister(Base):
                          "注册失败的码不该被消耗")
 
 
+# ===================== 配额响应形状（登录/注册/兑换 vs /api/me） =====================
+class TestQuotaShape(Base):
+    def _register_pro(self, email="pro-quota@example.com"):
+        code = self.invite(days=30)
+        h = Handler(token="")
+        h._register({"email": email, "password": "secret1", "invite": code})
+        self.assertEqual(h.status, 200)
+        return h
+
+    def test_register_pro_quota_has_plan(self):
+        h = self._register_pro()
+        self.assertEqual(h.payload["plan"], "pro")
+        self.assertEqual(h.payload["quota"]["plan"], "pro")
+        self.assertEqual(h.payload["quota"]["limit"], db.QUOTA_PRO)
+
+    def test_login_quota_matches_me(self):
+        self._register_pro("match@example.com")
+        h = Handler(token="")
+        h._login({"email": "match@example.com", "password": "secret1"})
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["quota"]["plan"], "pro")
+
+        me = Handler(token=h.payload["token"])
+        me.path = "/api/me"
+        me._do_GET()
+        self.assertEqual(me.status, 200)
+        self.assertEqual(h.payload["quota"], me.payload["quota"],
+                         "登录与 /api/me 的 quota 必须同形同值（前端读 quota.plan）")
+
+    def test_free_and_expired_pro_report_free(self):
+        code = self.invite(days=0)
+        h = Handler(token="")
+        h._register({"email": "free-quota@example.com", "password": "secret1", "invite": code})
+        self.assertEqual(h.payload["quota"]["plan"], "free")
+
+        u = self.mkuser("expired-quota@example.com")
+        db.set_plan(u["id"], "pro", "2020-01-01")
+        h2 = Handler(token="")
+        h2._login({"email": "expired-quota@example.com", "password": "secret1"})
+        self.assertEqual(h2.payload["plan"], "free")
+        self.assertEqual(h2.payload["quota"]["plan"], "free")
+        self.assertEqual(h2.payload["quota"]["limit"], db.QUOTA_FREE)
+
+    def test_redeem_quota_has_plan(self):
+        u = self.mkuser("redeem-quota@example.com")
+        tok = "tok-redeem-quota"
+        db.create_session(tok, u["id"])
+        _, codes = db.gen_codes(1, 30, kind="pro")
+        h = Handler(token=tok)
+        h._redeem({"code": codes[0]})
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["quota"]["plan"], "pro")
+        self.assertEqual(h.payload["quota"]["limit"], db.QUOTA_PRO)
+
+
 # ===================== 看板端点 =====================
 class TestAdminIntakeEndpoints(Base):
     def test_all_require_token(self):

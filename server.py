@@ -591,8 +591,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _quota_payload(self, user) -> dict:
         if user:
-            st = db.quota_state(user)
-            return {"plan": db.effective_plan(user), "used": st["used"], "limit": st["limit"]}
+            # 单一形状来源：登录/注册/兑换/me 都消费 db.quota_state()
+            return db.quota_state(user)
         h = _anon[self._ip()]
         used = h["day"] if h["daykey"] == _today() else 0
         return {"plan": "anon", "used": used, "limit": db.QUOTA_ANON}
