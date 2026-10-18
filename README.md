@@ -118,7 +118,8 @@ web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸
 web/meter.html   计量台（逐日账、单用户 drill-down）
 web/site.css     文档页共用样式（大报编辑体 token）
 scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
-scripts/feedback_bridge.py  用户反馈 → 本机 clds 只读方案 Agent（本地轮询，不占生产服务）
+scripts/feedback_bridge.py  用户反馈 → OpenCode 免费分流 → clds fix/大改方案（本地轮询）
+.opencode/agents/feedback-triage.md  轻量单步、只输出 JSON 的免费模型分流 agent
 deploy/          部署件（systemd / nginx / 部署脚本；含 feedback agent 用户服务与 env 示例）
 messages.py      站内消息的最小数据层（user_messages，按账号隔离）
 tests/           测试（python3 -m unittest discover -s tests）
@@ -159,38 +160,45 @@ docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 - 日报：`python3 daily_report.py [YYYY-MM-DD]`（服务器上由 `wendi-report.timer` 每天 23:55 跑）。
 - 设计口径与取舍见 `docs/plans/2026-09-27-internal-test-phase1.md`。
 
-## 用户反馈 → 本机 clds 开发 Agent（一期）
+## 用户反馈 → 开发 Agent（一期，两段式）
 
-内测期用户提交的反馈除了进 `/admin.html`，还会由开发者机器上的桥定时拉取，交给本机
-**clds**（Claude Code + DeepSeek）生成只读处理方案。桥接不依赖生产服务器反向访问开发机。
+反馈不在生产服务器上直接调模型，而是由开发者机器上的桥接脚本分两段处理：
 
 ```
 /feedback.html → feedback(status=new)
-  → scripts/feedback_bridge.py（开发者机器，定时轮询 admin API）
-  → clds：--safe-mode --restricted --permission-mode plan，空 MCP，无 SKILL
-  → plans/feedback-<id>.md（分类 / 严重度 / 是否大改 / 方案）
-  → 需要追问且用户登录且 can_reply：站内消息 → /messages.html
-  → feedback 标 read，note 记方案文件名
+  → OpenCode 免费模型分流
+       ignore      → 不调 clds
+       ask_user    → 发站内澄清问题，不调 clds
+       fix         → clds 在隔离 worktree 做最小修复，产出待审 patch + 测试结果
+       big_change  → clds 只写方案，不改代码
+  → feedback 标 read，note 记方案/分支
+  → 需要追问且用户登录且 can_reply：/messages.html 站内消息
 ```
 
-边界：
+分工：
 
-- **Agent 不做大改**：只在 plan 模式输出方案；不写仓库、不部署、不自动修代码。
-- **联系方式不进 Agent**：不发送 contact/email；正文中的邮箱/手机号先脱敏，只带 `user_id` 与
-  `can_reply`。
-- **不迁移 OpenCode 的 MCP / SKILL**：clds 使用空 MCP 配置并禁用 slash commands/skills。
-- **不虚假许诺**：站内追问只允许带问号的澄清问题，拒绝“已修复 / 保证 / 一定 / 24小时”等话术；
-  前提不满足就不发消息。
+- **OpenCode**：只做分流判断，使用免费模型 `opencode/deepseek-v4.1-flash-free`；
+  项目内 `.opencode/agents/feedback-triage.md` 是专用 agent（`steps: 1`，禁用 edit/bash，
+  prompt 要求不使用工具、只输出 JSON）。
+- **clds**：只在 `fix` 或 `big_change` 时调用。
+  - `fix`：在独立 git worktree 里改代码，桥接统一跑测试，产出 `fix-<id>.patch` 和报告；
+    **不提交、不合并、不部署**。
+  - `big_change`：只读 plan 模式，只写方案，不改代码。
+- **不做大改**：`fix` 触及 `server.py` / `db.py` / `auth.py` / 部署 / 隐私条款等禁区时，
+  桥接会标记“触碰禁区，需人工”，不会自动合并。
+- **联系方式不进 Agent**：contact/email 字段不发送；正文中的邮箱、手机号、带标签联系方式先脱敏；
+  只发送 `user_id`、`can_reply` 等必要元数据。
+- **不虚假许诺**：站内追问只允许带问号的澄清问题，拒绝“已修复 / 保证 / 一定 / 24小时”等话术。
 
-安装方式：
+安装：
 
 ```bash
 mkdir -p ~/.config/wendi ~/.config/systemd/user
 cp deploy/feedback-agent.env.example ~/.config/wendi/feedback-agent.env
 chmod 600 ~/.config/wendi/feedback-agent.env
-# 编辑 env：至少填 WENDI_ADMIN_TOKEN；clds 的 DeepSeek token 仍在 ~/.config/clds/off.env
+# 编辑 env：至少填 WENDI_ADMIN_TOKEN；确保本机 OpenCode 后台服务和 clds 可用
 
-# 先看一轮会发给 clds 的 prompt（不调用 clds、不标 read）
+# 先看一轮会发给分流器的 prompt（不调模型、不标 read）
 python3 scripts/feedback_bridge.py --once --dry-run
 
 # 手动跑一轮
@@ -203,7 +211,11 @@ systemctl --user enable --now wendi-feedback-agent.service
 journalctl --user -u wendi-feedback-agent.service -f
 ```
 
-设计取舍、安全边界和验收见
+桥接会校验 OpenCode 分流模型的 `/api/model` cost 是否全为 0，避免误用付费模型。
+方案与 fix 报告输出到 `~/.local/state/wendi-feedback-agent/plans/`，fix worktree 默认在
+`~/.local/state/wendi-feedback-agent/worktrees/`，供人工审查。
+
+完整设计见
 [`docs/plans/2026-10-18-feedback-to-dev-agent.md`](docs/plans/2026-10-18-feedback-to-dev-agent.md)。
 
 ## 账户与配额

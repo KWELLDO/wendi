@@ -1,5 +1,5 @@
 [Unit]
-Description=WenDi feedback -> local clds plan agent bridge
+Description=WenDi feedback -> OpenCode triage + clds fix/plan bridge
 After=network-online.target
 
 [Service]
