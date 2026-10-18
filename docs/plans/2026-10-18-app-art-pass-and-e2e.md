@@ -51,3 +51,12 @@
 - 档位下拉展开仍是系统原生菜单（需自绘 listbox，属结构改动）
 - 落地页 390px 导航 5 项挤一行：本轮范围外
 - meter 真实链路需真实 `WENDI_ADMIN_TOKEN`；真实 LLM 链路未验
+
+## 第二轮：羊皮纸色彩（同日，用户反馈「暗色太不好了，羊皮纸风格」）
+- 亮色：更暖更旧 —— paper `#f4ead6` / surface `#fbf3e3`；ink-3 对比 6.11–6.61
+- 暗色候选：A 深褐羊皮（paper `#241608`）／B 灯下羊皮（paper `#402d19`）；应用 **B**，A 全套值留在 `web/tokens.css` 末尾注释块，整体替换即可切换
+- 暗色对比：ink-3 on paper 7.65 / surface 6.46；正文 11.85；surface vs paper 1.18、surface-2 vs paper 1.41
+- 纸纹：3px+5px 双颗粒 + 五团低频云斑（纯 CSS、零外链、`background-attachment:fixed`），铺 body/header/crumbbar/mainpane/lists/preview/inputrow
+- 复核：E2E 14 passed；390 无横向溢出；input 46px 等尺寸与 JS 未变；两套暗色映射 26 条声明一致
+- 遗留：亮色 paper-deep 与 surface-2 仅差 0.7 L\*；`site.css` 旧点阵 / `--noise` 成死代码；`@media print` 应去纸纹；暗色 `--slab-bg` 与纸面差较大
+- 提交：`b7a1b2c` style(theme)
