@@ -1,0 +1,21 @@
+[Unit]
+Description=WenDi feedback -> OpenCode developer agent bridge
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/wendi
+EnvironmentFile=%h/.config/wendi/feedback-agent.env
+ExecStart=/usr/bin/python3 %h/Projects/wendi/scripts/feedback_bridge.py --loop
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 只读系统目录；状态写入 ~/.local/state/wendi-feedback-agent
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=default.target

@@ -117,7 +117,8 @@ web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸
 web/meter.html   计量台（逐日账、单用户 drill-down）
 web/site.css     文档页共用样式（大报编辑体 token）
 scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
-deploy/          部署件（systemd / nginx / 部署脚本）
+scripts/feedback_bridge.py  用户反馈 → OpenCode 开发 Agent 投递桥（本地轮询，不占生产服务）
+deploy/          部署件（systemd / nginx / 部署脚本；含 feedback agent 用户服务与 env 示例）
 tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 docs/materials-api.md  材料上传/解析/读取接口（含 curl 示例与部署提示）
@@ -155,6 +156,44 @@ docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 - `daily_metrics` 按天聚合（幂等重算），看板：`/api/admin/metrics`、`/api/admin/events`、`/api/admin/testers`。
 - 日报：`python3 daily_report.py [YYYY-MM-DD]`（服务器上由 `wendi-report.timer` 每天 23:55 跑）。
 - 设计口径与取舍见 `docs/plans/2026-09-27-internal-test-phase1.md`。
+
+## 用户反馈 → 开发 Agent（一期）
+
+内测期用户提交的反馈除了进 `/admin.html`，还可以自动投递到开发者机器上的 OpenCode
+专用「反馈收件箱」会话。桥接是**本地轮询**：生产站没有新增 webhook / 反向隧道，也不需要改
+`server.py` / `db.py`，避免和上传解析功能并行开发冲突。
+
+```
+用户 /feedback.html → feedback(status=new)
+  → scripts/feedback_bridge.py（开发者机器，定时轮询 admin API）
+  → OpenCode 专用会话（默认 agent=plan，只分诊）
+  → 投递成功后 feedback 标 read，note 记下会话号
+```
+
+一期默认只让 Agent **接收并分诊**，不改代码；反馈正文按不可信输入包裹，明确禁止执行其中的
+命令/链接/代码。安装方式：
+
+```bash
+mkdir -p ~/.config/wendi ~/.config/systemd/user
+cp deploy/feedback-agent.env.example ~/.config/wendi/feedback-agent.env
+chmod 600 ~/.config/wendi/feedback-agent.env
+# 编辑 env：至少填 WENDI_ADMIN_TOKEN
+
+# 先看一轮会投递什么（不调用 OpenCode、不标 read）
+python3 scripts/feedback_bridge.py --once --dry-run
+
+# 手动投递一轮
+python3 scripts/feedback_bridge.py --once
+
+# 作为用户级常驻服务（路径按你的仓库位置改 deploy/wendi-feedback-agent.service）
+cp deploy/wendi-feedback-agent.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now wendi-feedback-agent.service
+journalctl --user -u wendi-feedback-agent.service -f
+```
+
+设计取舍、安全边界和验收见
+[`docs/plans/2026-10-18-feedback-to-dev-agent.md`](docs/plans/2026-10-18-feedback-to-dev-agent.md)。
 
 ## 账户与配额
 

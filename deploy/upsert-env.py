@@ -63,7 +63,11 @@ def merge(existing: str, pairs: list[tuple[str, str]]) -> tuple[str, list[str], 
 def main() -> None:
     path = sys.argv[1] if len(sys.argv) > 1 else "/etc/wendi.env"
     pairs = parse_pairs(sys.stdin.read())
-    existing = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            existing = fh.read()
+    else:
+        existing = ""
     content, replaced, added = merge(existing, pairs)
     if os.path.exists(path):
         bak = f"{path}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
