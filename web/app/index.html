@@ -19,53 +19,58 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);
-       font:14.5px/1.7 var(--sans);overflow:hidden;
+       font:15px/1.7 var(--sans);overflow:hidden;
        background-image:radial-gradient(var(--noise) 1px,transparent 1px);background-size:4px 4px}
-  ::selection{background:var(--accent-wash)}
+  ::selection{background:var(--select)}
+  /* 滚动条：细、纸色，不抢正文（Chromium / Firefox 各写一条） */
+  .ctext,.lbody,.pbody,.icard,.acard,#closedList{scrollbar-width:thin;scrollbar-color:var(--hairline) transparent}
+  .ctext::-webkit-scrollbar,.lbody::-webkit-scrollbar,.icard::-webkit-scrollbar,.acard::-webkit-scrollbar{width:9px;height:9px}
+  .ctext::-webkit-scrollbar-thumb,.lbody::-webkit-scrollbar-thumb,.icard::-webkit-scrollbar-thumb,.acard::-webkit-scrollbar-thumb{background:var(--hairline);border:2px solid transparent;background-clip:content-box}
+  .ctext::-webkit-scrollbar-track,.lbody::-webkit-scrollbar-track,.icard::-webkit-scrollbar-track,.acard::-webkit-scrollbar-track{background:transparent}
   /* —— 报头：只剩品牌 + 3 个全局动作（同步 / 设置 / 登录）—— */
-  header{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--rule);
-         background:var(--paper);flex:0 0 auto;z-index:var(--z-sticky);flex-wrap:nowrap;min-height:40px}
-  header .title{font-family:var(--serif);font-weight:600;font-size:15.5px;white-space:nowrap}
-  header .sub{color:var(--ink-3);font-size:12px;margin-left:6px}
+  header{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--rule);
+         background:var(--paper);flex:0 0 auto;z-index:var(--z-sticky);flex-wrap:nowrap;min-height:46px}
+  header .title{font-family:var(--serif);font-weight:600;font-size:16.5px;letter-spacing:.01em;white-space:nowrap}
+  header .sub{color:var(--ink-3);font-size:11.5px;letter-spacing:.02em;margin-left:8px}
   header .grow{flex:1;min-width:0}
-  header .hact{display:flex;align-items:center;gap:2px;flex:0 0 auto}
+  header .hact{display:flex;align-items:center;gap:4px;flex:0 0 auto}
 
   /* —— 版面题条：面包屑 + 条尾（返回 / 今日用量）——
      常驻 <header> 的兄弟节点：renderCrumbs() 每次只换 #crumbs 的内容，
      #quotaBadge 保持单例（renderQuota 在配额回来时靠 id 找得到它）。 */
-  #crumbbar{display:flex;align-items:center;gap:10px;flex:0 0 auto;min-height:28px;
-            padding:3px 14px;border-bottom:1px solid var(--hairline);background:var(--paper);z-index:var(--z-sticky)}
+  #crumbbar{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-height:34px;
+            padding:5px 16px;border-bottom:1px solid var(--hairline);background:var(--paper);z-index:var(--z-sticky)}
   #crumbs{flex:1;min-width:0;display:flex;align-items:center;gap:2px;overflow-x:auto;white-space:nowrap;
-          scrollbar-width:none;font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+          scrollbar-width:none;font-family:var(--mono);font-size:11.5px;letter-spacing:.01em;color:var(--ink-3)}
   #crumbs::-webkit-scrollbar{display:none}
-  #crumbs span.cr{padding:1px 7px;cursor:pointer;white-space:nowrap;color:var(--ink-2)}
+  #crumbs span.cr{padding:2px 7px;cursor:pointer;white-space:nowrap;color:var(--ink-2)}
   #crumbs span.cr:hover{background:var(--accent-wash);color:var(--ink)}
   #crumbs span.cr.cur{color:var(--accent)}
   #crumbs .sep{opacity:.5}
   .cbar-act{display:flex;align-items:center;gap:8px;flex:0 0 auto}
-  #crumbbar button{background:none;border:none;padding:3px 7px;color:var(--ink-2);font-size:12px}
+  #crumbbar button{background:none;border:none;padding:4px 7px;color:var(--ink-2);font-size:12px}
   #crumbbar button:hover{color:var(--ink);background:var(--accent-wash)}
-  #backBtn:disabled{opacity:.35;cursor:default}
+  #backBtn:disabled{opacity:.45;cursor:default}
   #backBtn:disabled:hover{background:none;color:var(--ink-2)}
 
   /* 焦点可见：普通元素用真实焦点环（大量按钮 border:none，改 border-color 什么也看不见） */
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  input:focus-visible,textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+  input:focus-visible,textarea:focus-visible,select:focus-visible{outline:1px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
   select,button{background:transparent;color:var(--ink);border:1px solid var(--hairline);
-       padding:4px 9px;font-size:12.5px;cursor:pointer;font-family:var(--sans)}
+       padding:6px 11px;font-size:13px;cursor:pointer;font-family:var(--sans);line-height:1.4}
   select:hover,button:hover{border-color:var(--ink)}
-  header button{background:none;border:none;padding:4px 7px;color:var(--ink-2);font-size:12.5px}
+  header button{background:none;border:none;padding:5px 9px;color:var(--ink-2);font-size:13px;min-height:33px}
   header button:hover{color:var(--ink);border:none;background:var(--accent-wash)}
-  header #authBtn{border:1px solid var(--hairline);padding:3px 10px;max-width:140px;
+  header #authBtn{border:1px solid var(--hairline);padding:4px 12px;max-width:150px;
                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   header #authBtn:hover{border-color:var(--ink);background:none;color:var(--ink)}
   #crumbbar .qbadge{border:none;padding:0 2px}
-  button.mini{padding:1px 6px;font-size:11.5px;color:var(--ink-3)}
+  button.mini{padding:2px 6px;font-size:11.5px;color:var(--ink-3)}
   button.mini:hover{color:var(--ink)}
 
   /* ============ 房间 ============ */
-  #stage{flex:1;min-height:0;display:flex;padding:6px}
-  .room{display:flex;flex:1;min-width:0;min-height:0;gap:8px;--split:50}
+  #stage{flex:1;min-height:0;display:flex;padding:8px}
+  .room{display:flex;flex:1;min-width:0;min-height:0;gap:10px;--split:50}
   .splitter{flex:0 0 7px;cursor:col-resize;position:relative;align-self:stretch}
   .splitter::before{content:"";position:absolute;left:3px;top:8px;bottom:8px;width:1px;background:var(--hairline)}
   .splitter:hover::before,.splitter.drag::before{background:var(--accent);width:2px;left:2.5px}
@@ -77,68 +82,77 @@
   .mainpane{min-width:0;display:flex;flex-direction:column;border:1px solid var(--hairline);
             background:var(--surface);overflow:hidden}
   .room>.mainpane{flex:0 0 calc(var(--split) * 1%)}
-  .side{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .side{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:10px}
   .lists{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--hairline);
          background:var(--paper-deep);overflow:hidden}
-  .lists .lhead{flex:0 0 auto;padding:6px 10px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
-                letter-spacing:.08em;border-bottom:1px solid var(--hairline)}
-  .lists .lbody{flex:1;overflow-y:auto;padding:6px}
-  .litem{display:flex;align-items:baseline;gap:7px;padding:6px 8px;border-left:2px solid transparent;cursor:pointer}
+  .lists .lhead{flex:0 0 auto;padding:8px 12px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+                letter-spacing:.1em;border-bottom:1px solid var(--hairline)}
+  .lists .lbody{flex:1;overflow-y:auto;padding:6px 8px}
+  .litem{display:flex;align-items:center;gap:8px;padding:8px 9px 8px 10px;border-left:2px solid transparent;cursor:pointer}
+  .litem+.litem{border-top:1px solid var(--hairline)}
   .litem:hover{background:var(--accent-wash)}
   .litem.sel{border-left-color:var(--accent)}
   .litem.sel .lt{color:var(--accent)}
-  .litem .lt{font-weight:600;font-size:13.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .litem .lm{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+  .litem .lt{font-weight:600;font-size:13.8px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .litem .lm{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);white-space:nowrap}
   .litem .k{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--paper);background:var(--ink);
             border:1px solid var(--ink);padding:0 4px}
   .litem .k.l2{background:transparent;color:var(--ink)}
   .litem .k.l3{background:transparent;color:var(--ink-2);border-color:var(--ink-2)}
   .litem .k.l4{background:transparent;color:var(--ink-3);border-color:var(--ink-3)}
   .litem .dot{color:var(--ink-3);font-size:11px}
+  /* 行进动作：默认只是两个字号的幽灵钮，行悬停才显形；方框只在悬停时出现 */
+  .litem button.mini{width:26px;height:26px;flex:0 0 auto;padding:0;display:inline-flex;align-items:center;justify-content:center;
+                     border-color:transparent;background:none;color:var(--ink-2);font-size:12px;line-height:1;opacity:.8}
+  .litem:hover button.mini,.litem.sel button.mini{opacity:1}
+  .litem button.mini:hover{background:var(--accent-wash);border-color:var(--hairline);color:var(--ink)}
   .lists .lempty{color:var(--ink-3);font-size:12.5px;padding:12px;line-height:2}
 
   .preview{flex:1.35;min-height:0;border:1px solid var(--hairline);background:var(--paper-deep);
            overflow:hidden;display:flex;flex-direction:column}
-  .preview .phead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--hairline);
-                  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.08em}
+  .preview .phead{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--hairline);
+                  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.1em}
   .preview .phead .grow{flex:1}
+  .preview .phead button.mini{font-family:var(--sans);letter-spacing:0;font-size:12px;color:var(--ink-2)}
   .preview .pbody{flex:1;min-height:0;overflow:hidden}
 
   /* ============ mini（同构缩小版，可点击进入） ============ */
-  .mini{height:100%;display:flex;gap:5px;padding:7px;cursor:zoom-in;position:relative}
+  .mini{height:100%;display:flex;gap:7px;padding:10px;cursor:zoom-in;position:relative}
   .mini:hover{background:var(--surface-2)}
   .mini .m-main{flex:1.65;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-  .mini .m-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
-  .mini .m-text{font-size:11.5px;line-height:1.65;white-space:pre-wrap;overflow:hidden;color:var(--ink-2);
+  .mini .m-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .mini .m-text{font-size:12px;line-height:1.75;white-space:pre-wrap;overflow:hidden;color:var(--ink-2);
                 mask-image:linear-gradient(to bottom,#000 72%,transparent)}
   .mini .m-text.serif{font-family:var(--serif)}
-  .mini .m-list{flex:1;min-width:0;border:1px solid var(--hairline);background:var(--surface);padding:4px 6px;overflow:hidden}
-  .mini .m-list .t{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-bottom:2px}
-  .mini .m-list .i{font-size:10.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mini .m-deeper{flex:0 0 auto;border:1px solid var(--hairline);padding:4px 6px;
-                  font-size:10px;color:var(--ink-3);line-height:1.5}
-  .mini .m-enter{position:absolute;right:10px;bottom:8px;background:var(--accent);color:var(--paper);border:none;
-                 padding:3px 9px;font-size:11px;font-weight:600;opacity:0;transition:opacity .15s}
+  .mini .m-list{flex:1;min-width:0;border:1px solid var(--hairline);background:var(--surface);padding:6px 8px;overflow:hidden}
+  .mini .m-list .t{font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.06em;margin-bottom:3px}
+  .mini .m-list .i{font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.6}
+  .mini .m-list .i.dim,.lhead .dim{color:var(--ink-3)}
+  .mini .m-deeper{flex:0 0 auto;border:1px solid var(--hairline);padding:5px 8px;
+                  font-size:10.5px;color:var(--ink-3);line-height:1.5}
+  .mini .m-enter{position:absolute;right:12px;bottom:10px;background:var(--accent);color:var(--paper);border:none;
+                 padding:4px 10px;font-size:11.5px;font-weight:600;opacity:0;transition:opacity .15s}
   .mini:hover .m-enter{opacity:1}
 
   /* ============ 内容（主对话 / 解释） ============ */
   .content{flex:1;min-height:0;display:flex;flex-direction:column}
-  .content .ctext{flex:1;min-height:0;overflow-y:auto;padding:14px 18px}
+  .content .ctext{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 22px}
   .content .ctext.serif{font-family:var(--serif);font-size:15.3px}
-  .msg{margin:0 0 13px}
-  .msg .who{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-bottom:1px}
+  .msg{margin:0 0 18px}
+  .msg .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:3px}
   .msg.user .who{color:var(--ok)}
-  .msg .txt{white-space:pre-wrap;line-height:1.85;font-size:15px;font-family:var(--serif)}
+  .msg .txt{white-space:pre-wrap;line-height:1.92;font-size:15.2px;font-family:var(--serif);max-width:38em;text-wrap:pretty}
   .msg .txt.loading{color:var(--ink-3)}
-  .expbody{white-space:pre-wrap;line-height:1.85;font-size:14.6px}
+  .expbody{white-space:pre-wrap;line-height:1.92;font-size:14.8px;max-width:38em;text-wrap:pretty}
   .expbody.loading{color:var(--ink-3)} .expbody.err{color:var(--err)}
   .errnote{color:var(--err);font-size:.88em;margin-top:.9em;border-top:1px dashed var(--accent-line);padding-top:.5em}
-  .qa{border-left:2px solid var(--accent-line);margin:8px 0 0;padding:2px 0 2px 10px;font-size:13.3px}
+  .qa{border-left:2px solid var(--accent-line);margin:14px 0 0;padding:2px 0 2px 12px;font-size:13.5px;max-width:38em}
   .qa .q{color:var(--accent)} .qa .a{white-space:pre-wrap;color:var(--ink-2)}
   .qa .a:empty::before{content:"…";color:var(--ink-3)}
   /* —— markdown 渲染（解释卡/对话/追问共用） —— */
   .expbody p,.msg .txt p,.qa .a p{margin:.45em 0}
-  .expbody h4,.msg .txt h4,.qa .a h4{margin:.7em 0 .25em;font-size:1.02em;color:var(--ink)}
+  .expbody h4,.msg .txt h4,.qa .a h4{margin:.9em 0 .3em;font-size:1.02em;color:var(--ink);
+       border-bottom:1px solid var(--hairline);padding-bottom:.18em}
   .expbody ul,.expbody ol,.msg .txt ul,.msg .txt ol,.qa .a ul,.qa .a ol{margin:.4em 0;padding-left:1.4em}
   .expbody li,.msg .txt li,.qa .a li{margin:.15em 0}
   .expbody code,.msg .txt code,.qa .a code{background:var(--surface-2);border:1px solid var(--hairline);padding:0 4px;font-size:.92em;font-family:var(--mono)}
@@ -152,21 +166,92 @@
   .katex-error{color:var(--err) !important;font-family:var(--mono);font-size:.92em}
   .mini .katex{font-size:.95em}
   .mini .m-text .katex-display{margin:.2em 0}
-  .inputrow{flex:0 0 auto;display:flex;gap:7px;padding:9px 11px;border-top:1px solid var(--hairline);background:var(--paper)}
-  .inputrow input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--hairline);color:var(--ink);
-                  padding:7px 11px;font-size:13.5px;font-family:var(--sans)}
-  .inputrow input:focus{outline:none;border-color:var(--accent)}
-  .inputrow button{background:var(--ink);color:var(--paper);border:none;padding:7px 16px;font-weight:600}
-  .inputrow button:hover{background:var(--accent);color:var(--paper)}
+
+  /* ============ 空态：设计过的“空” ============
+     空态不是一句灰色提示扔在巨大空白里：用小标 + 大标题 + 说明 + 编号阶梯
+     把“这里会发生什么”排版出来；底部一条渐隐的横线纸纹，表示“等你起笔”。 */
+  .blank{padding:clamp(26px,7.5vh,68px) 2px 0;max-width:34em;min-height:100%;display:flex;flex-direction:column}
+  .blank .kicker{display:flex;align-items:center;gap:10px;margin:0 0 18px;
+                 font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--ink-3)}
+  .blank .kicker::before{content:"";flex:0 0 auto;width:26px;height:1px;background:var(--accent)}
+  .blank h2{margin:0 0 14px;font-family:var(--serif);font-weight:600;
+            font-size:clamp(30px,3.6vw,42px);line-height:1.22;letter-spacing:-.01em;color:var(--ink)}
+  .blank h2 .dot{color:var(--accent)}
+  .blank .lede{margin:0 0 clamp(20px,4vh,34px);max-width:30em;font-family:var(--serif);
+               font-size:15px;line-height:1.95;color:var(--ink-2);text-wrap:pretty}
+  .blank ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--hairline)}
+  .blank li{display:grid;grid-template-columns:2.2em 4.4em minmax(0,1fr);align-items:baseline;gap:10px;
+            padding:11px 0;border-bottom:1px solid var(--hairline)}
+  .blank li .n{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-3)}
+  .blank li .t{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .blank li .d{font-size:12.5px;line-height:1.65;color:var(--ink-2)}
+  /* 页脚版口：把“下半页”收成一句极小的刊物信息，空白因此是被排过的，而不是漏排的 */
+  .blank .folio{margin-top:auto;padding-top:13px;display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+                border-top:1px solid var(--hairline);font-family:var(--mono);font-size:10.5px;
+                letter-spacing:.12em;color:var(--ink-3);white-space:nowrap}
+
+  /* 侧栏空态：用三级横线示意“解释会一层层长出来”，不放假数据 */
+  .blank-list,.blank-prev{height:100%;display:flex;flex-direction:column;justify-content:center;
+                          gap:14px;padding:18px;max-width:26em}
+  .blank-list .ladder{display:flex;flex-direction:column;gap:7px;max-width:190px}
+  .blank-list .rung{display:flex;align-items:center;gap:9px}
+  .blank-list .rung .k{width:2.2em;flex:0 0 auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--ink-3)}
+  .blank-list .rung .bar{height:1px;background:var(--hairline)}
+  .blank-list .rung:nth-child(1) .bar{flex:0 0 44%;background:var(--accent)}
+  .blank-list .rung:nth-child(2) .bar{flex:0 0 30%}
+  .blank-list .rung:nth-child(3) .bar{flex:0 0 16%}
+  .blank-list .t,.blank-prev .t{font-family:var(--serif);font-size:14.5px;font-weight:600;color:var(--ink)}
+  .blank-list .d,.blank-prev .d{font-size:12.5px;line-height:1.8;color:var(--ink-2);text-wrap:pretty}
+  .blank-list .d b,.blank-prev .d b{color:var(--ink);font-weight:600}
+  .blank-prev .plan{display:flex;gap:8px;width:min(300px,100%);flex:0 0 auto;height:168px}
+  .blank-prev .pg{display:flex;flex-direction:column;gap:10px;position:relative;padding:13px;
+                  border:1px solid var(--hairline);background:var(--surface)}
+  .blank-prev .pg-main{flex:1.7;min-width:0}
+  .blank-prev .pg-side{flex:1;min-width:0;background:var(--paper)}
+  .blank-prev .pg-main::before{content:"";position:absolute;left:-1px;top:-1px;width:18px;height:2px;background:var(--accent)}
+  .blank-prev .bar{height:1px;background:var(--hairline)}
+  .blank-prev .bar.w70{width:70%}
+  .blank-prev .bar.w55{width:55%}
+  .blank-prev .bar.w85{width:85%}
+  .blank-prev .bar.w45{width:45%}
+  .blank-prev .bar.w62{width:62%}
+  .blank-prev .bar.w38{width:38%}
+  .blank-prev .bar.w78{width:78%}
+  .blank-prev .bar.w50{width:50%}
+  .blank-prev .bar.w68{width:68%}
+  .blank-prev .bar.w40{width:40%}
+
+  /* ============ 输入区 ============
+     44px 是触控下限：输入框 / 发送 / 档位 / 小动作同一行对齐，桌面与手机同一标准。
+     输入框 15px（小于 16px 的 iOS 输入框会触发聚焦缩放；这里桌面为主，手机横屏仍可读）。 */
+  .inputrow{flex:0 0 auto;display:flex;align-items:stretch;gap:8px;padding:12px 14px;
+            border-top:1px solid var(--hairline);background:var(--paper)}
+  .inputrow input{flex:1 1 auto;min-width:0;height:46px;background:var(--surface);border:1px solid var(--hairline);
+                  color:var(--ink);padding:0 13px;font-size:15px;font-family:var(--sans)}
+  .inputrow input::placeholder{color:var(--ink-3);opacity:1}
+  .inputrow input:focus{outline:1px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .inputrow button{height:46px;background:var(--ink);color:var(--paper);border:1px solid var(--ink);
+                   padding:0 20px;font-size:14px;font-weight:600;letter-spacing:.02em;font-family:var(--sans)}
+  .inputrow button:hover{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+  .inputrow button:active{background:var(--ink);border-color:var(--ink)}
   /* 本行里的 .mini 是「按钮」，不是右侧那张预览卡：预览卡规则 .mini{height:100%} 会漏进来，
      换行成两行后 height:100% 按「行框内容高」解析（≈76px），把控制行撑出行框、被 .mainpane 裁掉。
-     只复原高度（保留 display:flex，字符仍居中；不影响其它地方的 button.mini）。 */
-  .inputrow button.mini{height:auto}
-  /* 档位：新解释的档位（原生 select，键盘可达；单一真源 state.defaultStyle） */
-  .inputrow select{flex:0 0 auto;background:var(--paper);border:1px solid var(--hairline);color:var(--ink-2);
-                   padding:7px 6px;font-size:12px;font-family:var(--sans)}
+     这里显式给高度（与输入框同高），不再依赖 auto。 */
+  .inputrow button.mini{width:44px;height:46px;flex:0 0 auto;padding:0;background:none;border:1px solid transparent;
+                        color:var(--ink-2);font-size:16px;font-weight:400}
+  .inputrow button.mini:hover{background:var(--accent-wash);border-color:var(--hairline);color:var(--ink)}
+  /* 档位：新解释的档位（原生 select，键盘可达；单一真源 state.defaultStyle）。
+     箭头自绘成两道 5px 的斜线，颜色吃 --ink-2 —— 原生箭头在纸感里太“系统”。 */
+  .inputrow select{flex:0 0 auto;height:46px;background-color:var(--paper);border:1px solid var(--hairline);
+                   color:var(--ink-2);padding:0 30px 0 12px;font-size:13px;font-family:var(--sans);
+                   appearance:none;-webkit-appearance:none;
+                   background-image:linear-gradient(45deg,transparent 50%,var(--ink-2) 50%),
+                                    linear-gradient(135deg,var(--ink-2) 50%,transparent 50%);
+                   background-position:calc(100% - 16px) calc(50% + 1px),calc(100% - 11px) calc(50% + 1px);
+                   background-size:5px 5px,5px 5px;background-repeat:no-repeat}
   .inputrow select:hover{border-color:var(--ink);color:var(--ink)}
-  mark.hl{background:var(--accent-wash);border-bottom:1.5px solid var(--accent)}
+  .inputrow select:focus-visible{border-color:var(--accent)}
+  mark.hl{background:var(--select);border-bottom:1.5px solid var(--accent)}
 
   /* 介绍页 */
   #intro{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal);display:flex;align-items:center;justify-content:center}
@@ -174,29 +259,29 @@
   /* 落地卡：只留「是什么 → 怎么开始」。快捷键 / 隐私 / 额度收进一个 <details>，
      站内 4 个链接压成一行页脚小字。展开后会高过短屏 → 让卡片自己滚：
      #intro 是 fixed inset:0 且不滚动，卡片撑破视口就再也点不到按钮。 */
-  .icard{width:min(520px, calc(100vw - 24px));padding:34px 40px 24px;border:1px solid var(--rule);background:var(--surface);
+  .icard{width:min(520px, calc(100vw - 24px));padding:36px 42px 26px;border:1px solid var(--rule);background:var(--surface);
          text-align:center;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
-  .icard h1{margin:0 0 2px;font-size:34px;font-family:var(--serif);font-weight:600}
+  .icard h1{margin:0 0 2px;font-size:36px;font-family:var(--serif);font-weight:600;letter-spacing:.01em}
   .icard h1 span{font-size:14px;color:var(--ink-3);font-weight:400;margin-left:10px;font-family:var(--sans)}
-  .icard .slogan{color:var(--accent);font-style:italic;margin-bottom:18px;font-family:var(--serif)}
-  .icard .irow{font-size:15px;line-height:1.85;margin-bottom:18px;color:var(--ink-2);text-wrap:balance}
+  .icard .slogan{color:var(--accent);font-style:italic;margin-bottom:20px;font-family:var(--serif)}
+  .icard .irow{font-size:15.2px;line-height:1.9;margin-bottom:20px;color:var(--ink-2);text-wrap:balance}
   .icard .irow b{color:var(--ink);font-weight:600}
-  .icard button{font-size:15px;padding:8px 28px;background:var(--ink);color:var(--paper);font-weight:600;border:none;font-family:var(--sans)}
-  .icard button:hover{background:var(--accent);color:var(--paper)}
+  .icard button{min-height:46px;font-size:15px;padding:0 28px;background:var(--ink);color:var(--paper);font-weight:600;border:1px solid var(--ink);font-family:var(--sans)}
+  .icard button:hover{background:var(--accent);border-color:var(--accent);color:var(--paper)}
   .icard .ibtns{display:flex;gap:10px;justify-content:center}
   .icard button.ghost{background:none;color:var(--ink);border:1px solid var(--hairline)}
-  .icard button.ghost:hover{border-color:var(--ink);color:var(--ink)}
+  .icard button.ghost:hover{border-color:var(--ink);color:var(--ink);background:none}
   .icard .inote{font-size:12.5px;color:var(--ink-3);line-height:1.9;margin-bottom:14px}
   .icard a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--hairline)}
   .icard a:hover{color:var(--accent);border-bottom-color:var(--accent-line)}
   /* 匿名提示：只有一句，跟在按钮组下面 */
-  #anonNote{margin:12px 0 0;font-size:12px;line-height:1.8}
+  #anonNote{margin:14px 0 0;font-size:12px;line-height:1.8}
   /* —— 折叠区：快捷键 + 数据与额度 —— */
-  .icard .imore{margin:20px 0 0;border-top:1px solid var(--hairline);text-align:left}
+  .icard .imore{margin:22px 0 0;border-top:1px solid var(--hairline);text-align:left}
   .icard .imore summary{list-style:none;cursor:pointer;position:relative;margin:0;
-                        padding:9px 0 9px 18px;font:11.5px/1.5 var(--mono);letter-spacing:.03em;color:var(--ink-3)}
+                        padding:10px 0 10px 18px;font:11.5px/1.5 var(--mono);letter-spacing:.04em;color:var(--ink-3)}
   .icard .imore summary::-webkit-details-marker{display:none}
-  .icard .imore summary::before{content:"+";position:absolute;left:2px;top:9px;color:var(--accent);font-size:13px;line-height:1.35}
+  .icard .imore summary::before{content:"+";position:absolute;left:2px;top:10px;color:var(--accent);font-size:13px;line-height:1.35}
   .icard .imore[open] summary::before{content:"–"}
   .icard .imore summary:hover{color:var(--ink)}
   .icard .imore summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;color:var(--ink)}
@@ -215,23 +300,23 @@
 
   /* 账户 / 配额 / 引导 */
   .hidden{display:none !important}
-  .qbadge{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);border:1px solid var(--hairline);padding:2px 8px}
+  .qbadge{font-family:var(--mono);font-size:11px;color:var(--ink-2);border:1px solid var(--hairline);padding:2px 8px}
   .qbadge.deg{color:var(--warn);border-color:var(--warn)}
   #authModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-hi);display:flex;align-items:center;justify-content:center}
   /* 密钥：叠在设置 / 账号之上（最上层模态），并与分享共用同一层（两者不会同时出现） */
   #keyModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-top);display:flex;align-items:center;justify-content:center}
   /* 设置（用户配置）：站长那套默认不出现（见 #adminGroup）；密钥面板叠在设置之上 */
   #settingsModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-hi);display:flex;align-items:center;justify-content:center}
-  #settingsModal .acard{width:400px;max-height:88vh;overflow:auto}
-  .sgroup{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-3);
-          border-bottom:1px solid var(--hairline);padding-bottom:3px;margin:16px 0 8px}
+  #settingsModal .acard{width:min(400px,calc(100vw - 28px));max-height:88vh;overflow:auto}
+  .sgroup{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);
+          border-bottom:1px solid var(--hairline);padding-bottom:4px;margin:18px 0 9px}
   .sgroup:first-of-type{margin-top:4px}
-  .srow2{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-  .srow2 button{flex:0 0 auto}
-  .slinks{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px}
+  .srow2{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .srow2 button{flex:0 0 auto;min-height:36px}
+  .slinks{display:flex;flex-wrap:wrap;gap:7px 14px;align-items:center;font-size:12.5px}
   .slinks a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-line)}
   .slinks a:hover{background:var(--accent-wash)}
-  .shint{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin-top:6px}
+  .shint{font-size:12px;color:var(--ink-3);line-height:1.75;margin-top:7px}
   .shint a{color:var(--ink-2)}
   #settingsAuth{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* 外观：三态分段控件（跟随系统 / 亮 / 暗）
@@ -240,7 +325,7 @@
      键盘：roving tabindex + 方向键（见脚本「外观」段），焦点环走全局 :focus-visible。 */
   .seg{display:inline-flex;border:1px solid var(--hairline);background:var(--paper);vertical-align:middle}
   .seg button{appearance:none;background:none;border:0;border-right:1px solid var(--hairline);
-              border-radius:0;padding:5px 15px;color:var(--ink-2);font-size:12.5px;font-family:var(--sans);
+              border-radius:0;padding:0 16px;min-height:36px;color:var(--ink-2);font-size:13px;font-family:var(--sans);
               cursor:pointer;line-height:1.5}
   .seg button:last-child{border-right:0}
   .seg button:hover{background:var(--accent-wash);color:var(--ink)}
@@ -248,28 +333,29 @@
   .seg button[aria-checked="true"]:hover{background:var(--accent);color:var(--paper)}
   .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   #adminGroup .shint{color:var(--ink-3)}
-  .acard{width:360px;background:var(--surface);border:1px solid var(--rule);padding:20px 22px}
-  .acard .atabs{display:flex;gap:14px;align-items:center;margin-bottom:14px;font-size:15px}
+  .acard{width:min(360px,calc(100vw - 28px));background:var(--surface);border:1px solid var(--rule);padding:22px 24px}
+  .acard .atabs{display:flex;gap:14px;align-items:center;margin-bottom:16px;font-size:15px}
   .acard .atabs span{cursor:pointer;color:var(--ink-3)}
+  .acard .atabs span:hover{color:var(--ink)}
   .acard .atabs span.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--accent)}
   .acard .atabs .x{margin-left:auto;font-size:20px;line-height:1;color:var(--ink-3);border-bottom:none}
-  .acard input{width:100%;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
-               padding:9px 12px;font-size:14px;margin-bottom:10px;font-family:var(--sans)}
-  .acard input:focus{outline:none;border-color:var(--accent)}
-  .acard .primary{width:100%;background:var(--ink);color:var(--paper);font-weight:600;border:none;padding:9px;font-size:14.5px}
-  .acard .primary:hover{background:var(--accent);color:var(--paper)}
+  .acard input{width:100%;height:44px;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
+               padding:0 12px;font-size:14.5px;margin-bottom:10px;font-family:var(--sans)}
+  .acard input:focus{border-color:var(--accent)}
+  .acard .primary{width:100%;min-height:46px;background:var(--ink);color:var(--paper);font-weight:600;border:1px solid var(--ink);padding:0 9px;font-size:15px}
+  .acard .primary:hover{background:var(--accent);border-color:var(--accent);color:var(--paper)}
   .acard .amsg{color:var(--err);font-size:12.5px;min-height:18px;margin-bottom:6px}
-  .acard .afoot{margin-top:12px;font-size:12.5px;color:var(--ink-3);text-align:center}
-  .acard .ahint{font-size:12px;color:var(--ink-3);line-height:1.6;margin-top:-4px}
+  .acard .afoot{margin-top:14px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  .acard .ahint{font-size:12px;color:var(--ink-3);line-height:1.65;margin-top:-4px}
   .acard .afoot span{cursor:pointer;text-decoration:underline dotted}
   .acard .mine{font-size:13.5px;margin-bottom:12px}
   #keyModal textarea{width:100%;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
-                     padding:9px 12px;font-size:13px;margin-bottom:10px;min-height:74px;resize:vertical;
+                     padding:10px 12px;font-size:13.5px;line-height:1.7;margin-bottom:10px;min-height:78px;resize:vertical;
                      font-family:var(--mono)}
-  #keyModal textarea:focus{outline:none;border-color:var(--accent)}
-  #keyModal .lbl{font-size:12px;color:var(--ink-3);margin:2px 0 4px}
+  #keyModal textarea:focus{border-color:var(--accent)}
+  #keyModal .lbl{font-size:12px;color:var(--ink-3);margin:2px 0 5px}
   #keyModal .knote{font-size:12px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--hairline);
-                   padding:6px 10px;margin-bottom:10px}
+                   padding:8px 10px;margin-bottom:12px;line-height:1.7}
   #keyModal .knote b{color:var(--accent)}
   #keyModal .kstatus{font-size:12.5px;color:var(--accent);margin-bottom:10px;min-height:18px}
   #keyModal .row{display:flex;gap:8px;margin-top:4px}
@@ -278,74 +364,81 @@
   #redeemBox input{margin-bottom:0}
   #redeemBox button{flex:0 0 auto;padding:0 14px}
   #coach{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:var(--z-coach);
-         background:var(--surface);border:1px solid var(--rule);padding:12px 16px;
-         display:flex;align-items:center;gap:12px;max-width:80vw;box-shadow:var(--float)}
+         background:var(--surface);border:1px solid var(--rule);padding:13px 18px;
+         display:flex;align-items:center;gap:12px;max-width:80vw}
   #coach .ctext{font-size:14px;line-height:1.7}
   #coach .cx{background:none;border:none;color:var(--ink-3);font-size:18px;cursor:pointer}
   /* 窄屏：常驻反馈胶囊也在右下角，教练气泡上移让它 */
   @media (max-width:600px){ #coach{bottom:56px} }
   #toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:var(--z-max);background:var(--slab-bg);color:var(--slab-fg);
-         border:1px solid var(--slab-line);padding:8px 16px;font-size:13.5px;
-         opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:var(--float)}
+         border:1px solid var(--slab-line);padding:10px 18px;font-size:14px;
+         opacity:0;transition:opacity .25s;pointer-events:none}
   #toast.show{opacity:1}
 
   /* 气泡（划词：解释 + 可选疑惑） */
-  #bubble{position:absolute;z-index:var(--z-pill);display:none;width:296px;background:var(--surface);
-          border:1px solid var(--rule);box-shadow:var(--float);padding:8px}
-  #bubble .bterm{font-family:var(--serif);font-size:12.5px;color:var(--ink-3);
-                 margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #bubble .brow{display:flex;gap:6px}
-  #bubble input{flex:1;min-width:0;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
-                padding:5px 8px;font-size:12.5px;font-family:var(--sans)}
-  #bubble input:focus{outline:none;border-color:var(--accent)}
-  #bubble button{flex:0 0 auto;background:var(--ink);color:var(--paper);border:none;padding:5px 12px;
-       font-weight:600;font-size:13px;box-shadow:none}
-  #bubble button:hover{background:var(--accent)}
+  #bubble{position:absolute;z-index:var(--z-pill);display:none;width:318px;background:var(--surface);
+          border:1px solid var(--rule);padding:10px}
+  #bubble .bterm{font-family:var(--serif);font-size:13px;color:var(--ink-3);
+                 margin:0 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #bubble .brow{display:flex;gap:7px}
+  #bubble input{flex:1;min-width:0;height:36px;background:var(--paper);border:1px solid var(--hairline);color:var(--ink);
+                padding:0 10px;font-size:13.5px;font-family:var(--sans)}
+  #bubble input:focus{border-color:var(--accent)}
+  #bubble button{flex:0 0 auto;height:36px;background:var(--ink);color:var(--paper);border:1px solid var(--ink);padding:0 14px;
+       font-weight:600;font-size:13.5px}
+  #bubble button:hover{background:var(--accent);border-color:var(--accent)}
   /* 已移除：随设置面板内嵌（不再是顶栏那个浮动小窗） */
-  #closedList{display:none;background:var(--paper);border:1px solid var(--hairline);padding:6px 9px;margin-top:6px;
+  #closedList{display:none;background:var(--paper);border:1px solid var(--hairline);padding:8px 10px;margin-top:8px;
               max-height:170px;overflow:auto}
-  #closedList .item{display:flex;gap:8px;align-items:center;padding:3px 2px}
+  #closedList .item{display:flex;gap:8px;align-items:center;padding:4px 2px}
   #closedList .item span{color:var(--ink-2);font-size:12.5px;flex:1}
-  .hint{color:var(--ink-3);font-size:12.5px;padding:14px;line-height:2}
+  .hint{color:var(--ink-3);font-size:12.5px;padding:16px;line-height:2}
 
   /* 分享卡片 */
   #shareModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-top);display:flex;align-items:center;justify-content:center}
   #shareModal.hidden{display:none}
-  .sbox{display:flex;flex-direction:column;gap:10px;max-height:94vh;padding:14px;background:var(--surface);
+  .sbox{display:flex;flex-direction:column;gap:12px;max-height:94vh;padding:16px;background:var(--surface);
         border:1px solid var(--rule)}
   .sbox canvas{max-height:60vh;max-width:100%;width:auto;height:auto;border:1px solid var(--hairline)}
-  .sopts{display:flex;gap:14px;font-size:12.5px;color:var(--ink-3);align-items:center;flex-wrap:wrap}
-  .sopts label{cursor:pointer;display:flex;gap:4px;align-items:center}
+  .sopts{display:flex;gap:14px;font-size:13px;color:var(--ink-2);align-items:center;flex-wrap:wrap}
+  .sopts label{cursor:pointer;display:flex;gap:5px;align-items:center}
   .sopts input{accent-color:var(--accent)}
   .srow{display:flex;gap:8px}
-  .srow .primary{background:var(--ink);color:var(--paper);font-weight:600;border:none;padding:6px 18px;cursor:pointer}
-  .srow .primary:hover{background:var(--accent)}
+  .srow .primary{min-height:40px;background:var(--ink);color:var(--paper);font-weight:600;border:1px solid var(--ink);padding:0 20px;cursor:pointer}
+  .srow .primary:hover{background:var(--accent);border-color:var(--accent)}
   #shareJson{width:420px;max-width:min(420px,80vw);max-height:130px;overflow:auto;background:var(--slab-bg);color:var(--slab-fg);
-             border:1px solid var(--slab-line);font:11px/1.5 var(--mono);padding:8px;display:none;white-space:pre;margin:0}
+             border:1px solid var(--slab-line);font:11.5px/1.6 var(--mono);padding:9px;display:none;white-space:pre;margin:0}
 
   /* 窄一点的窗口先让出英文副题：顶栏不换行、不推挤动作 */
   @media (max-width:1200px){ header .sub{display:none} }
 
   @media (max-width:820px){
-    header{padding:6px 10px}
-    #crumbbar{padding:3px 10px}
-    #stage{padding:4px}
-    .room{flex-direction:column;overflow-y:auto}
+    header{padding:8px 12px}
+    #crumbbar{padding:4px 12px}
+    #stage{padding:6px}
+    .room{flex-direction:column;overflow-y:auto;gap:8px}
     .splitter{display:none}
-    .room>.mainpane{flex:1 0 auto;min-height:62vh}
+    .room>.mainpane{flex:1 0 auto;min-height:64vh}
     .side{flex:0 0 auto;min-width:0}
-    .lists{max-height:46vh}
-    .preview{min-height:180px}
-    .icard{margin:0 12px;padding:24px 18px;max-width:100%}
+    .lists{flex:0 0 auto;max-height:46vh}
+    .preview{flex:0 0 auto;min-height:200px}
+    .icard{margin:0 12px;padding:26px 20px;max-width:100%}
     .acard{width:min(360px,calc(100vw - 28px))}
+    .content .ctext{padding:18px 20px 20px}
+    .blank{padding-top:clamp(20px,4.5vh,40px)}
+    .blank-list,.blank-prev{padding:14px}
   }
-  /* 手机：追问行有 5 个控件，硬挤会把输入框压扁（native select 有最小内容宽度，收不窄），
-     还会让最后一个按钮被 .mainpane 的 overflow:hidden 悄悄裁掉。
-     让输入框独占一行、控制行另起一行——输框变宽、点按目标不变小。 */
+  /* 手机：输入框独占一行，控件另起一行——输框不被挤窄，点按目标也不缩小。
+     两行都这样处理（主对话行 3 个控件、追问行 5 个），宽度 390 时也不横溢。 */
   @media (max-width:560px){
-    .inputrow[data-row="ask"]{flex-wrap:wrap}
-    .inputrow[data-row="ask"] input{flex:1 1 100%}
+    .inputrow{flex-wrap:wrap;padding:10px}
+    .inputrow input{flex:1 1 100%;height:46px;font-size:16px}   /* ≥16px：iOS 聚焦不再放大页面 */
+    .inputrow[data-row="ask"] button[data-ask],
+    .inputrow[data-row="conv"] button[data-send]{flex:0 0 auto}
+    .inputrow select{flex:0 0 auto;margin-left:auto}
     header #authBtn{max-width:84px}
+    .blank li{grid-template-columns:2em 4em minmax(0,1fr);gap:8px}
+    .blank .folio{font-size:10px;letter-spacing:.1em}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
@@ -847,7 +940,17 @@ function renderMain(node, depth){
       body.appendChild(el);
     }
     if(!(node.messages||[]).length)
-      body.insertAdjacentHTML("beforeend", `<div class="hint">问点什么——问题意识从这里开始。<br>AI 的回答会被划词、被继续切开。</div>`);
+      body.insertAdjacentHTML("beforeend", `<div class="blank">
+        <div class="kicker">主对话 · 第 0 层</div>
+        <h2>问点什么<span class="dot">。</span></h2>
+        <p class="lede">问题意识从这里开始。AI 的回答会被划词、被继续切开，一层层到底。</p>
+        <ol>
+          <li><span class="n">01</span><span class="t">提问</span><span class="d">在下方输入框写下第一个问题</span></li>
+          <li><span class="n">02</span><span class="t">划词</span><span class="d">选中回答里不懂的词，得到一块解释</span></li>
+          <li><span class="n">03</span><span class="t">再问</span><span class="d">在解释上继续划，直到问到底</span></li>
+        </ol>
+        <div class="folio" aria-hidden="true"><span>WENDI · 主对话</span><span>第 0 层 / 未起笔</span></div>
+      </div>`);
     main.appendChild(body);
     const row = div("inputrow");
     row.dataset.row = "conv";
@@ -877,11 +980,19 @@ function renderSide(node, key){
   // —— 列表 ——
   const lists = div("lists");
   const lhead = div("lhead");
-  lhead.innerHTML = `解释列表 <span style="opacity:.6">(${node.children.length})</span> · 划词产生新的`;
+  lhead.innerHTML = `解释列表 <span class="dim">(${node.children.length})</span> · 划词产生新的`;
   const lbody = div("lbody");
   lbody.dataset.scrollKey = "list-" + node.id;
   if(!node.children.length){
-    lbody.innerHTML = `<div class="lempty">这里还是空的。<br>在左侧正文里<b>划词</b>，就会长出第一块解释。</div>`;
+    lbody.innerHTML = `<div class="blank-list">
+      <div class="ladder" aria-hidden="true">
+        <div class="rung"><span class="k">L1</span><span class="bar"></span></div>
+        <div class="rung"><span class="k">L2</span><span class="bar"></span></div>
+        <div class="rung"><span class="k">L3</span><span class="bar"></span></div>
+      </div>
+      <div class="t">还没有解释</div>
+      <div class="d">在左侧正文里<b>划词</b>，第一块解释会出现在这里；<br>再划，就往下长一层。</div>
+    </div>`;
   } else {
     const sel = selectedChild(node);
     for(const c of node.children){
@@ -909,8 +1020,14 @@ function renderSide(node, key){
   if(sel){
     pbody.appendChild(renderMini(sel));
   } else {
-    pbody.innerHTML = `<div class="lempty" style="padding:16px;color:var(--ink-3);font-size:12.5px;line-height:2">
-      选中列表里的解释，这里显示它的内容；<br>点「进入」或直接点它，视野就切换进去。</div>`;
+    pbody.innerHTML = `<div class="blank-prev">
+      <div class="plan" aria-hidden="true">
+        <div class="pg pg-main"><span class="bar w70"></span><span class="bar"></span><span class="bar w85"></span><span class="bar w55"></span><span class="bar"></span><span class="bar w62"></span><span class="bar"></span><span class="bar w78"></span><span class="bar w50"></span><span class="bar w68"></span></div>
+        <div class="pg pg-side"><span class="bar"></span><span class="bar w70"></span><span class="bar w45"></span><span class="bar w38"></span><span class="bar"></span><span class="bar w62"></span><span class="bar w40"></span></div>
+      </div>
+      <div class="t">下一层从这里展开</div>
+      <div class="d">选中列表里的解释，这里显示它的内容；点「进入」或直接点它，视野就切换进去。</div>
+    </div>`;
   }
   preview.append(phead, pbody);
   side.append(lists, preview);
@@ -933,8 +1050,8 @@ function renderMini(node){
   const n = node.children.length;
   list.innerHTML = `<div class="t">子解释 ${n}</div>` +
     node.children.slice(0,3).map(c => `<div class="i">· ${esc(c.term)}</div>`).join("") +
-    (n > 3 ? `<div class="i" style="opacity:.6">… 还有 ${n-3} 条</div>` : "") +
-    (n === 0 ? `<div class="i" style="opacity:.6">（空）</div>` : "");
+    (n > 3 ? `<div class="i dim">… 还有 ${n-3} 条</div>` : "") +
+    (n === 0 ? `<div class="i dim">（空）</div>` : "");
   const deeper = div("m-deeper");
   deeper.textContent = n ? "里面还有更深的层" : "进入后可继续划词";
   side.append(list, deeper);
