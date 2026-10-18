@@ -52,7 +52,16 @@ export WENDI_ADMIN_TOKEN=换一个自己的管理令牌
 python3 server.py        # → http://127.0.0.1:8899
 ```
 
-零依赖：只用 Python 3 标准库。
+核心服务零依赖：只用 Python 3 标准库。**材料解析**（上传 PDF / DOCX / 等 88+ 格式）需要可选依赖
+[kreuzberg](https://github.com/Goldziher/kreuzberg) 4.10.x：
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python server.py
+```
+
+不装也能启动，只是上传接口返回 `503 parser_unavailable`。
 
 可配置环境变量：
 
@@ -73,6 +82,10 @@ python3 server.py        # → http://127.0.0.1:8899
 | `WENDI_LIMIT_GLOBAL_DAY` | 4000 | 全局每天上限（成本闸） |
 | `WENDI_MAX_TOKENS` | 3000 | 划词解释/追问的单次输出上限 |
 | `WENDI_MAX_TOKENS_CHAT` | 8000 | 主对话的单次输出上限（长答不再截断；降级档另有上限） |
+| `WENDI_MATERIALS_DIR` | `~/.wendi/materials` | 材料原始文件目录（按用户分 0700 子目录） |
+| `WENDI_UPLOAD_MAX_MB` | 30 | 单文件上传上限（MB） |
+| `WENDI_MATERIALS_MAX` | 200 | 单用户材料条数上限 |
+| `WENDI_MATERIALS_MAX_MB` | 500 | 单用户原始文件总额（MB） |
 
 ### 部署
 
@@ -82,7 +95,10 @@ python3 server.py        # → http://127.0.0.1:8899
 ## 结构
 
 ```
-server.py        薄代理：转发 LLM 调用 + 限流（防滥用/成本闸）
+server.py        薄代理：转发 LLM 调用 + 限流（防滥用/成本闸）+ 材料上传接口
+materials.py     材料解析：kreuzberg 懒加载 + 全文/分块/页码规范化
+db.py            SQLite：账户、配额、事件、云同步、材料（materials / material_chunks）
+requirements.txt 唯一第三方依赖：kreuzberg（不装也能启动）
 kernel.py        内核：事件总线 + 服务注册 + 作用域生命周期（借鉴 cordis，MIT）
 prompts.py       解释器人格：划词解释 / 卡内追问 / 主对话 三个提示词
 web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像机 + 键盘导航
@@ -98,6 +114,7 @@ scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md
 deploy/          部署件（systemd / nginx / 部署脚本）
 tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
+docs/materials-api.md  材料上传/解析/读取接口（含 curl 示例与部署提示）
 ```
 
 前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc`/`Alt+←` 返回上层、`↑↓` 切换子解释、`Alt+Enter`/`Alt+→` 进入（进/退都带 Alt，避免生成过程中误触把回答顶出视野）、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）。导出 / 图谱 / 示例 / 已移除 / 清空都收在顶栏「设置」里；反馈入口 = 设置面板 + 右下角常驻「反馈 / 建议」；站长那套（服务端密钥 / 站长后台 / 计量台）默认不显示，带 `?admin=1` 或存过 admin 令牌才出现。
