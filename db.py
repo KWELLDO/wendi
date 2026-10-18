@@ -147,6 +147,39 @@ def init() -> None:
             detail TEXT NOT NULL DEFAULT '',
             ip TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS materials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            mime TEXT NOT NULL DEFAULT '',
+            ext TEXT NOT NULL DEFAULT '',
+            size INTEGER NOT NULL DEFAULT 0,
+            sha256 TEXT NOT NULL DEFAULT '',
+            path TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'ready',
+            error TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            char_count INTEGER NOT NULL DEFAULT 0,
+            page_count INTEGER NOT NULL DEFAULT 0,
+            chunk_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            parsed_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_materials_user ON materials(user_id, id DESC);
+        CREATE TABLE IF NOT EXISTS material_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            material_id INTEGER NOT NULL,
+            idx INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            byte_start INTEGER NOT NULL DEFAULT 0,
+            byte_end INTEGER NOT NULL DEFAULT 0,
+            char_start INTEGER NOT NULL DEFAULT 0,
+            char_end INTEGER NOT NULL DEFAULT 0,
+            first_page INTEGER NOT NULL DEFAULT 0,
+            last_page INTEGER NOT NULL DEFAULT 0,
+            token_count INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_material_chunks_mat ON material_chunks(material_id, idx);
         """)
         try:
             c.execute("ALTER TABLE users ADD COLUMN day_key TEXT NOT NULL DEFAULT ''")
@@ -161,7 +194,8 @@ def init() -> None:
                     "ALTER TABLE codes ADD COLUMN kind TEXT NOT NULL DEFAULT 'pro'",
                     "ALTER TABLE codes ADD COLUMN tester_label TEXT NOT NULL DEFAULT ''",
                     "ALTER TABLE meter_requests ADD COLUMN session_id TEXT NOT NULL DEFAULT ''",
-                    "ALTER TABLE meter_requests ADD COLUMN room_id TEXT NOT NULL DEFAULT ''"):
+                    "ALTER TABLE meter_requests ADD COLUMN room_id TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE materials ADD COLUMN content TEXT NOT NULL DEFAULT ''"):
             try:
                 c.execute(ddl)
             except sqlite3.OperationalError:
@@ -284,9 +318,11 @@ def consume_quota(uid: int, limit: int) -> tuple[bool, int, int]:
 
 
 def quota_state(user: sqlite3.Row) -> dict:
+    """配额快照（登录/注册/兑换/me 共用同一形状，前端读 quota.plan）。"""
     d = today()
     used = user["day_used"] if user["day_key"] == d else 0
-    return {"used": used, "limit": quota_limit(user), "date": d}
+    return {"plan": effective_plan(user), "used": used,
+            "limit": quota_limit(user), "date": d}
 
 
 def refund_quota(uid: int) -> None:
@@ -909,3 +945,94 @@ def invite_claim(code: str, uid: int) -> tuple[bool, str, int]:
             return False, "这是兑换码，不是邀请码", 0
         c.execute("UPDATE codes SET used_by=?, used_at=? WHERE code=?", (uid, now(), code))
         return True, "ok", int(row["days"] or 0)
+
+
+# ================= 材料 =================
+# 文件本体在 ~/.wendi/materials/<user_id>/ 下（server.py 管），库里只存元数据与分块。
+# 所有读取都带 user_id：材料是私有物，越权一律当不存在（404），不做 403 泄露存在性。
+def material_save(user_id: int, filename: str, mime: str, ext: str, size: int,
+                  sha256: str, path: str, content: str, page_count: int,
+                  chunks: list[dict]) -> int:
+    """一次事务写入材料（全文 + 元数据）+ 全部分块，返回材料 id。"""
+    ts = now()
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO materials (user_id, filename, mime, ext, size, sha256, path, status, "
+            "error, content, char_count, page_count, chunk_count, created_at, parsed_at) "
+            "VALUES (?,?,?,?,?,?,?,'ready','',?,?,?,?,?,?)",
+            (user_id, filename, mime, ext, size, sha256, path,
+             content, len(content), page_count, len(chunks), ts, ts))
+        mid = int(cur.lastrowid)
+        if chunks:
+            c.executemany(
+                "INSERT INTO material_chunks (material_id, idx, content, byte_start, byte_end, "
+                "char_start, char_end, first_page, last_page, token_count) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                [(mid, int(ch.get("idx", i)), ch.get("content", ""),
+                  int(ch.get("byte_start") or 0), int(ch.get("byte_end") or 0),
+                  int(ch.get("char_start") or 0), int(ch.get("char_end") or 0),
+                  int(ch.get("first_page") or 0), int(ch.get("last_page") or 0),
+                  ch.get("token_count"))
+                 for i, ch in enumerate(chunks)])
+        return mid
+
+
+def material_get(uid: int, mid: int, with_content: bool = True) -> dict | None:
+    """取自己的一条材料（含 path，供调用方删文件）。他人/不存在 → None。
+
+    with_content=False 时不取全文（列表页/权限检查用），避免无谓地把大字段读进内存。
+    """
+    cols = ("id, user_id, filename, mime, ext, size, sha256, path, status, error, "
+            "char_count, page_count, chunk_count, created_at, parsed_at")
+    if with_content:
+        cols = cols.replace("path,", "path, content,")
+    with _conn() as c:
+        row = c.execute(f"SELECT {cols} FROM materials WHERE id=? AND user_id=?",
+                        (mid, uid)).fetchone()
+        return dict(row) if row else None
+
+
+def material_chunks(mid: int, offset: int = 0, limit: int = 100) -> list[dict]:
+    """按 idx 升序分页取块。调用方负责先验证材料归属。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM material_chunks WHERE material_id=? ORDER BY idx LIMIT ? OFFSET ?",
+            (mid, max(1, int(limit)), max(0, int(offset)))).fetchall()
+        return [dict(r) for r in rows]
+
+
+def materials_list(uid: int, limit: int = 200) -> list[dict]:
+    """自己的材料列表（新→旧）。不含 path（避免把服务端路径暴露给前端）。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT id, filename, mime, ext, size, sha256, status, error, char_count, "
+            "page_count, chunk_count, created_at, parsed_at FROM materials "
+            "WHERE user_id=? ORDER BY id DESC LIMIT ?",
+            (uid, max(1, int(limit)))).fetchall()
+        return [dict(r) for r in rows]
+
+
+def material_count(uid: int) -> int:
+    with _conn() as c:
+        return int(c.execute("SELECT COUNT(*) AS n FROM materials WHERE user_id=?",
+                             (uid,)).fetchone()["n"])
+
+
+def material_usage(uid: int) -> tuple[int, int]:
+    """(条数, 原始文件总字节数)，用于单用户上传配额。"""
+    with _conn() as c:
+        row = c.execute("SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS total "
+                        "FROM materials WHERE user_id=?", (uid,)).fetchone()
+        return int(row["n"]), int(row["total"])
+
+
+def material_delete(uid: int, mid: int) -> dict | None:
+    """删除自己的材料（行 + 分块），返回原行（含 path）供调用方删文件。"""
+    with _conn() as c:
+        row = c.execute("SELECT id, user_id, path FROM materials WHERE id=? AND user_id=?",
+                        (mid, uid)).fetchone()
+        if not row:
+            return None
+        c.execute("DELETE FROM material_chunks WHERE material_id=?", (mid,))
+        c.execute("DELETE FROM materials WHERE id=? AND user_id=?", (mid, uid))
+        return dict(row)

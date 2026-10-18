@@ -7,7 +7,8 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/wendi
 EnvironmentFile=/etc/wendi.env
-ExecStart=/usr/bin/python3 -u /opt/wendi/server.py
+# 材料解析依赖 kreuzberg：Debian 13 PEP 668，必须用 /opt/wendi/.venv（deploy.sh 负责创建）
+ExecStart=/opt/wendi/.venv/bin/python -u /opt/wendi/server.py
 Restart=always
 RestartSec=3
 StandardOutput=journal
