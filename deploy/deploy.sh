@@ -5,6 +5,13 @@ cd "$(dirname "$0")/.."
 
 HOST="${WENDI_HOST:?请设 WENDI_HOST（ssh 主机别名或 user@host）}"
 
+# —— Python 依赖（材料解析）——
+# Debian 13 是 PEP 668 externally-managed：依赖必须装进 venv，systemd 也指向它。
+# 默认优先用本机已验证的离线 wheel；找不到时回退在线 pip。设 WENDI_USE_PIP=1 可强制先走在线。
+VENV=/opt/wendi/.venv
+WHEEL_DIR="${WENDI_WHEEL_DIR:-/tmp/opencode/kreuz-dl}"
+WENDI_USE_PIP="${WENDI_USE_PIP:-0}"
+
 # —— SSH 多路复用：整个脚本复用一条 TCP 连接 ——
 # 腾讯云 sshd 会掐连接突发（2026-09-28 实测三次中断：一次 300s 超时、两次 Connection closed by …，
 # 结果都是"半成品部署"）。复用后每个 ssh/scp 只花毫秒，也不再每次 5s 握手。
@@ -16,10 +23,77 @@ scp_x()   { scp "${SSHOPT[@]}" "$@"; }
 rsync_x() { rsync -e "ssh ${SSHOPT[*]}" "$@"; }
 trap 'ssh -O exit -o ControlPath="$CTL" "$HOST" >/dev/null 2>&1 || true; rm -f "$CTL"' EXIT
 
+# —— venv / 依赖辅助（deploy.sh 幂等：已就绪就跳过） ——
+find_wheel() {
+  find "$WHEEL_DIR" -maxdepth 1 -type f -name 'kreuzberg-4.10.4-*.whl' -print -quit 2>/dev/null || true
+}
+dep_ready() {
+  ssh_x $HOST "$VENV/bin/pip show kreuzberg 2>/dev/null | grep -qx 'Version: 4.10.4'"
+}
+install_online() {
+  echo "   在线 pip 安装 requirements.txt（备选方案）"
+  ssh_x $HOST "$VENV/bin/pip install --disable-pip-version-check -r /opt/wendi/requirements.txt"
+}
+install_wheel() {
+  local wheel="$1"
+  echo "   离线 wheel：$(basename "$wheel")"
+  scp_x -q "$wheel" "$HOST:/tmp/wendi-kreuzberg.whl"
+  ssh_x $HOST "$VENV/bin/pip install --no-index --disable-pip-version-check /tmp/wendi-kreuzberg.whl; rc=\$?; rm -f /tmp/wendi-kreuzberg.whl; exit \$rc"
+}
+
 echo "== 1) 后端 -> /opt/wendi =="
 ssh_x $HOST 'sudo mkdir -p /opt/wendi && sudo chown ubuntu:ubuntu /opt/wendi'
-rsync_x -az server.py prompts.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
+# materials.py 必须同步，否则 systemd 启动时 ImportError；requirements.txt 供在线兜底安装。
+rsync_x -az server.py prompts.py db.py auth.py kernel.py materials.py requirements.txt "$HOST:/opt/wendi/"
 rsync_x -az deploy/gencode.py "$HOST:/opt/wendi/"
+
+echo "== 1b) Python 依赖（venv；Debian 13 PEP 668） =="
+if ! ssh_x $HOST "test -x $VENV/bin/python && test -x $VENV/bin/pip"; then
+  if ! ssh_x $HOST 'python3 -c "import ensurepip" >/dev/null 2>&1'; then
+    if [ "${WENDI_INSTALL_VENV:-0}" = "1" ]; then
+      echo "   安装 python3-venv（WENDI_INSTALL_VENV=1）"
+      ssh_x $HOST 'sudo apt-get update -qq && sudo apt-get install -y python3-venv'
+    else
+      echo "   缺少 python3-venv：先在服务器执行 sudo apt install python3-venv，"
+      echo "   或设 WENDI_INSTALL_VENV=1 让脚本安装。"
+      exit 1
+    fi
+  fi
+  echo "   创建 $VENV"
+  if ! ssh_x $HOST "python3 -m venv $VENV"; then
+    echo "   创建 venv 失败：确认 venv 目录权限，以及 sudo apt install python3-venv 已执行。"
+    exit 1
+  fi
+fi
+# kreuzberg 的 wheel 是 cp310-abi3：venv Python 必须 >= 3.10（Debian 13 默认 3.13）。
+ssh_x $HOST "$VENV/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'" \
+  || { echo "   $VENV Python < 3.10，无法安装 kreuzberg abi3 wheel"; exit 1; }
+
+if dep_ready; then
+  ssh_x $HOST "$VENV/bin/python -c 'import kreuzberg'" \
+    || { echo "   kreuzberg 已安装但 import 失败（venv/ABI 不兼容）"; exit 1; }
+  echo "   kreuzberg 4.10.4 已就绪"
+else
+  WHEEL="$(find_wheel)"
+  if [ "$WENDI_USE_PIP" = "1" ]; then
+    if ! install_online; then
+      echo "   在线安装失败，尝试离线 wheel（$WHEEL_DIR）"
+      [ -n "$WHEEL" ] || { echo "   也没找到离线 wheel；见 docs/deploy.md"; exit 1; }
+      install_wheel "$WHEEL"
+    fi
+  elif [ -n "$WHEEL" ]; then
+    if ! install_wheel "$WHEEL"; then
+      echo "   离线 wheel 安装失败，回退在线 pip"
+      install_online
+    fi
+  else
+    echo "   未找到离线 wheel（$WHEEL_DIR），改走在线 pip"
+    install_online
+  fi
+  dep_ready || { echo "   安装后 kreuzberg 版本不是 4.10.4："; ssh_x $HOST "$VENV/bin/pip show kreuzberg || true"; exit 1; }
+  ssh_x $HOST "$VENV/bin/python -c 'import kreuzberg'" \
+    || { echo "   import kreuzberg 失败（venv/ABI 不兼容）"; exit 1; }
+fi
 
 echo "== 2) 前端 -> /var/www/kwelldo/know/ =="
 # 整目录一次 rsync。原来 9 个文件 × (scp + ssh) = 18 次连接，腾讯云 sshd 在连接突发里会直接

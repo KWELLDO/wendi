@@ -89,8 +89,14 @@ python3 -m venv .venv
 
 ### 部署
 
-`deploy/` 里是完整的生产部署件（systemd unit + nginx 反代脚本 + 幂等部署脚本）。
-把 `deploy.sh` 顶部的 `HOST` 改成你的服务器即可。
+`deploy/` 里是完整的生产部署件（systemd unit + nginx 反代脚本 + 幂等部署脚本）：
+
+```bash
+WENDI_HOST=ubuntu@your-server ./deploy/deploy.sh
+```
+
+Debian 13 用 `/opt/wendi/.venv`（PEP 668）；材料解析依赖优先从离线 wheel 安装，
+nginx 需放行 35MB 上传。完整步骤、验证与回滚见 [docs/deploy.md](docs/deploy.md)。
 
 ## 结构
 
@@ -115,6 +121,7 @@ deploy/          部署件（systemd / nginx / 部署脚本）
 tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 docs/materials-api.md  材料上传/解析/读取接口（含 curl 示例与部署提示）
+docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 ```
 
 前端交互要点：划词气泡（可附一句自己的疑惑）、`Esc`/`Alt+←` 返回上层、`↑↓` 切换子解释、`Alt+Enter`/`Alt+→` 进入（进/退都带 Alt，避免生成过程中误触把回答顶出视野）、SSE 流式输出（边生成边显示，只原地补内容不整页重绘）。导出 / 图谱 / 示例 / 已移除 / 清空都收在顶栏「设置」里；反馈入口 = 设置面板 + 右下角常驻「反馈 / 建议」；站长那套（服务端密钥 / 站长后台 / 计量台）默认不显示，带 `?admin=1` 或存过 admin 令牌才出现。

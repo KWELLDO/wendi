@@ -136,5 +136,7 @@ await fetch("/api/materials", {
 
 ## 部署提示
 
+完整上线步骤（venv、离线 wheel、nginx、验证、回滚）见 [deploy.md](deploy.md)。摘要：
+
 - 生产用 venv：`python3 -m venv /opt/wendi/.venv && /opt/wendi/.venv/bin/pip install -r requirements.txt`，systemd `ExecStart` 指向 venv python。
 - nginx 默认 `client_max_body_size 1m`，上传会被 nginx 先挡掉：`/api/` location 加 `client_max_body_size 35m;`，并适当放宽 `proxy_read_timeout`（解析 + 上传）。
