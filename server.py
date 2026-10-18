@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections import defaultdict
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,6 +32,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 import db  # noqa: E402
+import materials  # noqa: E402
 from auth import hash_password, new_token, verify_password  # noqa: E402
 from kernel import Kernel  # noqa: E402
 from prompts import chat_messages, explain_messages, followup_messages  # noqa: E402
@@ -49,6 +52,18 @@ LIMIT_ANON_PER_MIN = int(os.environ.get("WENDI_ANON_PER_MIN", "6"))
 LIMIT_GLOBAL_DAY = int(os.environ.get("WENDI_LIMIT_GLOBAL_DAY", "4000"))
 MAX_BODY = 64 * 1024
 MAX_SYNC_BYTES = 1024 * 1024  # 云同步单用户上限 1MB
+
+# —— 材料上传（单独走流式路由，不受 MAX_BODY 限制；上限默认 30MB） ——
+MATERIALS_DIR = Path(os.environ.get(
+    "WENDI_MATERIALS_DIR", str(Path.home() / ".wendi" / "materials")))
+UPLOAD_MAX_MB = int(os.environ.get("WENDI_UPLOAD_MAX_MB", "30"))
+UPLOAD_MAX_BYTES = UPLOAD_MAX_MB * 1024 * 1024
+UPLOAD_CHUNK = 64 * 1024                 # 边读边写的块大小
+UPLOAD_TIMEOUT = float(os.environ.get("WENDI_UPLOAD_TIMEOUT", "120"))  # 单次 socket 读超时
+MATERIALS_MAX = int(os.environ.get("WENDI_MATERIALS_MAX", "200"))      # 单用户材料条数上限
+MATERIALS_MAX_MB = int(os.environ.get("WENDI_MATERIALS_MAX_MB", "500"))  # 单用户原始文件总额
+MATERIALS_MAX_BYTES = MATERIALS_MAX_MB * 1024 * 1024
+MATERIAL_NAME_MAX = 200
 ADMIN_TOKEN = os.environ.get("WENDI_ADMIN_TOKEN", "")  # 空则 meter 端点拒绝一切请求
 # 内测：注册是否必须邀请码（WENDI_REQUIRE_INVITE=0 可临时放开公开注册）
 REQUIRE_INVITE = os.environ.get("WENDI_REQUIRE_INVITE", "1") != "0"
@@ -509,6 +524,16 @@ class Handler(SimpleHTTPRequestHandler):
         finally:
             self._flush_error_event()
 
+    def do_DELETE(self):
+        self._t0, self._status, self._error, self._cost_cents = time.time(), 200, "", 0
+        try:
+            self._do_DELETE()
+        except Exception as e:  # noqa: BLE001
+            self._error = f"{type(e).__name__}: {e}"
+            self._json(500, {"error": str(e)})
+        finally:
+            self._flush_error_event()
+
     def _flush_error_event(self):
         """5xx/异常时补一条 system_error 事件（日志之外的行为面留痕）。"""
         if not self._error:
@@ -681,6 +706,17 @@ class Handler(SimpleHTTPRequestHandler):
                 data = db.sync_get(user["id"])
                 self._json(200, data if data else {"data": None, "updated_at": None})
                 return
+            if path == "/api/materials":
+                self._material_list(qs)
+                return
+            m = re.fullmatch(r"/api/materials/(\d+)", path)
+            if m:
+                self._material_detail(int(m.group(1)), qs)
+                return
+            m = re.fullmatch(r"/api/materials/(\d+)/chunks", path)
+            if m:
+                self._material_chunks(int(m.group(1)), qs)
+                return
         except Exception as e:  # noqa: BLE001
             self._error = f"{type(e).__name__}: {e}"
             self._json(500, {"error": str(e)})
@@ -720,6 +756,15 @@ class Handler(SimpleHTTPRequestHandler):
     # ---------- POST ----------
     def _do_POST(self):
         path = self.path.split("?")[0]
+        if path == "/api/materials":
+            # 上传单独分流：绝不经过 _body() 的 64KB 上限，边读边写临时文件。
+            try:
+                self._material_upload()
+            except Exception as e:  # noqa: BLE001
+                self._error = f"{type(e).__name__}: {e}"
+                log.exception("材料上传失败")
+                self._json(500, {"error": "上传失败，请稍后重试", "code": "upload_failed"})
+            return
         try:
             body = self._body()
         except Exception as e:  # noqa: BLE001
@@ -1229,6 +1274,228 @@ class Handler(SimpleHTTPRequestHandler):
             return
         deleted = db.sync_delete(user["id"])
         self._json(200, {"ok": True, "deleted": deleted})
+
+    # ---------- 材料：上传 / 列表 / 全文 / 分块 / 删除 ----------
+    def _upload_filename(self) -> str:
+        """从 X-Wendi-Filename 或 ?name= 取原始文件名（支持 percent-encoding）。"""
+        from urllib.parse import parse_qs, unquote, urlparse
+        raw = self.headers.get("X-Wendi-Filename", "")
+        if not raw:
+            qs = parse_qs(urlparse(self.path).query)
+            raw = (qs.get("name") or [""])[0]
+        name = unquote(str(raw or "")).strip()
+        name = name.replace("\\", "/").rsplit("/", 1)[-1]       # 去掉路径
+        name = re.sub(r"[\x00-\x1f\x7f]", "", name).strip()     # 去掉控制字符
+        if name in ("", ".", ".."):
+            return ""
+        if len(name) > MATERIAL_NAME_MAX:                        # 截断但保留扩展名
+            suffix = Path(name).suffix[:16]
+            name = Path(name).stem[:max(1, MATERIAL_NAME_MAX - len(suffix))] + suffix
+        return name
+
+    def _material_upload(self):
+        """POST /api/materials：流式收文件 → kreuzberg 解析 → 原始文件落盘 + 全文/分块入库。
+
+        刻意不调用 _body()：MAX_BODY 是全局反滥用限制，上传只受 UPLOAD_MAX_BYTES 约束。
+        """
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录", "code": "unauthorized"})
+            return
+
+        raw_len = self.headers.get("Content-Length")
+        if raw_len is None:
+            self._json(411, {"error": "需要 Content-Length（不支持 chunked 上传）",
+                             "code": "length_required"})
+            return
+        try:
+            size = int(raw_len)
+        except (TypeError, ValueError):
+            self._json(400, {"error": "Content-Length 不合法", "code": "bad_length"})
+            return
+        if size <= 0:
+            self._json(400, {"error": "文件为空", "code": "empty_file"})
+            return
+        if size > UPLOAD_MAX_BYTES:
+            self._json(413, {"error": f"文件超过 {UPLOAD_MAX_MB}MB 上限",
+                             "code": "file_too_large", "max_bytes": UPLOAD_MAX_BYTES})
+            return
+        count, used_bytes = db.material_usage(user["id"])
+        if count >= MATERIALS_MAX:
+            self._json(429, {"error": f"材料数量已达上限（{MATERIALS_MAX} 条），请先删除旧材料",
+                             "code": "material_limit", "used": count, "limit": MATERIALS_MAX})
+            return
+        if used_bytes + size > MATERIALS_MAX_BYTES:
+            self._json(429, {"error": f"材料存储空间不足（上限 {MATERIALS_MAX_MB}MB）",
+                             "code": "material_quota", "used_bytes": used_bytes,
+                             "limit_bytes": MATERIALS_MAX_BYTES})
+            return
+
+        filename = self._upload_filename()
+        if not filename:
+            self._json(400, {"error": "缺少文件名：请带 X-Wendi-Filename 头（或 ?name=）",
+                             "code": "filename_required"})
+            return
+        ext = Path(filename).suffix.lower().lstrip(".")
+        if not re.fullmatch(r"[a-z0-9]{1,10}", ext or ""):
+            ext = ""
+
+        client_mime = (self.headers.get("Content-Type") or "").split(";")[0].strip()[:120]
+        if client_mime in ("application/octet-stream", "binary/octet-stream"):
+            client_mime = ""
+
+        uid_dir = MATERIALS_DIR / str(user["id"])
+        uid_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        token = uuid.uuid4().hex
+        tmp = uid_dir / f".{token}.part"
+        dest = uid_dir / (f"{token}.{ext}" if ext else token)
+
+        conn = getattr(self, "connection", None)
+        if conn is not None:  # 防慢速上传占住线程；http.server 默认没有 socket 超时
+            try:
+                conn.settimeout(UPLOAD_TIMEOUT)
+            except OSError:
+                pass
+
+        sha = hashlib.sha256()
+        written = 0
+        try:
+            with open(tmp, "wb") as f:
+                remaining = size
+                while remaining > 0:
+                    chunk = self.rfile.read(min(UPLOAD_CHUNK, remaining))
+                    if not chunk:
+                        raise ValueError("上传中断（实际字节数少于 Content-Length）")
+                    f.write(chunk)
+                    sha.update(chunk)
+                    written += len(chunk)
+                    remaining -= len(chunk)
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, dest)
+        except TimeoutError:
+            tmp.unlink(missing_ok=True)
+            dest.unlink(missing_ok=True)
+            self._json(408, {"error": "上传超时", "code": "upload_timeout"})
+            return
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            dest.unlink(missing_ok=True)
+            raise
+
+        started = time.time()
+        try:
+            parsed = materials.parse_file(dest)
+        except materials.ParserUnavailable as e:
+            self._safe_unlink(str(dest))
+            self._json(503, {"error": str(e), "code": "parser_unavailable"})
+            return
+        except materials.ParseFailed as e:
+            self._safe_unlink(str(dest))
+            self._track("material_upload_failed", code=e.code,
+                        meta={"size": written, "ext": ext})
+            self._json(e.status, {"error": str(e), "code": e.code})
+            return
+        except Exception:
+            self._safe_unlink(str(dest))
+            raise
+
+        mime = (parsed.mime or client_mime or "application/octet-stream")[:120]
+        try:
+            mid = db.material_save(user["id"], filename, mime, ext, written, sha.hexdigest(),
+                                   str(dest), parsed.content, parsed.page_count, parsed.chunks)
+        except Exception:
+            self._safe_unlink(str(dest))
+            raise
+
+        elapsed_ms = int((time.time() - started) * 1000)
+        self._track("material_upload", meta={
+            "material_id": mid, "size": written,
+            "page_count": parsed.page_count, "chunk_count": len(parsed.chunks)})
+        self._json(201, {
+            "id": mid, "filename": filename, "mime": mime, "size": written,
+            "sha256": sha.hexdigest(), "char_count": len(parsed.content),
+            "page_count": parsed.page_count, "chunk_count": len(parsed.chunks),
+            "truncated": parsed.truncated, "parse_ms": elapsed_ms,
+        })
+
+    def _material_list(self, qs: dict):
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        limit = self._qint(qs, "limit", 200, hi=1000)
+        self._json(200, {"items": db.materials_list(user["id"], limit),
+                         "total": db.material_count(user["id"])})
+
+    def _material_detail(self, mid: int, qs: dict):
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        with_content = str((qs.get("content") or ["1"])[0]).lower() not in ("0", "false", "no")
+        row = db.material_get(user["id"], mid, with_content=with_content)
+        if not row:
+            self._json(404, {"error": "材料不存在", "code": "not_found"})
+            return
+        row.pop("path", None)
+        payload: dict = {"material": row}
+        if with_content:
+            payload["content"] = row.pop("content", "")
+        self._json(200, payload)
+
+    def _material_chunks(self, mid: int, qs: dict):
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        row = db.material_get(user["id"], mid, with_content=False)
+        if not row:
+            self._json(404, {"error": "材料不存在", "code": "not_found"})
+            return
+        offset = self._qint(qs, "offset", 0, lo=0, hi=10_000_000)
+        limit = self._qint(qs, "limit", 100, hi=500)
+        self._json(200, {
+            "material_id": mid, "total": row["chunk_count"],
+            "offset": offset, "limit": limit,
+            "chunks": db.material_chunks(mid, offset, limit),
+        })
+
+    def _do_DELETE(self):
+        path = self.path.split("?")[0]
+        m = re.fullmatch(r"/api/materials/(\d+)", path)
+        if not m:
+            self._json(404, {"error": "not found"})
+            return
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        mid = int(m.group(1))
+        row = db.material_delete(user["id"], mid)
+        if not row:
+            self._json(404, {"error": "材料不存在", "code": "not_found"})
+            return
+        self._safe_unlink(str(row.get("path") or ""))
+        self._track("material_delete", meta={"material_id": mid})
+        self._json(200, {"ok": True, "id": mid})
+
+    @staticmethod
+    def _safe_unlink(path: str) -> None:
+        """只删 MATERIALS_DIR 里的文件（防库被改后误删任意路径）。"""
+        if not path:
+            return
+        try:
+            p = Path(path).resolve()
+            p.relative_to(MATERIALS_DIR.resolve())
+        except (ValueError, OSError):
+            log.warning("拒删材料目录之外的文件：%s", path)
+            return
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            log.warning("删除材料文件失败：%s", path, exc_info=True)
 
     # ---------- 核心：解释 ----------
     def _explain(self, body: dict):
