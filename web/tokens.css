@@ -1,6 +1,7 @@
 /* 问底 WenDi · 设计 token · 单源（single source of truth）
    -------------------------------------------------------------------------------------
    本文件只放设计 token，不放 reset / focus-visible / z-index 等页面规则。
+   唯一例外在文件末尾：一条只上纸纹的 `html body` 背景规则（见「纸纹应用」）。
 
    谁在用：
      · 文档页族（about / privacy / terms / feedback / admin / meter …）→ 经 site.css 顶部的
@@ -12,36 +13,65 @@
      localStorage["wendi-theme"] = "light" | "dark"；键缺失 / 非法值 = 跟随系统
      手动选定时 <html data-theme="light|dark">；跟随系统时该属性被【移除】
 
-   值的来源：本文件的亮色 token 与 --dk-* 是三处旧副本（site.css / app/index.html /
-   graph2d.html）的并集，同名 token 的值逐字取自重构前的版本，未做任何调色。
-   视觉契约见 docs/adr/0001：新闻纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
+   视觉契约见 docs/adr/0001：纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
    亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
+
+   2026-10-18 修订 · 羊皮纸（parchment）
+   ------------------------------------
+   这一轮只动「色温 / 纸面四阶 / 纸纹」，尺寸、排版、组件形态一律未改。
+     · 亮色从「新闻纸米白」往「陈年羊皮纸」推：更暖、更旧、带米褐，四阶仍克制（L* +3.1 / +3.1）；
+     · 暗色不再是「黑底 UI 刷一层棕」，而是「羊皮纸的暗调」：纸面仍是暖褐，
+       四阶层级比亮色更明显（暗色里人眼对明度差更迟钝，差值放大才读得出）。
+     · 纸纹：原来的 4px 点阵（像方格纸）换成「低频云斑 + 双频柔边颗粒」两层叠加，
+       全部由 CSS radial-gradient 拼成：无图片、无外链、固定不随滚动游动。
    ===================================================================================== */
 :root{
   /* —— 亮色 token（默认）——
      纸面四阶的语义（两套主题一致）：
-       paper        页
-       paper-deep   凹槽（列表 / 预览这类“退后”的面）
-       surface      抬起的面板（主对话 / 卡片）
-       surface-2    同面淡染，朝墨色走一点；亮色略沉、暗色略浮，用于 hover / 行内代码
+        paper        页
+        paper-deep   凹槽（列表 / 预览这类“退后”的面）
+        surface      抬起的面板（主对话 / 卡片）
+        surface-2    同面淡染，朝墨色走一点；亮色略沉、暗色略浮，用于 hover / 行内代码
      亮色序：paper-deep < surface-2 < paper < surface。
      层级要“肉眼可辨但克制”：paper↔surface 约 1.08，不当成发光玻璃。
-     ink-3 只给 12.5px 及以下的提示字，必须在 paper / paper-deep / surface 上都过 4.5。 */
-  --paper:#f8f4e9; --paper-deep:#f1ebdc; --surface:#fffdf6; --surface-2:#f4efe2;
-  --ink:#15130f; --ink-2:#4a463e; --ink-3:#6b6558;
-  --rule:#15130f; --hairline:#d2cab8;
-  --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
+     ink-3 只给 12.5px 及以下的提示字，必须在 paper / paper-deep / surface 上都过 4.5。
+     羊皮纸调：纸色带米褐（比新闻纸更黄更旧），墨色略偏暖棕而不是纯黑，
+     红仍是唯一的强调色（朱膘 / 印泥那一挂，饱和但略沉）。 */
+  --paper:#f4ead6; --paper-deep:#ede1ca; --surface:#fbf3e3; --surface-2:#efe3cd;
+  --ink:#191510; --ink-2:#4b4234; --ink-3:#61553f;
+  --rule:#191510; --hairline:#d3c6ab;
+  --accent:#a5281c; --accent-wash:rgba(165,40,28,.09); --accent-line:rgba(165,40,28,.42);
   /* 划词选区：比 hover 的 accent-wash 更实一点（划词是本产品的主交互，选区必须一眼看见） */
-  --select:rgba(165,40,28,.18);
-  --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
-  --slab-bg:#1b1813; --slab-fg:#f4f0e4; --slab-line:rgba(244,240,228,.18);
-  --scrim:rgba(21,19,15,.55);
-  --float:0 6px 18px rgba(21,19,15,.16);
-  --noise:rgba(21,19,15,.05);
-  --edge:rgba(21,19,15,.28); --edge-hot:rgba(165,40,28,.85);
+  --select:rgba(165,40,28,.17);
+  --ok:#2f6355; --warn:#86600f; --err:#8f2317;
+  --slab-bg:#1b160e; --slab-fg:#f6efdf; --slab-line:rgba(246,239,223,.18);
+  --scrim:rgba(25,21,16,.55);
+  --float:0 6px 18px rgba(25,21,16,.16);
+  --noise:rgba(74,56,31,.05);           /* 旧 4px 点阵的兜底色（纸纹已改用 --paper-tex） */
+  --edge:rgba(25,21,16,.28); --edge-hot:rgba(165,40,28,.85);
   --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
   --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+
+  /* —— 纸纹（parchment）——
+     --paper-tex 是一整串 background-image 图层，--paper-tex-size 与它逐层对齐（7 层）。
+     图层自顶向下：
+       1–2  颗粒：两层错频的柔边细点（3px / 5px），点与点几乎相接，
+            读作纸面的“雾面”而不是格子（硬边点阵在 1x 下会显成网点，故一律柔边 + 低 alpha）；
+       3–7  云斑：五团大尺度、低对比的暖褐晕，圆心故意放到视口外（-8% / 108% / 112%），
+            让整屏只落在渐变的中段 —— 这样看不到任何“椭圆边界”，只有纸浆厚薄不均的透光差。
+            位置固定（配 background-attachment:fixed），滚动时纸不动。
+     原则：单层 alpha ≤ .055，多层叠加的最坏处也只把背景压暗约 7%，
+     墨水对比度预算（ink-3 实测仍 > 5）留有余量。 */
+  --paper-tex:
+    radial-gradient(circle, rgba(84,62,32,.030) .6px, transparent 1.4px),
+    radial-gradient(circle, rgba(84,62,32,.020) .5px, transparent 1.2px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(122,90,46,.055), rgba(122,90,46,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(158,118,62,.045), rgba(158,118,62,0) 100%),
+    radial-gradient(78vw 62vw at 22% 112%, rgba(98,70,34,.052),  rgba(98,70,34,0) 100%),
+    radial-gradient(40vw 34vw at 72% 64%,  rgba(176,142,88,.030), rgba(176,142,88,0) 100%),
+    radial-gradient(26vw 20vw at 42% 32%,  rgba(120,88,44,.020), rgba(120,88,44,0) 100%);
+  --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
 
   /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
      下面的「暗色映射」两块只做「公共 token 名 → --dk-*」的改名，不含色值。
@@ -50,18 +80,34 @@
      surface 系列必须比 paper 亮（暗色里“抬起”= 更亮）；surface-2 是“朝墨色走一点”的同面淡染，
      因此在暗色里落在 surface 之上，而不是比 paper 更暗 —— 旧 #1b1713 与 paper 只差 1/255，
      既读不出层级，又构成反转。
-     ink-3 同样要过 4.5，不再用“看得见但读不清”的 3.x 灰。 */
-  --dk-paper:#211d17; --dk-paper-deep:#191510; --dk-surface:#2b261e; --dk-surface-2:#342e24;
-  --dk-ink:#f0e9db; --dk-ink-2:#c9c0ae; --dk-ink-3:#a49a86;
-  --dk-rule:#ece5d6; --dk-hairline:#4a4336;
-  --dk-accent:#e2776a; --dk-accent-wash:rgba(226,119,106,.13); --dk-accent-line:rgba(226,119,106,.50);
-  --dk-select:rgba(226,119,106,.22);
-  --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
-  --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
-  --dk-scrim:rgba(0,0,0,.62);
-  --dk-float:0 6px 18px rgba(0,0,0,.55);
-  --dk-noise:rgba(236,229,214,.03);
-  --dk-edge:rgba(236,229,214,.28); --dk-edge-hot:rgba(215,106,95,.9);
+     ink-3 同样要过 4.5，不再用“看得见但读不清”的 3.x 灰。
+     羊皮纸暗调（方案 B · 灯下羊皮 · 本轮采用）：
+       纸色明显更浅、更赭，像一盏台灯照着的旧纸，先解决“黑底 UI”的观感；
+       四阶 L* 15.5 / 20.2 / 25.3 / 30.2，台阶 +4.7 / +5.1 / +4.9，比亮色更能读层级。
+       红提亮到浅陶土 #f2a687，在四阶纸面上对比 7.55 / 6.58 / 5.56 / 4.68，仍是唯一强调色。
+       想要更深的“夜晚书房”版：换用文件末尾注释里的方案 A（深褐羊皮）。 */
+  --dk-paper:#402d19; --dk-paper-deep:#352313; --dk-surface:#4d3821; --dk-surface-2:#594329;
+  --dk-ink:#fdf3de; --dk-ink-2:#e4d0ad; --dk-ink-3:#d9c3a4;
+  --dk-rule:#fbf1dc; --dk-hairline:#6d5436;
+  --dk-accent:#f2a687; --dk-accent-wash:rgba(242,166,135,.14); --dk-accent-line:rgba(242,166,135,.50);
+  --dk-select:rgba(242,166,135,.24);
+  --dk-ok:#aed8c2; --dk-warn:#f0c46a; --dk-err:#ff9a86;
+  --dk-slab-bg:#2a1a0c; --dk-slab-fg:#fbf1dc; --dk-slab-line:rgba(251,241,220,.18);
+  --dk-scrim:rgba(20,12,6,.62);
+  --dk-float:0 6px 18px rgba(0,0,0,.45);
+  --dk-noise:rgba(251,241,220,.03);
+  --dk-edge:rgba(251,241,220,.30); --dk-edge-hot:rgba(242,166,135,.90);
+  /* 暗色纸纹：亮斑是“灯还照着的纸”，暗斑是“吃墨更深的纸”。
+     暗色里亮斑会吃掉浅墨的对比，所以亮斑单层压到 ≤ .03，暗斑反而可以到 .16。 */
+  --dk-paper-tex:
+    radial-gradient(circle, rgba(255,236,200,.018) .6px, transparent 1.4px),
+    radial-gradient(circle, rgba(0,0,0,.055) .5px, transparent 1.2px),
+    radial-gradient(72vw 58vw at -6% -10%, rgba(255,214,150,.034), rgba(255,214,150,0) 100%),
+    radial-gradient(66vw 54vw at 106% 12%, rgba(255,230,185,.022), rgba(255,230,185,0) 100%),
+    radial-gradient(80vw 64vw at 20% 112%, rgba(0,0,0,.13),          rgba(0,0,0,0) 100%),
+    radial-gradient(42vw 36vw at 74% 64%,  rgba(0,0,0,.07),          rgba(0,0,0,0) 100%),
+    radial-gradient(28vw 22vw at 46% 36%,  rgba(255,220,165,.016), rgba(255,220,165,0) 100%);
+  --dk-paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
 
   /* —— 层级（z-index）：全站命名层级，页面里不要再写裸数字 ——
      递增顺序即"谁压在谁上面"。原生 <dialog> 在 top layer，z-index 对它是兜底；
@@ -103,6 +149,7 @@
     --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
     --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
     --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+    --paper-tex:var(--dk-paper-tex); --paper-tex-size:var(--dk-paper-tex-size);
   }
 }
 :root[data-theme="dark"]{                    /* 手动选暗（两块内容必须一致） */
@@ -116,7 +163,54 @@
     --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
     --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
     --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+    --paper-tex:var(--dk-paper-tex); --paper-tex-size:var(--dk-paper-tex-size);
 }
 /* 手动选定时浏览器也按选定主题渲染原生控件（两块映射的 color-scheme 收尾） */
 :root[data-theme="light"]{ color-scheme:light }
 :root[data-theme="dark"]{ color-scheme:dark }
+
+/* =====================================================================================
+   纸纹应用 · 本文件对「只放 token」的唯一例外
+   -------------------------------------------------------------------------------------
+   为什么写在这里：文档页族只 link 了 site.css，工作台/图页各自内联样式，
+   纹理如果要改三处，迟早会漂。选择器写成 `html body`（0,0,2）而不是 `body`，
+   是为了在**不改 site.css** 的前提下稳稳盖过它原有的 4px 点阵（0,0,1）；
+   site.css 里的 background-image/background-size 因此成了死代码，但颜色仍由它给。
+   background-attachment:fixed：云斑钉在视口上，滚动时纸不动、字在纸上走。
+   只碰 background-image / size / attachment，不碰颜色、不改布局、不加圆角阴影。
+   ===================================================================================== */
+html body{
+  background-image:var(--paper-tex);
+  background-size:var(--paper-tex-size);
+  background-attachment:fixed;
+}
+
+/* =====================================================================================
+   备用暗色 · 方案 A「深褐羊皮」（未启用，整块注释）
+   -------------------------------------------------------------------------------------
+   想比较/切换：把上面 :root 里的 --dk-* 与 --dk-paper-tex 两段整体换成下面这份，
+   其余（两块映射、--paper-tex 的引用）不用动。
+   A 的纸面更深、更浓（L* 5.6 / 8.7 / 13.8 / 19.2），像半夜书房里一本摊开的旧书；
+   四阶层级比 B 更收敛，红要压到陶土色 #e0806a 才不刺眼。适合喜欢“更暗、更闷”的人。
+
+   --dk-paper:#241608; --dk-paper-deep:#1b1008; --dk-surface:#302010; --dk-surface-2:#3d2b18;
+   --dk-ink:#f4e8d2; --dk-ink-2:#d6c3a4; --dk-ink-3:#b09c7d;
+   --dk-rule:#f1e3cb; --dk-hairline:#4e3a25;
+   --dk-accent:#e0806a; --dk-accent-wash:rgba(224,128,106,.12); --dk-accent-line:rgba(224,128,106,.48);
+   --dk-select:rgba(224,128,106,.22);
+   --dk-ok:#7fbfa8; --dk-warn:#d9ad5c; --dk-err:#dd8172;
+   --dk-slab-bg:#120b06; --dk-slab-fg:#f2e7d1; --dk-slab-line:rgba(242,231,209,.16);
+   --dk-scrim:rgba(8,5,3,.66);
+   --dk-float:0 6px 18px rgba(0,0,0,.55);
+   --dk-noise:rgba(242,231,209,.03);
+   --dk-edge:rgba(242,231,209,.28); --dk-edge-hot:rgba(224,128,106,.88);
+   --dk-paper-tex:
+     radial-gradient(circle, rgba(255,236,200,.018) .6px, transparent 1.4px),
+     radial-gradient(circle, rgba(0,0,0,.070) .5px, transparent 1.2px),
+     radial-gradient(72vw 58vw at -6% -10%, rgba(255,206,140,.030), rgba(255,206,140,0) 100%),
+     radial-gradient(66vw 54vw at 106% 12%, rgba(255,224,176,.020), rgba(255,224,176,0) 100%),
+     radial-gradient(80vw 64vw at 20% 112%, rgba(0,0,0,.16),          rgba(0,0,0,0) 100%),
+     radial-gradient(42vw 36vw at 74% 64%,  rgba(0,0,0,.09),          rgba(0,0,0,0) 100%),
+     radial-gradient(28vw 22vw at 46% 36%,  rgba(255,214,150,.016), rgba(255,214,150,0) 100%);
+   --dk-paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+   ===================================================================================== */

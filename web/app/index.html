@@ -18,9 +18,10 @@
      手动选定时 <html data-theme>，跟随系统时该属性被移除。 */
   *{box-sizing:border-box}
   html,body{height:100%}
+  /* 纸纹（--paper-tex）由 /tokens.css 的 `html body` 规则统一给出：那里选择器权重更高，
+     能把 site.css 遗留的 4px 点阵压掉；此处只管底色与排版。 */
   body{margin:0;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);
-       font:15px/1.7 var(--sans);overflow:hidden;
-       background-image:radial-gradient(var(--noise) 1px,transparent 1px);background-size:4px 4px}
+       font:15px/1.7 var(--sans);overflow:hidden}
   ::selection{background:var(--select)}
   /* 滚动条：细、纸色，不抢正文（Chromium / Firefox 各写一条） */
   .ctext,.lbody,.pbody,.icard,.acard,#closedList{scrollbar-width:thin;scrollbar-color:var(--hairline) transparent}
@@ -440,6 +441,19 @@
     .blank li{grid-template-columns:2em 4em minmax(0,1fr);gap:8px}
     .blank .folio{font-size:10px;letter-spacing:.1em}
   }
+  /* ============ 纸纹（parchment） ============
+     一张纸要铺满工作台的每块纸面：主对话是抬起的 surface、列表/预览是凹下的 paper-deep，
+     只有 body 有纹的话，面板会像“贴在纸上的白卡”。
+     云斑用 background-attachment:fixed 钉在视口上：各面板底色深浅不同，但纹理是同一张纸
+     透出来的，跨面板对得上；滚动时纸不动、字在纸上走。
+     只铺“页面级的纸”（body / 报头 / 题条 / 主对话 / 列表 / 预览 / 输入条）；
+     浮起来的小卡（.icard / .acard / #bubble / #coach）不铺 —— 云斑按视口定位，
+     落到一块 400px 的小卡上就是一摊固定水渍，反而脏。
+     位置：样式表最后。上面的组件规则用 background 简写会把 image 重置掉，
+     同权重下必须后写才生效（本段不碰颜色 / 尺寸 / 圆角 / 阴影）。 */
+  body,header,#crumbbar,.mainpane,.lists,.preview,.inputrow{
+    background-image:var(--paper-tex);background-size:var(--paper-tex-size);background-attachment:fixed}
+
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
   }
