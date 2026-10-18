@@ -179,7 +179,8 @@ docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 
 - **OpenCode**：只做分流判断，使用免费模型 `opencode/deepseek-v4.1-flash-free`；
   项目内 `.opencode/agents/feedback-triage.md` 是专用 agent（`steps: 1`，禁用 edit/bash，
-  prompt 要求不使用工具、只输出 JSON）。
+  prompt 要求不使用工具、只输出 JSON）。已知边界：OpenCode 免费层对权限组合敏感，
+  没有硬禁所有读工具；clds 侧才是 restricted + 空 MCP 的强隔离。
 - **clds**：只在 `fix` 或 `big_change` 时调用。
   - `fix`：在独立 git worktree 里改代码，桥接统一跑测试，产出 `fix-<id>.patch` 和报告；
     **不提交、不合并、不部署**。

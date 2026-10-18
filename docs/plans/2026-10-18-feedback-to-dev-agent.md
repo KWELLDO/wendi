@@ -29,6 +29,9 @@
   - `steps: 1`
   - `permission: edit=deny, bash=deny`
   - prompt 要求不使用工具、只输出 JSON
+  - 已知边界：OpenCode 免费层对自定义 agent 的权限组合敏感；实测硬禁 read/grep 等
+    会导致免费层直接报错。因此这里是 `steps: 1` + prompt 约束 + edit/bash 禁用，
+    **不宣称 OpenCode 分流层硬禁所有工具**；clds 侧才是强隔离（restricted/空 MCP）。
 - 每次分流创建临时 OpenCode 会话，拿到 assistant 文本后立即删除会话。
 - `decision`：
   - `ignore`：垃圾/纯感谢/重复/无需动作

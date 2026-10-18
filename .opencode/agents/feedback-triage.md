@@ -1,5 +1,5 @@
 ---
-description: 问底用户反馈分流器。只输出 JSON，不读文件、不执行命令、不修改任何东西。
+description: 问底用户反馈分流器。单步、只输出 JSON，要求不使用工具。
 mode: primary
 hidden: true
 temperature: 0
