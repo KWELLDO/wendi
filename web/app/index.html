@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <script defer src="/vendor/katex/katex.min.js"></script>
 <link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/ui.css">
+<script src="/ui.js" defer></script>
 <style>
   /* 设计 token（亮色 + --dk-* + 两个暗色映射块 + color-scheme）已抽到单源 /tokens.css，
      由上面的 <link> 引入；主题契约与 site.css 一致（见 web/site.css 顶部注释）：
@@ -22,7 +24,7 @@
   ::selection{background:var(--accent-wash)}
   /* —— 报头：只剩品牌 + 3 个全局动作（同步 / 设置 / 登录）—— */
   header{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--rule);
-         background:var(--paper);flex:0 0 auto;z-index:10;flex-wrap:nowrap;min-height:40px}
+         background:var(--paper);flex:0 0 auto;z-index:var(--z-sticky);flex-wrap:nowrap;min-height:40px}
   header .title{font-family:var(--serif);font-weight:600;font-size:15.5px;white-space:nowrap}
   header .sub{color:var(--ink-3);font-size:12px;margin-left:6px}
   header .grow{flex:1;min-width:0}
@@ -32,7 +34,7 @@
      常驻 <header> 的兄弟节点：renderCrumbs() 每次只换 #crumbs 的内容，
      #quotaBadge 保持单例（renderQuota 在配额回来时靠 id 找得到它）。 */
   #crumbbar{display:flex;align-items:center;gap:10px;flex:0 0 auto;min-height:28px;
-            padding:3px 14px;border-bottom:1px solid var(--hairline);background:var(--paper);z-index:9}
+            padding:3px 14px;border-bottom:1px solid var(--hairline);background:var(--paper);z-index:var(--z-sticky)}
   #crumbs{flex:1;min-width:0;display:flex;align-items:center;gap:2px;overflow-x:auto;white-space:nowrap;
           scrollbar-width:none;font-family:var(--mono);font-size:12px;color:var(--ink-3)}
   #crumbs::-webkit-scrollbar{display:none}
@@ -167,33 +169,59 @@
   mark.hl{background:var(--accent-wash);border-bottom:1.5px solid var(--accent)}
 
   /* 介绍页 */
-  #intro{position:fixed;inset:0;background:var(--scrim);z-index:200;display:flex;align-items:center;justify-content:center}
+  #intro{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal);display:flex;align-items:center;justify-content:center}
   #intro.hidden{display:none}
-  .icard{max-width:520px;padding:34px 40px;border:1px solid var(--rule);background:var(--surface);text-align:center}
+  /* 落地卡：只留「是什么 → 怎么开始」。快捷键 / 隐私 / 额度收进一个 <details>，
+     站内 4 个链接压成一行页脚小字。展开后会高过短屏 → 让卡片自己滚：
+     #intro 是 fixed inset:0 且不滚动，卡片撑破视口就再也点不到按钮。 */
+  .icard{width:min(520px, calc(100vw - 24px));padding:34px 40px 24px;border:1px solid var(--rule);background:var(--surface);
+         text-align:center;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
   .icard h1{margin:0 0 2px;font-size:34px;font-family:var(--serif);font-weight:600}
   .icard h1 span{font-size:14px;color:var(--ink-3);font-weight:400;margin-left:10px;font-family:var(--sans)}
-  .icard .slogan{color:var(--accent);font-style:italic;margin-bottom:22px;font-family:var(--serif)}
-  .icard .irow{font-size:15px;line-height:2;margin-bottom:14px}
-  .icard .ikeys{display:flex;gap:10px;justify-content:center;font-size:12px;color:var(--ink-3);margin-bottom:16px;font-family:var(--mono)}
-  .icard .ikeys span{border:1px solid var(--hairline);padding:2px 8px}
-  .icard .inote{font-size:12.5px;color:var(--ink-3);line-height:1.9;margin-bottom:14px}
-  .icard .ilinks{display:flex;gap:16px;justify-content:center;font-size:12.5px;margin-bottom:20px}
-  .icard .ilinks a{color:var(--ink-3);text-decoration:none;border-bottom:1px solid var(--hairline)}
-  .icard .ilinks a:hover{color:var(--accent);border-bottom-color:var(--accent-line)}
+  .icard .slogan{color:var(--accent);font-style:italic;margin-bottom:18px;font-family:var(--serif)}
+  .icard .irow{font-size:15px;line-height:1.85;margin-bottom:18px;color:var(--ink-2);text-wrap:balance}
+  .icard .irow b{color:var(--ink);font-weight:600}
   .icard button{font-size:15px;padding:8px 28px;background:var(--ink);color:var(--paper);font-weight:600;border:none;font-family:var(--sans)}
   .icard button:hover{background:var(--accent);color:var(--paper)}
   .icard .ibtns{display:flex;gap:10px;justify-content:center}
   .icard button.ghost{background:none;color:var(--ink);border:1px solid var(--hairline)}
   .icard button.ghost:hover{border-color:var(--ink);color:var(--ink)}
+  .icard .inote{font-size:12.5px;color:var(--ink-3);line-height:1.9;margin-bottom:14px}
+  .icard a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--hairline)}
+  .icard a:hover{color:var(--accent);border-bottom-color:var(--accent-line)}
+  /* 匿名提示：只有一句，跟在按钮组下面 */
+  #anonNote{margin:12px 0 0;font-size:12px;line-height:1.8}
+  /* —— 折叠区：快捷键 + 数据与额度 —— */
+  .icard .imore{margin:20px 0 0;border-top:1px solid var(--hairline);text-align:left}
+  .icard .imore summary{list-style:none;cursor:pointer;position:relative;margin:0;
+                        padding:9px 0 9px 18px;font:11.5px/1.5 var(--mono);letter-spacing:.03em;color:var(--ink-3)}
+  .icard .imore summary::-webkit-details-marker{display:none}
+  .icard .imore summary::before{content:"+";position:absolute;left:2px;top:9px;color:var(--accent);font-size:13px;line-height:1.35}
+  .icard .imore[open] summary::before{content:"–"}
+  .icard .imore summary:hover{color:var(--ink)}
+  .icard .imore summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;color:var(--ink)}
+  .icard .imore .ibody{padding:0 0 6px;animation:icard-in .16s ease-out}
+  @keyframes icard-in{from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none}}
+  .icard .ikeys{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:12px;color:var(--ink-3);margin:0 0 12px;font-family:var(--mono)}
+  .icard .ikeys span{border:1px solid var(--hairline);padding:2px 8px}
+  .icard .imore .inote{margin-bottom:2px}
+  /* —— 页脚：关于 / 反馈 / 隐私 / 条款，一行小字 —— */
+  .icard .ifoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 8px;
+                margin:16px 0 0;padding-top:11px;border-top:1px solid var(--hairline);
+                font-size:11.5px;line-height:1.7;color:var(--ink-3)}
+  .icard .ifoot a{color:var(--ink-3);border-bottom-color:transparent}
+  .icard .ifoot a:hover{color:var(--accent)}
+  .icard .ifoot .dot{opacity:.45}
 
   /* 账户 / 配额 / 引导 */
   .hidden{display:none !important}
   .qbadge{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);border:1px solid var(--hairline);padding:2px 8px}
   .qbadge.deg{color:var(--warn);border-color:var(--warn)}
-  #authModal,#keyModal{position:fixed;inset:0;background:var(--scrim);z-index:210;display:flex;align-items:center;justify-content:center}
+  #authModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-hi);display:flex;align-items:center;justify-content:center}
+  /* 密钥：叠在设置 / 账号之上（最上层模态），并与分享共用同一层（两者不会同时出现） */
+  #keyModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-top);display:flex;align-items:center;justify-content:center}
   /* 设置（用户配置）：站长那套默认不出现（见 #adminGroup）；密钥面板叠在设置之上 */
-  #settingsModal{position:fixed;inset:0;background:var(--scrim);z-index:215;display:flex;align-items:center;justify-content:center}
-  #keyModal{z-index:225}
+  #settingsModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-hi);display:flex;align-items:center;justify-content:center}
   #settingsModal .acard{width:400px;max-height:88vh;overflow:auto}
   .sgroup{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-3);
           border-bottom:1px solid var(--hairline);padding-bottom:3px;margin:16px 0 8px}
@@ -249,20 +277,20 @@
   #redeemBox{display:flex;gap:8px}
   #redeemBox input{margin-bottom:0}
   #redeemBox button{flex:0 0 auto;padding:0 14px}
-  #coach{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:150;
+  #coach{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:var(--z-coach);
          background:var(--surface);border:1px solid var(--rule);padding:12px 16px;
          display:flex;align-items:center;gap:12px;max-width:80vw;box-shadow:var(--float)}
   #coach .ctext{font-size:14px;line-height:1.7}
   #coach .cx{background:none;border:none;color:var(--ink-3);font-size:18px;cursor:pointer}
   /* 窄屏：常驻反馈胶囊也在右下角，教练气泡上移让它 */
   @media (max-width:600px){ #coach{bottom:56px} }
-  #toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:220;background:var(--slab-bg);color:var(--slab-fg);
+  #toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:var(--z-max);background:var(--slab-bg);color:var(--slab-fg);
          border:1px solid var(--slab-line);padding:8px 16px;font-size:13.5px;
          opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:var(--float)}
   #toast.show{opacity:1}
 
   /* 气泡（划词：解释 + 可选疑惑） */
-  #bubble{position:absolute;z-index:100;display:none;width:296px;background:var(--surface);
+  #bubble{position:absolute;z-index:var(--z-pill);display:none;width:296px;background:var(--surface);
           border:1px solid var(--rule);box-shadow:var(--float);padding:8px}
   #bubble .bterm{font-family:var(--serif);font-size:12.5px;color:var(--ink-3);
                  margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -281,7 +309,7 @@
   .hint{color:var(--ink-3);font-size:12.5px;padding:14px;line-height:2}
 
   /* 分享卡片 */
-  #shareModal{position:fixed;inset:0;background:var(--scrim);z-index:230;display:flex;align-items:center;justify-content:center}
+  #shareModal{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-modal-top);display:flex;align-items:center;justify-content:center}
   #shareModal.hidden{display:none}
   .sbox{display:flex;flex-direction:column;gap:10px;max-height:94vh;padding:14px;background:var(--surface);
         border:1px solid var(--rule)}
@@ -345,19 +373,7 @@
   <div class="icard">
     <h1>问底<span>WenDi</span></h1>
     <div class="slogan">Get to the bottom of it.</div>
-    <div class="irow">遇到不懂的词 → <b>划它</b> → 得到解释；<br>解释里还有不懂的 → <b>继续划</b>，一层层到底。</div>
-    <div class="ikeys"><span>Esc / Alt+← 返回上一层</span><span>↑ ↓ 切换</span><span>Alt+Enter 进入</span></div>
-    <div class="inote">
-      数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
-      内测期会记录匿名使用事件（做了哪个动作、层级深度、你带来的邀请码，<b>不含</b>你划的词、提问与解释正文），详见 <a href="/privacy.html">隐私政策</a>。<br>
-      内测期凭邀请码注册后使用：免费 40 次/天，Pro 300 次/天。
-    </div>
-    <div class="ilinks">
-      <a href="/about.html">关于 wendi</a>
-      <a href="/feedback.html">反馈</a>
-      <a href="/privacy.html">隐私</a>
-      <a href="/terms.html">条款</a>
-    </div>
+    <div class="irow">遇到不懂的词 → <b>划它</b> → 得到解释 → <b>继续划</b>，一层层到底。</div>
     <div class="ibtns" id="ibtnsAnon">
       <button id="introReg">我有邀请码，注册</button>
       <button id="introLogin" class="ghost">登录</button>
@@ -366,8 +382,25 @@
       <button id="introTour" class="ghost">30 秒试试</button>
       <button id="introGo">开始</button>
     </div>
-    <div class="inote" id="anonNote" style="margin:12px 0 0">
-      内测阶段只对持邀请码的人开放。<br>没有码的话，到 <a href="/feedback.html">反馈页</a> 留个邮箱，我把码发给你。
+    <div class="inote" id="anonNote">
+      没有码的话，到 <a href="/feedback.html">反馈页</a> 留个邮箱，我把码发给你。
+    </div>
+    <details class="imore">
+      <summary>快捷键 · 数据与额度</summary>
+      <div class="ibody">
+        <div class="ikeys"><span>Esc / Alt+← 返回上一层</span><span>↑ ↓ 切换</span><span>Alt+Enter 进入</span></div>
+        <div class="inote">
+          数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
+          内测期会记录匿名使用事件（做了哪个动作、层级深度、你带来的邀请码，<b>不含</b>你划的词、提问与解释正文），详见 <a href="/privacy.html">隐私政策</a>。<br>
+          内测期凭邀请码注册后使用：免费 40 次/天，Pro 300 次/天。
+        </div>
+      </div>
+    </details>
+    <div class="ifoot">
+      <a href="/about.html">关于 wendi</a><span class="dot">·</span>
+      <a href="/feedback.html">反馈</a><span class="dot">·</span>
+      <a href="/privacy.html">隐私</a><span class="dot">·</span>
+      <a href="/terms.html">条款</a>
     </div>
   </div>
 </div>
@@ -1226,7 +1259,9 @@ $("#sampleBtn").onclick = () => {
   focusOn([state.root.id]);
   sendChat(state.root, "我想学量子力学。先给我讲讲最基本的几个概念？");
 };
-$("#resetBtn").onclick = () => { if(confirm("清空全部？")){ localStorage.removeItem(SKEY); location.reload(); } };
+$("#resetBtn").onclick = async () => {
+  if (await wdiag.confirm("清空全部？", { danger: true })) { localStorage.removeItem(SKEY); location.reload(); }
+};
 $("#closedBtn").onclick = () => {
   const box = $("#closedList");
   if(box.style.display === "block"){ box.style.display = "none"; return; }
@@ -1580,7 +1615,7 @@ $("#redeemBtn").onclick = doRedeem;
 $("#logoutBtn").onclick = doLogout;
 $("#syncDelBtn").onclick = async () => {
   if (!ME) return;
-  if (!confirm("删除服务器上那份云同步数据？\n\n本地数据不动；删除后不可恢复（想再备份就再点一次「同步↑」）。")) return;
+  if (!(await wdiag.confirm("删除服务器上那份云同步数据？\n\n本地数据不动；删除后不可恢复（想再备份就再点一次「同步↑」）。", { danger: true }))) return;
   const r = await api("/api/sync/delete", "POST", {});
   toast(r.ok ? (r.data.deleted ? "云端副本已删除" : "云端本来就没有副本") : ("删除失败：" + (r.data.error || "")));
 };
@@ -1725,7 +1760,7 @@ async function doAuth(){
         : "已登录：" + ME.email);
   const s = await api("/api/sync");
   if (s.ok && s.data && s.data.data) {
-    if (confirm("云端有你的数据（" + s.data.updated_at + "）。\n\n载入云端数据？（取消 = 保留本地，之后可用「同步↑」把本地覆盖上去）")) {
+    if (await wdiag.confirm("云端有你的数据（" + s.data.updated_at + "）。\n\n载入云端数据？（取消 = 保留本地，之后可用「同步↑」把本地覆盖上去）")) {
       try { state = JSON.parse(s.data.data); save(); render(""); toast("已载入云端数据"); }
       catch(e){ toast("云端数据解析失败"); }
     }

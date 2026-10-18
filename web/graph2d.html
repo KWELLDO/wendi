@@ -6,6 +6,7 @@
 <title>解释场 · 2D 图谱</title>
 <script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
 <link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/ui.css">
 <style>
   /* 设计 token 已抽到单源 /tokens.css（含亮色、--dk-*、两个暗色映射块与 color-scheme），
      由上面的 <link> 引入；本页不再自带 token。 */
@@ -119,6 +120,7 @@
     .ptitle .x{display:block}
   }
 </style>
+<script src="/ui.js" defer></script>
 </head>
 <body>
 <header>
@@ -579,20 +581,20 @@ function graphJson(){
 
 const pngBtn = document.getElementById("pngBtn"), jsonBtn = document.getElementById("jsonBtn");
 pngBtn.onclick = () => {
-  if(!DATA || !DATA.nodes.length){ alert("没有可导出的图谱数据"); return; }
+  if(!DATA || !DATA.nodes.length){ wdiag.toast("没有可导出的图谱数据", { kind: "warn" }); return; }
   const label = pngBtn.textContent;
   pngBtn.disabled = true; pngBtn.textContent = "导出中…";
   const { text, W, H } = buildExportSvg();
   const S = Math.max(.35, Math.min(2, 3200 / Math.max(W, H)));   // 2 倍清晰，长边封顶 3200px
   svgToPng(text, W, H, S, (blob, w, h) => {
     pngBtn.disabled = false; pngBtn.textContent = label;
-    if(!blob){ alert("导出失败：图片渲染出错"); return; }
+    if(!blob){ wdiag.toast("导出失败：图片渲染出错", { kind: "err" }); return; }
     dl(blob, `问底-图谱-${stamp()}.png`);
   });
 };
 jsonBtn.onclick = () => {
   const p = graphJson();
-  if(!p){ alert("没有可导出的图谱数据"); return; }
+  if(!p){ wdiag.toast("没有可导出的图谱数据", { kind: "warn" }); return; }
   dl(new Blob([JSON.stringify(p, null, 2)], { type: "application/json" }), `问底-图谱-${stamp()}.json`);
 };
 
