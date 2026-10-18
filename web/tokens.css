@@ -20,8 +20,9 @@
    ------------------------------------
    这一轮只动「色温 / 纸面四阶 / 纸纹」，尺寸、排版、组件形态一律未改。
      · 亮色从「新闻纸米白」往「陈年羊皮纸」推：更暖、更旧、带米褐，四阶仍克制（L* +3.1 / +3.1）；
-     · 暗色不再是「黑底 UI 刷一层棕」，而是「羊皮纸的暗调」：纸面仍是暖褐，
-       四阶层级比亮色更明显（暗色里人眼对明度差更迟钝，差值放大才读得出）。
+     · 暗色第三版（2026-10-18 晚，见下方「暗色真源」的注释）不走「羊皮纸的暗调」：
+       不做棕色调，而是把亮色的纸/墨对调 —— 墨黑纸、纸白字、同一支印泥红；
+       色度压到 C*≈4（几乎中性），暖意只留一丝。前两版暖褐（B）被判「更难看」即因色度太高。
      · 纸纹：原来的 4px 点阵（像方格纸）换成「低频云斑 + 双频柔边颗粒」两层叠加，
        全部由 CSS radial-gradient 拼成：无图片、无外链、固定不随滚动游动。
    ===================================================================================== */
@@ -80,23 +81,33 @@
      surface 系列必须比 paper 亮（暗色里“抬起”= 更亮）；surface-2 是“朝墨色走一点”的同面淡染，
      因此在暗色里落在 surface 之上，而不是比 paper 更暗 —— 旧 #1b1713 与 paper 只差 1/255，
      既读不出层级，又构成反转。
-     ink-3 同样要过 4.5，不再用“看得见但读不清”的 3.x 灰。
-     羊皮纸暗调（方案 B · 灯下羊皮 · 本轮采用）：
-       纸色明显更浅、更赭，像一盏台灯照着的旧纸，先解决“黑底 UI”的观感；
-       四阶 L* 15.5 / 20.2 / 25.3 / 30.2，台阶 +4.7 / +5.1 / +4.9，比亮色更能读层级。
-       红提亮到浅陶土 #f2a687，在四阶纸面上对比 7.55 / 6.58 / 5.56 / 4.68，仍是唯一强调色。
-       想要更深的“夜晚书房”版：换用文件末尾注释里的方案 A（深褐羊皮）。 */
-  --dk-paper:#402d19; --dk-paper-deep:#352313; --dk-surface:#4d3821; --dk-surface-2:#594329;
-  --dk-ink:#fdf3de; --dk-ink-2:#e4d0ad; --dk-ink-3:#d9c3a4;
-  --dk-rule:#fbf1dc; --dk-hairline:#6d5436;
-  --dk-accent:#f2a687; --dk-accent-wash:rgba(242,166,135,.14); --dk-accent-line:rgba(242,166,135,.50);
-  --dk-select:rgba(242,166,135,.24);
-  --dk-ok:#aed8c2; --dk-warn:#f0c46a; --dk-err:#ff9a86;
-  --dk-slab-bg:#2a1a0c; --dk-slab-fg:#fbf1dc; --dk-slab-line:rgba(251,241,220,.18);
-  --dk-scrim:rgba(20,12,6,.62);
-  --dk-float:0 6px 18px rgba(0,0,0,.45);
-  --dk-noise:rgba(251,241,220,.03);
-  --dk-edge:rgba(251,241,220,.30); --dk-edge-hot:rgba(242,166,135,.90);
+     ink-3 同样要过 5.5，不再用“看得见但读不清”的 3.x 灰。
+
+     方案 C · 暖炭墨（第三版 · 本轮采用）
+     ------------------------------------
+     思路：暗色不是「给黑底刷一层棕」，而是把亮色的纸 / 墨【对调】——
+       纸 = 墨黑（低饱和暖炭，L* 7.9，色度 C* 3.7）
+       字 = 纸白（#f4ead6，就是亮色那张纸的颜色本身，L* 93.0）
+       红 = 与亮色同一支印泥红（Lab 色相 37°/38°），在暗底上提亮到 L* 60
+     前两版被否的原因就一条：纸的色度太高。P（#211d17）C* 5–7 是灰棕，B（#402d19）C* 15–20
+     直接成了褐色滤镜；这里把纸的色度压到 C*≈4，暖意只剩「一丝」，靠层级与排版出质感。
+
+     四阶 L* 4.7 / 7.9 / 12.9 / 16.3，台阶 +3.2 / +5.0 / +3.4（≥3 才在暗处读得出）。
+     对比度（WCAG，实测）：正文 15.0；ink-3 on paper 6.9 / on surface 6.2（≥5.5）；
+     红 on surface-2 4.63（≥4.5）、on paper 5.65；纸白压红（按钮 hover 反白）5.65。
+     --rule 刻意比 --ink 低一档（L*90）：暗底上 1px 纯纸白线会发眩，压一点仍是「墨线」。
+     inset 的 slab 仍比纸更黑（#0f0d09），保持亮色里「墨条」的语义。 */
+  --dk-paper:#1a1712; --dk-paper-deep:#121009; --dk-surface:#24211b; --dk-surface-2:#2c2822;
+  --dk-ink:#f4ead6; --dk-ink-2:#c6bfb1; --dk-ink-3:#a8a092;
+  --dk-rule:#e8e2d4; --dk-hairline:#4a443a;
+  --dk-accent:#fb5a40; --dk-accent-wash:rgba(251,90,64,.13); --dk-accent-line:rgba(251,90,64,.46);
+  --dk-select:rgba(251,90,64,.26);
+  --dk-ok:#7fb8a4; --dk-warn:#e2b968; --dk-err:#ff8070;
+  --dk-slab-bg:#0f0d09; --dk-slab-fg:#f4ead6; --dk-slab-line:rgba(244,234,214,.14);
+  --dk-scrim:rgba(8,7,5,.66);
+  --dk-float:0 6px 18px rgba(0,0,0,.55);
+  --dk-noise:rgba(244,234,214,.03);
+  --dk-edge:rgba(244,234,214,.28); --dk-edge-hot:rgba(251,90,64,.92);
   /* 暗色纸纹：亮斑是“灯还照着的纸”，暗斑是“吃墨更深的纸”。
      暗色里亮斑会吃掉浅墨的对比，所以亮斑单层压到 ≤ .03，暗斑反而可以到 .16。 */
   --dk-paper-tex:
@@ -186,13 +197,25 @@ html body{
 }
 
 /* =====================================================================================
-   备用暗色 · 方案 A「深褐羊皮」（未启用，整块注释）
+   备用暗色（前两轮 · 均未采用，整块注释 · 留档便于一行切换）
    -------------------------------------------------------------------------------------
-   想比较/切换：把上面 :root 里的 --dk-* 与 --dk-paper-tex 两段整体换成下面这份，
-   其余（两块映射、--paper-tex 的引用）不用动。
-   A 的纸面更深、更浓（L* 5.6 / 8.7 / 13.8 / 19.2），像半夜书房里一本摊开的旧书；
-   四阶层级比 B 更收敛，红要压到陶土色 #e0806a 才不刺眼。适合喜欢“更暗、更闷”的人。
+   切换方法：把上面 :root 里的 --dk-* 十行整体换成下面任意一份，其余（两块映射、
+   --paper-tex 引用、纸纹）一行都不用动 —— 三套共用同一张暗色纸纹，只比色。
+   两套都是「暖褐纸」方向：纸的色度 C* 5–20，在整屏上会读成灰棕 / 褐色滤镜。
+   第三版 C（现用）已放弃这个方向：纸的色度降到 C*≈4，只留一丝暖。
 
+   · B「灯下羊皮」（第二轮）（纸 L* 15.5 / 20.2 / 25.3 / 30.2；纸色偏亮偏赭，用户评「更难看」）
+   --dk-paper:#402d19; --dk-paper-deep:#352313; --dk-surface:#4d3821; --dk-surface-2:#594329;
+   --dk-ink:#fdf3de; --dk-ink-2:#e4d0ad; --dk-ink-3:#d9c3a4;
+   --dk-rule:#fbf1dc; --dk-hairline:#6d5436;
+   --dk-accent:#f2a687; --dk-accent-wash:rgba(242,166,135,.14); --dk-accent-line:rgba(242,166,135,.50);
+   --dk-select:rgba(242,166,135,.24);
+   --dk-ok:#aed8c2; --dk-warn:#f0c46a; --dk-err:#ff9a86;
+   --dk-slab-bg:#2a1a0c; --dk-slab-fg:#fbf1dc; --dk-slab-line:rgba(251,241,220,.18);
+   --dk-scrim:rgba(20,12,6,.62); --dk-float:0 6px 18px rgba(0,0,0,.45); --dk-noise:rgba(251,241,220,.03);
+   --dk-edge:rgba(251,241,220,.30); --dk-edge-hot:rgba(242,166,135,.90);
+
+   · A「深褐羊皮」（第二轮备选）（纸 L* 5.6 / 8.7 / 13.8 / 19.2；比 B 深，但更褐更闷）
    --dk-paper:#241608; --dk-paper-deep:#1b1008; --dk-surface:#302010; --dk-surface-2:#3d2b18;
    --dk-ink:#f4e8d2; --dk-ink-2:#d6c3a4; --dk-ink-3:#b09c7d;
    --dk-rule:#f1e3cb; --dk-hairline:#4e3a25;
@@ -200,17 +223,17 @@ html body{
    --dk-select:rgba(224,128,106,.22);
    --dk-ok:#7fbfa8; --dk-warn:#d9ad5c; --dk-err:#dd8172;
    --dk-slab-bg:#120b06; --dk-slab-fg:#f2e7d1; --dk-slab-line:rgba(242,231,209,.16);
-   --dk-scrim:rgba(8,5,3,.66);
-   --dk-float:0 6px 18px rgba(0,0,0,.55);
-   --dk-noise:rgba(242,231,209,.03);
+   --dk-scrim:rgba(8,5,3,.66); --dk-float:0 6px 18px rgba(0,0,0,.55); --dk-noise:rgba(242,231,209,.03);
    --dk-edge:rgba(242,231,209,.28); --dk-edge-hot:rgba(224,128,106,.88);
-   --dk-paper-tex:
-     radial-gradient(circle, rgba(255,236,200,.018) .6px, transparent 1.4px),
-     radial-gradient(circle, rgba(0,0,0,.070) .5px, transparent 1.2px),
-     radial-gradient(72vw 58vw at -6% -10%, rgba(255,206,140,.030), rgba(255,206,140,0) 100%),
-     radial-gradient(66vw 54vw at 106% 12%, rgba(255,224,176,.020), rgba(255,224,176,0) 100%),
-     radial-gradient(80vw 64vw at 20% 112%, rgba(0,0,0,.16),          rgba(0,0,0,0) 100%),
-     radial-gradient(42vw 36vw at 74% 64%,  rgba(0,0,0,.09),          rgba(0,0,0,0) 100%),
-     radial-gradient(28vw 22vw at 46% 36%,  rgba(255,214,150,.016), rgba(255,214,150,0) 100%);
-   --dk-paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+
+   · P「初版暗色」（第一轮）（纸 L* 7.0 / 11.0 / 15.5 / 19.3；用户评「太不好」）
+   --dk-paper:#211d17; --dk-paper-deep:#191510; --dk-surface:#2b261e; --dk-surface-2:#342e24;
+   --dk-ink:#f0e9db; --dk-ink-2:#c9c0ae; --dk-ink-3:#a49a86;
+   --dk-rule:#ece5d6; --dk-hairline:#4a4336;
+   --dk-accent:#e2776a; --dk-accent-wash:rgba(226,119,106,.13); --dk-accent-line:rgba(226,119,106,.50);
+   --dk-select:rgba(226,119,106,.22);
+   --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
+   --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
+   --dk-scrim:rgba(0,0,0,.62); --dk-float:0 6px 18px rgba(0,0,0,.55); --dk-noise:rgba(236,229,214,.03);
+   --dk-edge:rgba(236,229,214,.28); --dk-edge-hot:rgba(215,106,95,.9);
    ===================================================================================== */
