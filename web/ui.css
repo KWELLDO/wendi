@@ -1,0 +1,138 @@
+/* 问底 WenDi · 共享对话框 / 轻提示（配合 /ui.js）
+   -------------------------------------------------------------------------------------
+   谁在用：各页在 tokens.css **之后** 引入 <link rel="stylesheet" href="/ui.css">，
+   再 <script src="/ui.js" defer></script>。页面里不需要预置任何标记 ——
+   对话框与轻提示都由 ui.js 按需创建。
+
+   契约：window.wdiag.confirm / prompt / toast（见 ui.js 顶部注释）。
+   DOM：<dialog class="wdlg" role="dialog" aria-modal="true"> 内套 <form method="dialog">，
+        标题 .wdlg-t、正文 .wdlg-m、动作区 .wdlg-act，按钮 value 为 ok / cancel；
+        轻提示 <div class="wtoast" role="status" aria-live="polite"> 内套 .wtoast-i。
+
+   主题：只吃 tokens.css 的 token（亮 / 暗 / 强选暗 由 token 层负责），
+        本文件【不写】@media (prefers-color-scheme) 与 [data-theme] 分支 ——
+        唯一的媒体查询是 prefers-reduced-motion（动效偏好，与主题无关）。
+   形制：方角、发丝线、纸面墨字；红只做入口与小面积语义色（危险按钮 / toast 左边条），
+        不做大面积填充。
+   ========================================================================== */
+
+/* ============================ 对话框 ============================ */
+dialog.wdlg{
+  position:fixed; inset:0; margin:auto;
+  width:min(92vw, 420px);
+  max-height:calc(100dvh - 32px);
+  padding:0;
+  border:1px solid var(--rule);
+  border-radius:0;
+  background:var(--surface);
+  color:var(--ink);
+  box-shadow:var(--float);
+  font:14.5px/1.7 var(--sans);
+  overflow:hidden;
+  /* 原生 <dialog> 走 top layer，z-index 只是兜底（也照顾 ::backdrop 之下的老引擎） */
+  z-index:var(--z-modal-top, 220);
+}
+dialog.wdlg::backdrop{ background:var(--scrim) }
+dialog.wdlg[open]{ animation:wdlg-in .16s ease-out }
+@keyframes wdlg-in{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none} }
+
+.wdlg form{
+  display:flex; flex-direction:column;
+  margin:0; padding:22px 22px 18px;
+  max-height:calc(100dvh - 34px); overflow:auto;
+}
+.wdlg-t{
+  margin:0 0 6px; padding:0;
+  font:600 15.5px/1.45 var(--serif); color:var(--ink); letter-spacing:0;
+}
+/* 无标题时不占位（DOM 里仍有 .wdlg-t，供调用方查询） */
+.wdlg-t:empty{ display:none }
+.wdlg-m{
+  margin:0 0 18px; padding:0;
+  font-size:13.5px; line-height:1.78; color:var(--ink-2);
+  white-space:pre-wrap; overflow-wrap:anywhere;
+}
+.wdlg-in{
+  width:100%; margin:0 0 18px; padding:8px 11px;
+  background:var(--paper); color:var(--ink);
+  border:1px solid var(--hairline); border-radius:0;
+  font:13.5px/1.7 var(--sans);
+}
+.wdlg-in:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash) }
+
+.wdlg-act{ display:flex; gap:8px; justify-content:flex-end; margin-top:2px }
+.wdlg-act button{
+  margin:0; padding:7px 16px;
+  background:transparent; color:var(--ink);
+  border:1px solid var(--hairline); border-radius:0;
+  font:13.5px/1.5 var(--sans); cursor:pointer;
+}
+.wdlg-act button:hover{ border-color:var(--ink) }
+/* 主按钮：墨底纸字（不是红） */
+.wdlg-act button[value="ok"]{
+  background:var(--ink); color:var(--paper); border-color:var(--ink);
+  font-weight:600;
+}
+.wdlg-act button[value="ok"]:hover{ background:var(--ink-2); border-color:var(--ink-2) }
+/* 危险确认：唯一允许的红色实底 —— 小面积、语义明确 */
+dialog.wdlg[data-danger="1"] .wdlg-act button[value="ok"]{
+  background:var(--err); color:var(--paper); border-color:var(--err);
+}
+dialog.wdlg[data-danger="1"] .wdlg-act button[value="ok"]:hover{
+  background:var(--ink); border-color:var(--ink);
+}
+.wdlg :focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+.wdlg .wdlg-in:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash) }
+
+/* ============================ 轻提示 ============================ */
+/* 位置：底部居中。顶部中央已被工作台自己的 #toast 占用，两条浮层不抢同一个点。 */
+.wtoast{
+  /* 定位量放自定义属性里做单一真源：[popover] 那条规则的特异性更高（0,2,0），
+     里面必须用 inset 简写覆盖 UA 默认值，若在这里散写 left/bottom 会被它整条盖成 auto，
+     盒子退回静态位置（实测落到视口左上角外，x 为负）。两处都引用同一个变量。 */
+  --wtoast-gap:calc(18px + env(safe-area-inset-bottom, 0px));
+  position:fixed; inset:auto;
+  left:50%; bottom:var(--wtoast-gap);
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  width:max-content; max-width:min(92vw, 460px);
+  margin:0; padding:0; border:0; background:transparent;
+  pointer-events:none;
+  z-index:var(--z-max, 230);
+}
+/* [popover] 的 UA 默认（inset:0 / margin:auto / 边框 / 背景 / overflow）要全覆盖掉；
+   未打开时必须显式 display:none（UA 那套会被作者样式盖过）。 */
+.wtoast[popover]{
+  /* 不能写 inset:auto —— 那是简写，会把 left/bottom 一起盖成 auto。
+     定位与 .wtoast 共用同一个变量，底部居中。 */
+  inset: auto auto var(--wtoast-gap) 50%;
+  margin:0; padding:0;
+  border:0; background:transparent; overflow:visible;
+  color:var(--slab-fg);
+}
+.wtoast[popover]:not(:popover-open){ display:none }
+
+.wtoast-i{
+  max-width:100%;
+  padding:9px 15px;
+  background:var(--slab-bg); color:var(--slab-fg);
+  border:1px solid var(--slab-line);
+  border-radius:0;
+  border-left:3px solid var(--ink-3);      /* 语义色只占一条边，不整块上色 */
+  box-shadow:var(--float);
+  font:13px/1.65 var(--sans);
+  text-align:left;
+  overflow-wrap:anywhere;
+  animation:wtoast-in .18s ease-out;
+}
+.wtoast-i[data-kind="info"]{ border-left-color:var(--ok) }
+.wtoast-i[data-kind="warn"]{ border-left-color:var(--warn) }
+.wtoast-i[data-kind="err"]{ border-left-color:var(--err) }
+.wtoast-i.out{ opacity:0; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease }
+@keyframes wtoast-in{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+
+@media (prefers-reduced-motion:reduce){
+  dialog.wdlg[open]{ animation:none }
+  .wtoast-i{ animation:none }
+  .wtoast-i.out{ transform:none }
+}

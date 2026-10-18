@@ -1,0 +1,239 @@
+/* 问底 WenDi · 设计 token · 单源（single source of truth）
+   -------------------------------------------------------------------------------------
+   本文件只放设计 token，不放 reset / focus-visible / z-index 等页面规则。
+   唯一例外在文件末尾：一条只上纸纹的 `html body` 背景规则（见「纸纹应用」）。
+
+   谁在用：
+     · 文档页族（about / privacy / terms / feedback / admin / meter …）→ 经 site.css 顶部的
+       `@import url("/tokens.css")` 自动获得（各页只 link 了 site.css，无需改 HTML）；
+     · 工作台 web/app/index.html 与 web/graph2d.html → <head> 里直接 <link rel="stylesheet"
+       href="/tokens.css">（启动脚本仍在其前面，防首帧闪色）。
+
+   主题契约（与各页 <head> 启动脚本、设置面板一致，勿改）：
+     localStorage["wendi-theme"] = "light" | "dark"；键缺失 / 非法值 = 跟随系统
+     手动选定时 <html data-theme="light|dark">；跟随系统时该属性被【移除】
+
+   视觉契约见 docs/adr/0001：纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
+   亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
+
+   2026-10-18 修订 · 羊皮纸（parchment）
+   ------------------------------------
+   这一轮只动「色温 / 纸面四阶 / 纸纹」，尺寸、排版、组件形态一律未改。
+     · 亮色从「新闻纸米白」往「陈年羊皮纸」推：更暖、更旧、带米褐，四阶仍克制（L* +3.1 / +3.1）；
+     · 暗色第三版（2026-10-18 晚，见下方「暗色真源」的注释）不走「羊皮纸的暗调」：
+       不做棕色调，而是把亮色的纸/墨对调 —— 墨黑纸、纸白字、同一支印泥红；
+       色度压到 C*≈4（几乎中性），暖意只留一丝。前两版暖褐（B）被判「更难看」即因色度太高。
+     · 纸纹：原来的 4px 点阵（像方格纸）换成「低频云斑 + 双频柔边颗粒」两层叠加，
+       全部由 CSS radial-gradient 拼成：无图片、无外链、固定不随滚动游动。
+   ===================================================================================== */
+:root{
+  /* —— 亮色 token（默认）——
+     纸面四阶的语义（两套主题一致）：
+        paper        页
+        paper-deep   凹槽（列表 / 预览这类“退后”的面）
+        surface      抬起的面板（主对话 / 卡片）
+        surface-2    同面淡染，朝墨色走一点；亮色略沉、暗色略浮，用于 hover / 行内代码
+     亮色序：paper-deep < surface-2 < paper < surface。
+     层级要“肉眼可辨但克制”：paper↔surface 约 1.08，不当成发光玻璃。
+     ink-3 只给 12.5px 及以下的提示字，必须在 paper / paper-deep / surface 上都过 4.5。
+     羊皮纸调：纸色带米褐（比新闻纸更黄更旧），墨色略偏暖棕而不是纯黑，
+     红仍是唯一的强调色（朱膘 / 印泥那一挂，饱和但略沉）。 */
+  --paper:#f4ead6; --paper-deep:#ede1ca; --surface:#fbf3e3; --surface-2:#efe3cd;
+  --ink:#191510; --ink-2:#4b4234; --ink-3:#61553f;
+  --rule:#191510; --hairline:#d3c6ab;
+  --accent:#a5281c; --accent-wash:rgba(165,40,28,.09); --accent-line:rgba(165,40,28,.42);
+  /* 划词选区：比 hover 的 accent-wash 更实一点（划词是本产品的主交互，选区必须一眼看见） */
+  --select:rgba(165,40,28,.17);
+  --ok:#2f6355; --warn:#86600f; --err:#8f2317;
+  --slab-bg:#1b160e; --slab-fg:#f6efdf; --slab-line:rgba(246,239,223,.18);
+  --scrim:rgba(25,21,16,.55);
+  --float:0 6px 18px rgba(25,21,16,.16);
+  --noise:rgba(74,56,31,.05);           /* 旧 4px 点阵的兜底色（纸纹已改用 --paper-tex） */
+  --edge:rgba(25,21,16,.28); --edge-hot:rgba(165,40,28,.85);
+  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
+  --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+
+  /* —— 纸纹（parchment）——
+     --paper-tex 是一整串 background-image 图层，--paper-tex-size 与它逐层对齐（7 层）。
+     图层自顶向下：
+       1–2  颗粒：两层错频的柔边细点（3px / 5px），点与点几乎相接，
+            读作纸面的“雾面”而不是格子（硬边点阵在 1x 下会显成网点，故一律柔边 + 低 alpha）；
+       3–7  云斑：五团大尺度、低对比的暖褐晕，圆心故意放到视口外（-8% / 108% / 112%），
+            让整屏只落在渐变的中段 —— 这样看不到任何“椭圆边界”，只有纸浆厚薄不均的透光差。
+            位置固定（配 background-attachment:fixed），滚动时纸不动。
+     原则：单层 alpha ≤ .055，多层叠加的最坏处也只把背景压暗约 7%，
+     墨水对比度预算（ink-3 实测仍 > 5）留有余量。 */
+  --paper-tex:
+    radial-gradient(circle, rgba(84,62,32,.030) .6px, transparent 1.4px),
+    radial-gradient(circle, rgba(84,62,32,.020) .5px, transparent 1.2px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(122,90,46,.055), rgba(122,90,46,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(158,118,62,.045), rgba(158,118,62,0) 100%),
+    radial-gradient(78vw 62vw at 22% 112%, rgba(98,70,34,.052),  rgba(98,70,34,0) 100%),
+    radial-gradient(40vw 34vw at 72% 64%,  rgba(176,142,88,.030), rgba(176,142,88,0) 100%),
+    radial-gradient(26vw 20vw at 42% 32%,  rgba(120,88,44,.020), rgba(120,88,44,0) 100%);
+  --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+
+  /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
+     下面的「暗色映射」两块只做「公共 token 名 → --dk-*」的改名，不含色值。
+     改暗色只需改这里，两个映射块不会漂移。 */
+  /* 暗色的纸面四阶与亮色同构：paper-deep（凹槽）< paper（页）< surface（面板）< surface-2（同面淡染）。
+     surface 系列必须比 paper 亮（暗色里“抬起”= 更亮）；surface-2 是“朝墨色走一点”的同面淡染，
+     因此在暗色里落在 surface 之上，而不是比 paper 更暗 —— 旧 #1b1713 与 paper 只差 1/255，
+     既读不出层级，又构成反转。
+     ink-3 同样要过 5.5，不再用“看得见但读不清”的 3.x 灰。
+
+     方案 C · 暖炭墨（第三版 · 本轮采用）
+     ------------------------------------
+     思路：暗色不是「给黑底刷一层棕」，而是把亮色的纸 / 墨【对调】——
+       纸 = 墨黑（低饱和暖炭，L* 7.9，色度 C* 3.7）
+       字 = 纸白（#f4ead6，就是亮色那张纸的颜色本身，L* 93.0）
+       红 = 与亮色同一支印泥红（Lab 色相 37°/38°），在暗底上提亮到 L* 60
+     前两版被否的原因就一条：纸的色度太高。P（#211d17）C* 5–7 是灰棕，B（#402d19）C* 15–20
+     直接成了褐色滤镜；这里把纸的色度压到 C*≈4，暖意只剩「一丝」，靠层级与排版出质感。
+
+     四阶 L* 4.7 / 7.9 / 12.9 / 16.3，台阶 +3.2 / +5.0 / +3.4（≥3 才在暗处读得出）。
+     对比度（WCAG，实测）：正文 15.0；ink-3 on paper 6.9 / on surface 6.2（≥5.5）；
+     红 on surface-2 4.63（≥4.5）、on paper 5.65；纸白压红（按钮 hover 反白）5.65。
+     --rule 刻意比 --ink 低一档（L*90）：暗底上 1px 纯纸白线会发眩，压一点仍是「墨线」。
+     inset 的 slab 仍比纸更黑（#0f0d09），保持亮色里「墨条」的语义。 */
+  --dk-paper:#1a1712; --dk-paper-deep:#121009; --dk-surface:#24211b; --dk-surface-2:#2c2822;
+  --dk-ink:#f4ead6; --dk-ink-2:#c6bfb1; --dk-ink-3:#a8a092;
+  --dk-rule:#e8e2d4; --dk-hairline:#4a443a;
+  --dk-accent:#fb5a40; --dk-accent-wash:rgba(251,90,64,.13); --dk-accent-line:rgba(251,90,64,.46);
+  --dk-select:rgba(251,90,64,.26);
+  --dk-ok:#7fb8a4; --dk-warn:#e2b968; --dk-err:#ff8070;
+  --dk-slab-bg:#0f0d09; --dk-slab-fg:#f4ead6; --dk-slab-line:rgba(244,234,214,.14);
+  --dk-scrim:rgba(8,7,5,.66);
+  --dk-float:0 6px 18px rgba(0,0,0,.55);
+  --dk-noise:rgba(244,234,214,.03);
+  --dk-edge:rgba(244,234,214,.28); --dk-edge-hot:rgba(251,90,64,.92);
+  /* 暗色纸纹：亮斑是“灯还照着的纸”，暗斑是“吃墨更深的纸”。
+     暗色里亮斑会吃掉浅墨的对比，所以亮斑单层压到 ≤ .03，暗斑反而可以到 .16。 */
+  --dk-paper-tex:
+    radial-gradient(circle, rgba(255,236,200,.018) .6px, transparent 1.4px),
+    radial-gradient(circle, rgba(0,0,0,.055) .5px, transparent 1.2px),
+    radial-gradient(72vw 58vw at -6% -10%, rgba(255,214,150,.034), rgba(255,214,150,0) 100%),
+    radial-gradient(66vw 54vw at 106% 12%, rgba(255,230,185,.022), rgba(255,230,185,0) 100%),
+    radial-gradient(80vw 64vw at 20% 112%, rgba(0,0,0,.13),          rgba(0,0,0,0) 100%),
+    radial-gradient(42vw 36vw at 74% 64%,  rgba(0,0,0,.07),          rgba(0,0,0,0) 100%),
+    radial-gradient(28vw 22vw at 46% 36%,  rgba(255,220,165,.016), rgba(255,220,165,0) 100%);
+  --dk-paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+
+  /* —— 层级（z-index）：全站命名层级，页面里不要再写裸数字 ——
+     递增顺序即"谁压在谁上面"。原生 <dialog> 在 top layer，z-index 对它是兜底；
+     轻提示 (<dialog> 之外) 用 --z-max，保证能盖住任何模态。
+     --z-coach 是本文件对冻结清单的**唯一增补**：教练气泡（工作台底部引导条）
+     既不是 pill 也不是 toast，单列一层，值沿用改造前的 150。 */
+  --z-sticky:10;      /* 报头 / 题条 */
+  --z-pill:90;        /* 页面内的浮动小件（划词气泡 / 反馈胶囊） */
+  --z-coach:150;      /* 教练气泡（底部引导条） */
+  --z-toast:150;      /* 轻提示的基础层（ui.js 实际用 --z-max，见 ui.css） */
+  --z-modal:200;      /* 主模态 */
+  --z-modal-hi:210;   /* 叠在主模态之上的（账号 / 设置 …） */
+  --z-modal-top:220;  /* 再上一层（密钥 / 分享 这类最上层模态） */
+  --z-max:230;        /* 最高层（轻提示 / 必需时） */
+
+  /* 滚动条 / 原生表单控件的配色：默认跟随系统 */
+  color-scheme:light dark;
+}
+
+/* =====================================================================================
+   暗色映射 · 【下面这两个块必须逐行同步修改】
+   -------------------------------------------------------------------------------------
+   为什么是两块：契约要求「跟随系统时 <html> 不带 data-theme」，
+   于是「系统暗色」只能靠媒体查询命中，「手动选暗」只能靠属性选择器命中；
+   CSS 无法把「媒体查询」和「属性选择器」合并进同一条规则，所以只能写两遍。
+   怎么去重：具体色值只在上面 :root 的 --dk-* 里写了一次，
+   这两块只是同一份「token 名 → --dk-*」映射的两个入口；
+   为了两个入口不漂移，它们紧挨着放，且内容逐行相同。
+   ===================================================================================== */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){          /* 跟随系统 + 系统暗色 */
+    --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+    --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+    --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+    --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+    --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --select:var(--dk-select);
+    --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+    --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+    --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+    --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+    --paper-tex:var(--dk-paper-tex); --paper-tex-size:var(--dk-paper-tex-size);
+  }
+}
+:root[data-theme="dark"]{                    /* 手动选暗（两块内容必须一致） */
+    --paper:var(--dk-paper); --paper-deep:var(--dk-paper-deep);
+    --surface:var(--dk-surface); --surface-2:var(--dk-surface-2);
+    --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
+    --rule:var(--dk-rule); --hairline:var(--dk-hairline);
+    --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --select:var(--dk-select);
+    --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
+    --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
+    --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
+    --edge:var(--dk-edge); --edge-hot:var(--dk-edge-hot);
+    --paper-tex:var(--dk-paper-tex); --paper-tex-size:var(--dk-paper-tex-size);
+}
+/* 手动选定时浏览器也按选定主题渲染原生控件（两块映射的 color-scheme 收尾） */
+:root[data-theme="light"]{ color-scheme:light }
+:root[data-theme="dark"]{ color-scheme:dark }
+
+/* =====================================================================================
+   纸纹应用 · 本文件对「只放 token」的唯一例外
+   -------------------------------------------------------------------------------------
+   为什么写在这里：文档页族只 link 了 site.css，工作台/图页各自内联样式，
+   纹理如果要改三处，迟早会漂。选择器写成 `html body`（0,0,2）而不是 `body`，
+   是为了在**不改 site.css** 的前提下稳稳盖过它原有的 4px 点阵（0,0,1）；
+   site.css 里的 background-image/background-size 因此成了死代码，但颜色仍由它给。
+   background-attachment:fixed：云斑钉在视口上，滚动时纸不动、字在纸上走。
+   只碰 background-image / size / attachment，不碰颜色、不改布局、不加圆角阴影。
+   ===================================================================================== */
+html body{
+  background-image:var(--paper-tex);
+  background-size:var(--paper-tex-size);
+  background-attachment:fixed;
+}
+
+/* =====================================================================================
+   备用暗色（前两轮 · 均未采用，整块注释 · 留档便于一行切换）
+   -------------------------------------------------------------------------------------
+   切换方法：把上面 :root 里的 --dk-* 十行整体换成下面任意一份，其余（两块映射、
+   --paper-tex 引用、纸纹）一行都不用动 —— 三套共用同一张暗色纸纹，只比色。
+   两套都是「暖褐纸」方向：纸的色度 C* 5–20，在整屏上会读成灰棕 / 褐色滤镜。
+   第三版 C（现用）已放弃这个方向：纸的色度降到 C*≈4，只留一丝暖。
+
+   · B「灯下羊皮」（第二轮）（纸 L* 15.5 / 20.2 / 25.3 / 30.2；纸色偏亮偏赭，用户评「更难看」）
+   --dk-paper:#402d19; --dk-paper-deep:#352313; --dk-surface:#4d3821; --dk-surface-2:#594329;
+   --dk-ink:#fdf3de; --dk-ink-2:#e4d0ad; --dk-ink-3:#d9c3a4;
+   --dk-rule:#fbf1dc; --dk-hairline:#6d5436;
+   --dk-accent:#f2a687; --dk-accent-wash:rgba(242,166,135,.14); --dk-accent-line:rgba(242,166,135,.50);
+   --dk-select:rgba(242,166,135,.24);
+   --dk-ok:#aed8c2; --dk-warn:#f0c46a; --dk-err:#ff9a86;
+   --dk-slab-bg:#2a1a0c; --dk-slab-fg:#fbf1dc; --dk-slab-line:rgba(251,241,220,.18);
+   --dk-scrim:rgba(20,12,6,.62); --dk-float:0 6px 18px rgba(0,0,0,.45); --dk-noise:rgba(251,241,220,.03);
+   --dk-edge:rgba(251,241,220,.30); --dk-edge-hot:rgba(242,166,135,.90);
+
+   · A「深褐羊皮」（第二轮备选）（纸 L* 5.6 / 8.7 / 13.8 / 19.2；比 B 深，但更褐更闷）
+   --dk-paper:#241608; --dk-paper-deep:#1b1008; --dk-surface:#302010; --dk-surface-2:#3d2b18;
+   --dk-ink:#f4e8d2; --dk-ink-2:#d6c3a4; --dk-ink-3:#b09c7d;
+   --dk-rule:#f1e3cb; --dk-hairline:#4e3a25;
+   --dk-accent:#e0806a; --dk-accent-wash:rgba(224,128,106,.12); --dk-accent-line:rgba(224,128,106,.48);
+   --dk-select:rgba(224,128,106,.22);
+   --dk-ok:#7fbfa8; --dk-warn:#d9ad5c; --dk-err:#dd8172;
+   --dk-slab-bg:#120b06; --dk-slab-fg:#f2e7d1; --dk-slab-line:rgba(242,231,209,.16);
+   --dk-scrim:rgba(8,5,3,.66); --dk-float:0 6px 18px rgba(0,0,0,.55); --dk-noise:rgba(242,231,209,.03);
+   --dk-edge:rgba(242,231,209,.28); --dk-edge-hot:rgba(224,128,106,.88);
+
+   · P「初版暗色」（第一轮）（纸 L* 7.0 / 11.0 / 15.5 / 19.3；用户评「太不好」）
+   --dk-paper:#211d17; --dk-paper-deep:#191510; --dk-surface:#2b261e; --dk-surface-2:#342e24;
+   --dk-ink:#f0e9db; --dk-ink-2:#c9c0ae; --dk-ink-3:#a49a86;
+   --dk-rule:#ece5d6; --dk-hairline:#4a4336;
+   --dk-accent:#e2776a; --dk-accent-wash:rgba(226,119,106,.13); --dk-accent-line:rgba(226,119,106,.50);
+   --dk-select:rgba(226,119,106,.22);
+   --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
+   --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
+   --dk-scrim:rgba(0,0,0,.62); --dk-float:0 6px 18px rgba(0,0,0,.55); --dk-noise:rgba(236,229,214,.03);
+   --dk-edge:rgba(236,229,214,.28); --dk-edge-hot:rgba(215,106,95,.9);
+   ===================================================================================== */

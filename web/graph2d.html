@@ -4,28 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>解释场 · 2D 图谱</title>
+<script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/ui.css">
 <style>
-  :root{
-    --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
-    --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
-    --rule:#15130f; --hairline:#d8d2c4;
-    --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
-    --err:#8f2317; --ok:#2c6a5f;
-    --edge:rgba(21,19,15,.28); --edge-hot:rgba(165,40,28,.85);
-    --float:0 6px 18px rgba(21,19,15,.16);
-    --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
-    --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
-  }
-  @media (prefers-color-scheme: dark){ :root{
-    --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
-    --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
-    --rule:#ece5d6; --hairline:#3a342b;
-    --accent:#d76a5f; --accent-wash:rgba(215,106,95,.12); --accent-line:rgba(215,106,95,.50);
-    --err:#d76a5f; --ok:#6bb3a4;
-    --edge:rgba(236,229,214,.28); --edge-hot:rgba(215,106,95,.9);
-    --float:0 6px 18px rgba(0,0,0,.55);
-  }}
+  /* 设计 token 已抽到单源 /tokens.css（含亮色、--dk-*、两个暗色映射块与 color-scheme），
+     由上面的 <link> 引入；本页不再自带 token。 */
   *{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--ink);
        font:14px/1.6 var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -136,6 +120,7 @@
     .ptitle .x{display:block}
   }
 </style>
+<script src="/ui.js" defer></script>
 </head>
 <body>
 <header>
@@ -145,7 +130,7 @@
   <span class="sp"></span>
   <span class="badge">滚轮缩放 · 拖拽平移 · 双击复位 · 点击节点看详情</span>
   <button id="panelBtn">详情</button>
-  <a class="badge" href="/">← 回解释场</a>
+  <a class="badge" href="/app/">← 回解释场</a>
   <button id="pngBtn" title="导出当前视图为 PNG；纸色印刷版式，带落款，不随夜版反色">导出图片</button>
   <button id="jsonBtn" title="导出图谱结构 JSON（含解释卡正文与追问；不含对话原文）">导出 json</button>
   <button id="rebtn">刷新</button>
@@ -155,7 +140,7 @@
     <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
     <div id="empty" style="display:none">
       <div id="emptyMsg">还没有可画的数据</div>
-      <a href="/">回解释场</a>
+      <a href="/app/">回解释场</a>
     </div>
   </div>
   <aside id="panel">
@@ -596,20 +581,20 @@ function graphJson(){
 
 const pngBtn = document.getElementById("pngBtn"), jsonBtn = document.getElementById("jsonBtn");
 pngBtn.onclick = () => {
-  if(!DATA || !DATA.nodes.length){ alert("没有可导出的图谱数据"); return; }
+  if(!DATA || !DATA.nodes.length){ wdiag.toast("没有可导出的图谱数据", { kind: "warn" }); return; }
   const label = pngBtn.textContent;
   pngBtn.disabled = true; pngBtn.textContent = "导出中…";
   const { text, W, H } = buildExportSvg();
   const S = Math.max(.35, Math.min(2, 3200 / Math.max(W, H)));   // 2 倍清晰，长边封顶 3200px
   svgToPng(text, W, H, S, (blob, w, h) => {
     pngBtn.disabled = false; pngBtn.textContent = label;
-    if(!blob){ alert("导出失败：图片渲染出错"); return; }
+    if(!blob){ wdiag.toast("导出失败：图片渲染出错", { kind: "err" }); return; }
     dl(blob, `问底-图谱-${stamp()}.png`);
   });
 };
 jsonBtn.onclick = () => {
   const p = graphJson();
-  if(!p){ alert("没有可导出的图谱数据"); return; }
+  if(!p){ wdiag.toast("没有可导出的图谱数据", { kind: "warn" }); return; }
   dl(new Blob([JSON.stringify(p, null, 2)], { type: "application/json" }), `问底-图谱-${stamp()}.json`);
 };
 

@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>站长后台 · 问底 WenDi</title>
+<script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
 <link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/ui.css">
 <style>
   /* 控制台专用：复用 site.css 的纸墨 token，做密度更高的表格/标签/分页样式 */
   main.wide{max-width:84rem;padding:20px 20px 60px}
@@ -58,6 +60,7 @@
   .funnel .frow .fb-wrap > i{display:block;height:14px;background:var(--accent);min-width:1px}
   .mtbl td .tag{margin-right:3px}
 </style>
+<script src="/ui.js" defer></script>
 </head>
 <body>
 <header class="site">
@@ -67,7 +70,7 @@
     <a href="/feedback.html">反馈</a>
     <a href="/meter.html">计量台</a>
     <a class="on" href="/admin.html">站长后台</a>
-    <a class="go" href="/">回到工作台</a>
+    <a class="go" href="/app/">回到工作台</a>
   </nav>
 </header>
 <main class="wide">
@@ -317,7 +320,7 @@
 </main>
 <footer class="site">
   <div class="fnav">
-    <a href="/">工作台</a><a href="/about.html">关于 wendi</a><a href="/feedback.html">反馈</a>
+    <a href="/app/">工作台</a><a href="/about.html">关于 wendi</a><a href="/feedback.html">反馈</a>
     <a href="/privacy.html">隐私政策</a><a href="/terms.html">服务条款</a><a href="/meter.html">计量台</a>
   </div>
   <div>问底 WenDi · 站长后台 · 单文件无依赖 · 最后更新 2026-09-27</div>
@@ -423,7 +426,7 @@ async function fbAction(el, act){
   if(act === "copy"){ copyText(card.querySelector(".txt").textContent, el); return; }
   let body;
   if(act === "note"){
-    const note = prompt("站长备注（写给自己看；留空则清掉）：", card.dataset.note || "");
+    const note = await wdiag.prompt("站长备注（写给自己看；留空则清掉）：", { defaultValue: card.dataset.note || "" });
     if(note === null) return;
     body = { id: id, status: card.dataset.status, note: note };   // 备注不改状态
   } else {
@@ -460,15 +463,15 @@ async function userAction(btn){
   const act = btn.dataset.act;
   if(act === "d"){
     const off = btn.dataset.d === "1";
-    const reason = off ? "" : prompt("停用 " + btn.dataset.e + "：原因（写给自己看，可空）", "");
+    const reason = off ? "" : await wdiag.prompt("停用 " + btn.dataset.e + "：原因（写给自己看，可空）");
     if(!off && reason === null) return;
-    if(!confirm(off ? ("恢复 " + btn.dataset.e + " 的登录？") : ("停用 " + btn.dataset.e + "：立刻踢掉它的全部登录会话，之后无法登录。继续？"))) return;
+    if(!(await wdiag.confirm(off ? ("恢复 " + btn.dataset.e + " 的登录？") : ("停用 " + btn.dataset.e + "：立刻踢掉它的全部登录会话，之后无法登录。继续？"), { danger: !off }))) return;
     await api("/api/admin/users/disable", "POST", { user_id: Number(btn.dataset.u), disabled: !off, reason: reason || "" });
   } else if(act === "pw"){
-    const pw = prompt("给 " + btn.dataset.e + " 设新密码（≥6 位，会踢掉它全部会话）：", "");
+    const pw = await wdiag.prompt("给 " + btn.dataset.e + " 设新密码（≥6 位，会踢掉它全部会话）：", { placeholder: "≥6 位" });
     if(!pw) return;
     await api("/api/admin/users/password", "POST", { email: btn.dataset.e, password: pw });
-    alert("已改密并踢掉该用户全部会话。");
+    wdiag.toast("已改密并踢掉该用户全部会话。", { kind: "info" });
   }
   await loadUsers();
 }
@@ -754,7 +757,7 @@ async function refreshAll(){
     if(on === "audit") await loadAudit();
   }catch(e){ toastErr(e); }
 }
-function toastErr(e){ const el = document.querySelector(".sec.on .msg"); if(el){ el.className = "msg err"; el.textContent = e.message; } else alert(e.message); }
+function toastErr(e){ const el = document.querySelector(".sec.on .msg"); if(el){ el.className = "msg err"; el.textContent = e.message; } else wdiag.toast(e.message, { kind: "err" }); }
 
 $("#fbLoad").onclick = () => loadFeedback().catch(toastErr);
 $("#fbFilter").onchange = () => loadFeedback().catch(toastErr);
@@ -816,17 +819,17 @@ $("#cTable").addEventListener("click", e => {
 });
 $("#cVoidBatch").onclick = async () => {
   const b = $("#cFilter").value.trim();
-  if(!b){ alert("先在左边填批次名，再作废。"); return; }
-  if(!confirm("作废批次 " + b + " 里所有未使用的码？已兑换的不受影响。")) return;
+  if(!b){ wdiag.toast("先在左边填批次名，再作废。", { kind: "warn" }); return; }
+  if(!(await wdiag.confirm("作废批次 " + b + " 里所有未使用的码？已兑换的不受影响。", { danger: true }))) return;
   const d = await api("/api/admin/codes/void", "POST", { batch: b });
-  alert("作废 " + d.voided + " 个。");
+  wdiag.toast("作废 " + d.voided + " 个。", { kind: "info" });
   await loadCodes();
 };
 $("#cCopyUnused").onclick = () => {
   const list = cRows.filter(c => c.status === "unused").map(c => c.code);
-  if(!list.length){ alert("没有未用的码。"); return; }
+  if(!list.length){ wdiag.toast("没有未用的码。", { kind: "warn" }); return; }
   copyText(list.join("\n"));
-  alert("已复制 " + list.length + " 个未用码。");
+  wdiag.toast("已复制 " + list.length + " 个未用码。", { kind: "info" });
 };
 $("#cCsv").onclick = () => download("wendi-codes.csv", csv([["码","类型","天数","状态","批次","备注","兑换人","兑换时间"]].concat(
   cRows.map(c => [c.code, c.kind || "pro", c.days, c.status, c.batch, c.note, c.used_by_email || "", c.used_at || ""]))));
@@ -842,9 +845,9 @@ $("#tTable").addEventListener("click", e => {
 });
 $("#tCopyUnused").onclick = () => {
   const list = tRows.filter(t => !t.voided && !t.used_at).map(t => t.code);
-  if(!list.length){ alert("没有未用的邀请码。"); return; }
+  if(!list.length){ wdiag.toast("没有未用的邀请码。", { kind: "warn" }); return; }
   copyText(list.join("\n"));
-  alert("已复制 " + list.length + " 个未用邀请码。");
+  wdiag.toast("已复制 " + list.length + " 个未用邀请码。", { kind: "info" });
 };
 $("#tCsv").onclick = () => download("wendi-testers.csv", csv([["标签","码","账号","注册时间","解释次数","事件数","成本元","最近出现","回访","状态"]].concat(
   tRows.map(t => [t.tester_label || "", t.code, t.email || "", t.registered_at || "", t.explains || 0, t.events || 0,

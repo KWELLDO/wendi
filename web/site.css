@@ -1,28 +1,13 @@
+@import url("/tokens.css");
 /* 问底 WenDi · 文档页共用样式（关于 / 隐私 / 条款 / 反馈 / 站长后台）
-   视觉契约见 docs/adr/0001：新闻纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；亮默认、夜版跟随系统。 */
-:root{
-  --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
-  --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
-  --rule:#15130f; --hairline:#d8d2c4;
-  --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
-  --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
-  --slab-bg:#1b1813; --slab-fg:#f4f0e4;
-  --float:0 6px 18px rgba(21,19,15,.16);
-  --noise:rgba(21,19,15,.05);
-  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
-  --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
-  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
-}
-@media (prefers-color-scheme: dark){ :root{
-  --paper:#1a1713; --paper-deep:#14110d; --surface:#211d18; --surface-2:#1b1713;
-  --ink:#ece5d6; --ink-2:#beb5a4; --ink-3:#8d8474;
-  --rule:#ece5d6; --hairline:#3a342b;
-  --accent:#d76a5f; --accent-wash:rgba(215,106,95,.12); --accent-line:rgba(215,106,95,.50);
-  --ok:#6bb3a4; --warn:#d9ac47; --err:#d76a5f;
-  --slab-bg:#0f0d0a; --slab-fg:#ece5d6;
-  --float:0 6px 18px rgba(0,0,0,.55);
-  --noise:rgba(236,229,214,.03);
-}}
+   视觉契约见 docs/adr/0001：新闻纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
+   亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
+   设计 token（亮色 + --dk-* + 两个暗色映射块 + color-scheme）已抽到单源 web/tokens.css，
+   由上面的 @import 引入（文档页族只 link 本文件，故无需改各页 HTML）。
+
+   主题契约（与 <head> 启动脚本、各页设置面板一致，勿改）：
+     localStorage["wendi-theme"] = "light" | "dark"；键缺失 / 非法值 = 跟随系统
+     手动选定时 <html data-theme="light|dark">；跟随系统时该属性被【移除】 */
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.75 var(--sans);
@@ -122,3 +107,8 @@ textarea{min-height:150px;resize:vertical;line-height:1.7}
   main{padding:24px 15px 6px}
   .site nav{gap:11px;font-size:13px}
 }
+
+/* —— 焦点可见性（键盘用户）——
+   输入类已有 accent 描边（见上 L112），描边为 0 的按钮/链接原来看不见焦点，这里补真实焦点环。
+   注意：`input:focus` 的选择器权重高于 `:focus-visible`，所以输入框仍走描边，不会多套一圈。 */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
