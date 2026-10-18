@@ -35,10 +35,13 @@ install_online() {
   ssh_x $HOST "$VENV/bin/pip install --disable-pip-version-check -r /opt/wendi/requirements.txt"
 }
 install_wheel() {
-  local wheel="$1"
-  echo "   离线 wheel：$(basename "$wheel")"
-  scp_x -q "$wheel" "$HOST:/tmp/wendi-kreuzberg.whl"
-  ssh_x $HOST "$VENV/bin/pip install --no-index --disable-pip-version-check /tmp/wendi-kreuzberg.whl; rc=\$?; rm -f /tmp/wendi-kreuzberg.whl; exit \$rc"
+  local wheel="$1" name
+  name="$(basename "$wheel")"
+  echo "   离线 wheel：$name"
+  # 必须保留原文件名 scp：pip 按文件名解析 wheel 元数据，改名会被拒（"not a valid wheel filename"）。
+  # 2026-10-18 首上线实测：改名版失败→在线兜底；本修复让离线路径真正可用。
+  scp_x -q "$wheel" "$HOST:/tmp/$name"
+  ssh_x $HOST "$VENV/bin/pip install --no-index --disable-pip-version-check /tmp/$name; rc=\$?; rm -f /tmp/$name; exit \$rc"
 }
 
 echo "== 1) 后端 -> /opt/wendi =="
