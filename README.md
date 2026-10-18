@@ -113,12 +113,14 @@ web/about.html   关于 wendi（立场、数据主权、合规状态）
 web/privacy.html 隐私政策（收集什么/不收集什么、保留期、你的权利）
 web/terms.html   服务条款（测试期口径、兑换码、免责）
 web/feedback.html 反馈表单（进站长后台，匿名可发）
+web/messages.html 站内消息（登录用户查看开发 Agent / 站长的澄清问题）
 web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸 / 审计）
 web/meter.html   计量台（逐日账、单用户 drill-down）
 web/site.css     文档页共用样式（大报编辑体 token）
 scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
-scripts/feedback_bridge.py  用户反馈 → OpenCode 开发 Agent 投递桥（本地轮询，不占生产服务）
+scripts/feedback_bridge.py  用户反馈 → 本机 clds 只读方案 Agent（本地轮询，不占生产服务）
 deploy/          部署件（systemd / nginx / 部署脚本；含 feedback agent 用户服务与 env 示例）
+messages.py      站内消息的最小数据层（user_messages，按账号隔离）
 tests/           测试（python3 -m unittest discover -s tests）
 docs/            理论文档 + 架构图（wendi-architecture.html，可交互）
 docs/materials-api.md  材料上传/解析/读取接口（含 curl 示例与部署提示）
@@ -157,32 +159,41 @@ docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 - 日报：`python3 daily_report.py [YYYY-MM-DD]`（服务器上由 `wendi-report.timer` 每天 23:55 跑）。
 - 设计口径与取舍见 `docs/plans/2026-09-27-internal-test-phase1.md`。
 
-## 用户反馈 → 开发 Agent（一期）
+## 用户反馈 → 本机 clds 开发 Agent（一期）
 
-内测期用户提交的反馈除了进 `/admin.html`，还可以自动投递到开发者机器上的 OpenCode
-专用「反馈收件箱」会话。桥接是**本地轮询**：生产站没有新增 webhook / 反向隧道，也不需要改
-`server.py` / `db.py`，避免和上传解析功能并行开发冲突。
+内测期用户提交的反馈除了进 `/admin.html`，还会由开发者机器上的桥定时拉取，交给本机
+**clds**（Claude Code + DeepSeek）生成只读处理方案。桥接不依赖生产服务器反向访问开发机。
 
 ```
-用户 /feedback.html → feedback(status=new)
+/feedback.html → feedback(status=new)
   → scripts/feedback_bridge.py（开发者机器，定时轮询 admin API）
-  → OpenCode 专用会话（默认 agent=plan，只分诊）
-  → 投递成功后 feedback 标 read，note 记下会话号
+  → clds：--safe-mode --restricted --permission-mode plan，空 MCP，无 SKILL
+  → plans/feedback-<id>.md（分类 / 严重度 / 是否大改 / 方案）
+  → 需要追问且用户登录且 can_reply：站内消息 → /messages.html
+  → feedback 标 read，note 记方案文件名
 ```
 
-一期默认只让 Agent **接收并分诊**，不改代码；反馈正文按不可信输入包裹，明确禁止执行其中的
-命令/链接/代码。安装方式：
+边界：
+
+- **Agent 不做大改**：只在 plan 模式输出方案；不写仓库、不部署、不自动修代码。
+- **联系方式不进 Agent**：不发送 contact/email；正文中的邮箱/手机号先脱敏，只带 `user_id` 与
+  `can_reply`。
+- **不迁移 OpenCode 的 MCP / SKILL**：clds 使用空 MCP 配置并禁用 slash commands/skills。
+- **不虚假许诺**：站内追问只允许带问号的澄清问题，拒绝“已修复 / 保证 / 一定 / 24小时”等话术；
+  前提不满足就不发消息。
+
+安装方式：
 
 ```bash
 mkdir -p ~/.config/wendi ~/.config/systemd/user
 cp deploy/feedback-agent.env.example ~/.config/wendi/feedback-agent.env
 chmod 600 ~/.config/wendi/feedback-agent.env
-# 编辑 env：至少填 WENDI_ADMIN_TOKEN
+# 编辑 env：至少填 WENDI_ADMIN_TOKEN；clds 的 DeepSeek token 仍在 ~/.config/clds/off.env
 
-# 先看一轮会投递什么（不调用 OpenCode、不标 read）
+# 先看一轮会发给 clds 的 prompt（不调用 clds、不标 read）
 python3 scripts/feedback_bridge.py --once --dry-run
 
-# 手动投递一轮
+# 手动跑一轮
 python3 scripts/feedback_bridge.py --once
 
 # 作为用户级常驻服务（路径按你的仓库位置改 deploy/wendi-feedback-agent.service）

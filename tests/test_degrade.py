@@ -156,7 +156,8 @@ class TestCostGate(P0Base):
             self.assertEqual(over[0]["cap"], 3000)
             self.assertEqual(hard[0]["hard"], 6000)
         finally:
-            d1(); d2()
+            d1()
+            d2()
 
     def test_caps_hot_editable(self):
         db.meter_set("cost_cents_cap", "100")
@@ -284,7 +285,6 @@ class TestExplainDegrade(P0Base):
 
     def test_failed_normal_request_refunds(self):
         u = self._mkuser("refund@example.com")
-        row = db.get_user(u["id"])
         db.consume_quota(u["id"], db.QUOTA_FREE)
         mid = db.quota_state(db.get_user(u["id"]))["used"]
         h = FakeExplainHandler(body={"mode": "explain", "term": "x"}, user=db.get_user(u["id"]))

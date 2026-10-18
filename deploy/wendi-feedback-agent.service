@@ -1,11 +1,12 @@
 [Unit]
-Description=WenDi feedback -> OpenCode developer agent bridge
+Description=WenDi feedback -> local clds plan agent bridge
 After=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/Projects/wendi
 EnvironmentFile=%h/.config/wendi/feedback-agent.env
+Environment=PATH=%h/.local/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/python3 %h/Projects/wendi/scripts/feedback_bridge.py --loop
 Restart=on-failure
 RestartSec=10

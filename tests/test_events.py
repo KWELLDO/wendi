@@ -7,7 +7,6 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import os
 import tempfile
 import unittest
 from unittest import mock
@@ -580,7 +579,6 @@ class TestInviteGate(Base):
     def test_anonymous_allowed_when_switch_off(self):
         server.REQUIRE_INVITE = False
         try:
-            u = None
             h = self._explain_handler()
             # 打桩 LLM：不花钱，只验证闸门放行到配额/调用逻辑
             with mock.patch.object(server, "call_llm",

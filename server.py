@@ -33,6 +33,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 import db  # noqa: E402
 import materials  # noqa: E402
+import messages  # noqa: E402
 from auth import hash_password, new_token, verify_password  # noqa: E402
 from kernel import Kernel  # noqa: E402
 from prompts import chat_messages, explain_messages, followup_messages  # noqa: E402
@@ -689,6 +690,17 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 self._json(200, {"items": db.admin_log_list(self._qint(qs, "limit", 200, hi=1000))})
                 return
+            if path == "/api/messages":
+                user = self._user()
+                if not user:
+                    self._json(401, {"error": "未登录"})
+                    return
+                limit = self._qint(qs, "limit", 50, hi=200)
+                self._json(200, {
+                    "items": messages.list_for_user(user["id"], limit),
+                    "unread": messages.unread_count(user["id"]),
+                })
+                return
             if path == "/api/me":
                 user = self._user()
                 if not user:
@@ -696,6 +708,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 self._json(200, {"email": user["email"], "created_at": user["created_at"],
                                  "plan_until": user["plan_until"],
+                                 "unread_messages": messages.unread_count(user["id"]),
                                  "quota": self._quota_payload(user)})
                 return
             if path == "/api/sync":
@@ -785,6 +798,10 @@ class Handler(SimpleHTTPRequestHandler):
                 self._explain(body)
             elif path == "/api/feedback":
                 self._feedback_add(body)
+            elif path == "/api/messages/read":
+                self._messages_read(body)
+            elif path == "/api/admin/user-message":
+                self._admin_user_message(body)
             elif path == "/api/event":
                 self._event_add(body)
             elif path == "/api/admin/codes":
@@ -919,6 +936,54 @@ class Handler(SimpleHTTPRequestHandler):
         self._track("feedback", meta={"kind": kind, "can_reply": can_reply})   # 只记动作，不记内容
         kernel.emit("feedback.new", id=fid, kind=kind, user_id=user["id"] if user else None)
         self._json(200, {"ok": True, "id": fid})
+
+    # ---------- 站内消息（用户只读自己的；管理端按 user_id 发） ----------
+    def _messages_read(self, body: dict):
+        user = self._user()
+        if not user:
+            self._json(401, {"error": "未登录"})
+            return
+        ids = body.get("ids")
+        if ids is not None and not isinstance(ids, list):
+            self._json(400, {"error": "ids 必须是数组"})
+            return
+        all_ = bool(body.get("all"))
+        if not all_ and not ids:
+            self._json(400, {"error": "需要 ids 数组或 all=true"})
+            return
+        updated = messages.mark_read(user["id"], ids=ids, all_=all_)
+        self._json(200, {"ok": True, "updated": updated})
+
+    def _admin_user_message(self, body: dict):
+        if not self._admin_ok():
+            return
+        try:
+            uid = int(body.get("user_id"))
+        except (TypeError, ValueError):
+            self._json(400, {"error": "user_id 必须是整数"})
+            return
+        text = str(body.get("body", "")).strip()
+        if not 2 <= len(text) <= messages.MAX_BODY:
+            self._json(400, {"error": f"消息长度必须在 2-{messages.MAX_BODY} 字"})
+            return
+        user = db.get_user(uid)
+        if not user:
+            self._json(404, {"error": "用户不存在"})
+            return
+        if user["disabled"]:
+            self._json(409, {"error": "用户已停用，不能发消息"})
+            return
+        feedback_id = body.get("feedback_id")
+        if feedback_id is not None:
+            try:
+                feedback_id = int(feedback_id)
+            except (TypeError, ValueError):
+                self._json(400, {"error": "feedback_id 必须是整数"})
+                return
+        mid = messages.send(uid, text, source="agent", feedback_id=feedback_id)
+        db.admin_log("user.message", f"user_id={uid} message_id={mid} "
+                                     f"feedback_id={feedback_id}", self._ip())
+        self._json(200, {"ok": True, "id": mid, "user_id": uid})
 
     # ---------- 埋点（公开；白名单 + 限流；任何情况都空 200，绝不打扰用户） ----------
     def _event_add(self, body: dict):
@@ -1676,6 +1741,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     db.init()
+    messages.init()
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"问底后端: http://127.0.0.1:{PORT} (model={MODEL}, db={db.DB_PATH})")
     try:

@@ -68,7 +68,8 @@ class TestServices(unittest.TestCase):
             def start(self): self._count = getattr(self, "_count", 0) + 1
         k = Kernel()
         k.service("s", lambda kern: Svc())
-        k.use("s"); k.use("s")
+        k.use("s")
+        k.use("s")
         self.assertEqual(k.use("s")._count, 1)
 
     def test_reentrancy_detected(self):
@@ -128,7 +129,7 @@ class TestPluginsAndRoutes(unittest.TestCase):
 
     def test_inject_defers_until_service_ready(self):
         k, log = Kernel(), []
-        scope = k.plugin(self._module(log), inject=("store",))
+        k.plugin(self._module(log), inject=("store",))
         self.assertFalse(k.emit("evt"))                    # 挂起中，未激活
         self.assertIsNone(k.resolve("POST", "/api/demo"))
         k.service("store", lambda kern: object())
@@ -169,7 +170,10 @@ class TestConcurrency(unittest.TestCase):
         def grab():
             results.append(k.use("s"))
         t1, t2 = threading.Thread(target=grab), threading.Thread(target=grab)
-        t1.start(); t2.start(); t1.join(); t2.join()
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
         self.assertEqual(len(calls), 1)
         self.assertIs(results[0], results[1])
 

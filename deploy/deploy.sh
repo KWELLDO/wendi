@@ -46,8 +46,8 @@ install_wheel() {
 
 echo "== 1) 后端 -> /opt/wendi =="
 ssh_x $HOST 'sudo mkdir -p /opt/wendi && sudo chown ubuntu:ubuntu /opt/wendi'
-# materials.py 必须同步，否则 systemd 启动时 ImportError；requirements.txt 供在线兜底安装。
-rsync_x -az server.py prompts.py db.py auth.py kernel.py materials.py requirements.txt "$HOST:/opt/wendi/"
+# materials.py / messages.py 必须同步，否则 systemd 启动时 ImportError；requirements.txt 供在线兜底安装。
+rsync_x -az server.py prompts.py db.py auth.py kernel.py materials.py messages.py requirements.txt "$HOST:/opt/wendi/"
 rsync_x -az deploy/gencode.py "$HOST:/opt/wendi/"
 
 echo "== 1b) Python 依赖（venv；Debian 13 PEP 668） =="
