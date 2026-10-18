@@ -18,11 +18,21 @@
    亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
    ===================================================================================== */
 :root{
-  /* —— 亮色 token（默认）—— */
-  --paper:#fbf8f1; --paper-deep:#f4f0e4; --surface:#fffdf8; --surface-2:#f7f3e8;
-  --ink:#15130f; --ink-2:#4a463e; --ink-3:#8a8478;
-  --rule:#15130f; --hairline:#d8d2c4;
+  /* —— 亮色 token（默认）——
+     纸面四阶的语义（两套主题一致）：
+       paper        页
+       paper-deep   凹槽（列表 / 预览这类“退后”的面）
+       surface      抬起的面板（主对话 / 卡片）
+       surface-2    同面淡染，朝墨色走一点；亮色略沉、暗色略浮，用于 hover / 行内代码
+     亮色序：paper-deep < surface-2 < paper < surface。
+     层级要“肉眼可辨但克制”：paper↔surface 约 1.08，不当成发光玻璃。
+     ink-3 只给 12.5px 及以下的提示字，必须在 paper / paper-deep / surface 上都过 4.5。 */
+  --paper:#f8f4e9; --paper-deep:#f1ebdc; --surface:#fffdf6; --surface-2:#f4efe2;
+  --ink:#15130f; --ink-2:#4a463e; --ink-3:#6b6558;
+  --rule:#15130f; --hairline:#d2cab8;
   --accent:#a5281c; --accent-wash:rgba(165,40,28,.10); --accent-line:rgba(165,40,28,.45);
+  /* 划词选区：比 hover 的 accent-wash 更实一点（划词是本产品的主交互，选区必须一眼看见） */
+  --select:rgba(165,40,28,.18);
   --ok:#2c6a5f; --warn:#8a6114; --err:#8f2317;
   --slab-bg:#1b1813; --slab-fg:#f4f0e4; --slab-line:rgba(244,240,228,.18);
   --scrim:rgba(21,19,15,.55);
@@ -36,10 +46,16 @@
   /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
      下面的「暗色映射」两块只做「公共 token 名 → --dk-*」的改名，不含色值。
      改暗色只需改这里，两个映射块不会漂移。 */
-  --dk-paper:#1a1713; --dk-paper-deep:#14110d; --dk-surface:#211d18; --dk-surface-2:#1b1713;
-  --dk-ink:#ece5d6; --dk-ink-2:#beb5a4; --dk-ink-3:#8d8474;
-  --dk-rule:#ece5d6; --dk-hairline:#3a342b;
-  --dk-accent:#d76a5f; --dk-accent-wash:rgba(215,106,95,.12); --dk-accent-line:rgba(215,106,95,.50);
+  /* 暗色的纸面四阶与亮色同构：paper-deep（凹槽）< paper（页）< surface（面板）< surface-2（同面淡染）。
+     surface 系列必须比 paper 亮（暗色里“抬起”= 更亮）；surface-2 是“朝墨色走一点”的同面淡染，
+     因此在暗色里落在 surface 之上，而不是比 paper 更暗 —— 旧 #1b1713 与 paper 只差 1/255，
+     既读不出层级，又构成反转。
+     ink-3 同样要过 4.5，不再用“看得见但读不清”的 3.x 灰。 */
+  --dk-paper:#211d17; --dk-paper-deep:#191510; --dk-surface:#2b261e; --dk-surface-2:#342e24;
+  --dk-ink:#f0e9db; --dk-ink-2:#c9c0ae; --dk-ink-3:#a49a86;
+  --dk-rule:#ece5d6; --dk-hairline:#4a4336;
+  --dk-accent:#e2776a; --dk-accent-wash:rgba(226,119,106,.13); --dk-accent-line:rgba(226,119,106,.50);
+  --dk-select:rgba(226,119,106,.22);
   --dk-ok:#6bb3a4; --dk-warn:#d9ac47; --dk-err:#d76a5f;
   --dk-slab-bg:#0f0d0a; --dk-slab-fg:#ece5d6; --dk-slab-line:rgba(236,229,214,.16);
   --dk-scrim:rgba(0,0,0,.62);
@@ -82,6 +98,7 @@
     --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
     --rule:var(--dk-rule); --hairline:var(--dk-hairline);
     --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --select:var(--dk-select);
     --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
     --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
     --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
@@ -94,6 +111,7 @@
     --ink:var(--dk-ink); --ink-2:var(--dk-ink-2); --ink-3:var(--dk-ink-3);
     --rule:var(--dk-rule); --hairline:var(--dk-hairline);
     --accent:var(--dk-accent); --accent-wash:var(--dk-accent-wash); --accent-line:var(--dk-accent-line);
+    --select:var(--dk-select);
     --ok:var(--dk-ok); --warn:var(--dk-warn); --err:var(--dk-err);
     --slab-bg:var(--dk-slab-bg); --slab-fg:var(--dk-slab-fg); --slab-line:var(--dk-slab-line);
     --scrim:var(--dk-scrim); --float:var(--dk-float); --noise:var(--dk-noise);
