@@ -31,7 +31,7 @@
         │ GET /api/admin/feedback?status=new   (Bearer admin token)
         ▼
 开发者机器: scripts/feedback_bridge.py
-        │ 联系方式字段剔除；正文中的邮箱/手机号脱敏
+        │ 联系方式字段剔除；正文中的邮箱/手机号/带标签联系方式脱敏
         │ 只带 user_id / can_reply，不把 contact/email 交给模型
         ▼
 本机 clds（Claude Code + DeepSeek，plan 模式，空 MCP，无 SKILL）
@@ -52,7 +52,7 @@
   - 一期只做分诊和方案，不修改仓库、不部署。
 - **联系方式不进云端开发 Agent**：
   - 不发送 `contact` / `email` 字段；
-  - 正文中命中已知 contact/email 或邮箱/手机号正则时先脱敏；
+  - 正文中命中已知 contact/email、邮箱/手机号或带标签联系方式时先脱敏；
   - 只发送 `user_id` 和 `can_reply` 布尔值。
 - clds 固定参数：
   - `--off --safe-mode --restricted --disable-slash-commands`
@@ -106,7 +106,7 @@
 ## 7. 验收
 
 1. 新增反馈后，60 秒内本地 `plans/feedback-<id>.md` 出现方案，后台反馈变 `read`。
-2. clds prompt 中不出现用户填写的联系方式；正文中的邮箱/手机号被脱敏。
+2. clds prompt 中不出现用户填写的联系方式；正文中的邮箱/手机号/带标签联系方式被脱敏。
 3. 方案要求补充信息且用户已登录、允许联系时，`/messages.html` 能看到一条澄清问题。
 4. 匿名反馈、未允许联系、承诺性话术、无问号的追问都不会发消息。
 5. 站内消息发送失败或标 read 失败时，桥接重启不会重复跑 clds。

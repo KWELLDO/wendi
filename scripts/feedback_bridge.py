@@ -342,6 +342,11 @@ def _kind_label(kind: str) -> str:
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_RE = re.compile(r"(?<!\d)(?:\+?86[-\s]?)?1[3-9]\d{9}(?!\d)")
+LABELED_CONTACT_RE = re.compile(
+    r"(?:微信|wechat|vx|v信|qq|电话|手机号|邮箱|email|联系方式)"
+    r"\s*(?:是|为|[:：])?\s*[A-Za-z0-9_+\-.@]{3,40}",
+    re.IGNORECASE,
+)
 
 
 def _redact_contacts(text: str, item: dict) -> str:
@@ -349,6 +354,7 @@ def _redact_contacts(text: str, item: dict) -> str:
     out = text.replace("\r\n", "\n").replace("\r", "\n")
     out = EMAIL_RE.sub("[邮箱已隐藏]", out)
     out = PHONE_RE.sub("[手机号已隐藏]", out)
+    out = LABELED_CONTACT_RE.sub("[联系方式已隐藏]", out)
     for secret in (item.get("contact"), item.get("email")):
         secret = str(secret or "").strip()
         if len(secret) >= 3:

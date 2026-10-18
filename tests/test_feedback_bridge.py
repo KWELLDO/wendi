@@ -103,7 +103,7 @@ class FakeClds:
 
 class TestPrompt(unittest.TestCase):
     def test_prompt_has_user_id_but_no_contact(self):
-        item = feedback(body="联系我 user@example.com 或 13800138000，另外气泡越界")
+        item = feedback(body="联系我 user@example.com 或 13800138000，微信 abc_12345，另外气泡越界")
         text = bridge.build_feedback_prompt(item)
         self.assertIn("用户ID：42", text)
         self.assertIn("可联系：是", text)
@@ -113,6 +113,8 @@ class TestPrompt(unittest.TestCase):
         self.assertNotIn("13800138000", text)
         self.assertIn("[邮箱已隐藏]", text)
         self.assertIn("[手机号已隐藏]", text)
+        self.assertNotIn("abc_12345", text)
+        self.assertIn("[联系方式已隐藏]", text)
 
     def test_anonymous_has_no_contact_and_cannot_be_messaged(self):
         text = bridge.build_feedback_prompt(feedback(user_id=None, can_reply=0))
