@@ -1,0 +1,167 @@
+import { expect, test } from '../fixtures';
+import {
+  bodyBackground,
+  mockExplain,
+  registerAccount,
+  seedBrowserSession,
+  selectWord,
+} from '../lib/helpers';
+
+test.describe('/app 工作台主流程', () => {
+  test('对话发送 → 划词解释 → 追问：真实交互 + 流式渲染', async ({ page, request }) => {
+    const account = await registerAccount(request, { tag: 'workspace' });
+    const explain = await mockExplain(page, {
+      chat: {
+        chunks: ['量子力学是研究', '微观粒子的运动规律的理论。'],
+        quota: { plan: 'pro', used: 1, limit: 300 },
+      },
+      explain: {
+        chunks: ['微观粒子是构成物质的', '基本单元，例如电子、夸克。'],
+        quota: { plan: 'pro', used: 2, limit: 300 },
+      },
+      followup: {
+        chunks: ['电子就是一种微观粒子，', '它带负电。'],
+        quota: { plan: 'pro', used: 3, limit: 300 },
+      },
+    });
+
+    await seedBrowserSession(page, { token: account.token });
+    await page.goto('/app/');
+
+    // 登录态与配额来自真实 /api/me
+    await expect(page.locator('#authBtn')).toHaveText(account.email.split('@')[0]);
+    await expect(page.locator('#quotaBadge')).toHaveText('0/300');
+
+    // —— 主对话：输入 → 发送 ——
+    const question = '什么是量子力学？';
+    const convInput = page.locator('[data-input-key^="conv-"]');
+    await expect(convInput).toBeVisible();
+    await convInput.fill(question);
+    await page.click('[data-send]');
+
+    const assistant = page.locator('[data-msg][data-quote-scope]');
+    await expect(assistant).toContainText('量子力学是研究微观粒子的运动规律的理论。');
+    await expect(page.getByText(question, { exact: true })).toBeVisible();
+    await expect(page.locator('#quotaBadge')).toHaveText('1/300');
+
+    const chatRequest = explain.requests.find((r) => r.mode === 'chat');
+    expect(chatRequest, '应当向 /api/explain 发出 chat 请求').toBeTruthy();
+    expect(chatRequest?.stream).toBe(true);
+    expect(chatRequest?.messages?.at(-1)).toEqual({ role: 'user', content: question });
+
+    // —— 划词 → 解释 ——
+    await expect(page.locator('[data-msg][data-quote-scope]')).toBeVisible();
+    await selectWord(page, '微观粒子', '[data-msg][data-quote-scope]');
+
+    const bubble = page.locator('#bubble');
+    await expect(bubble).toBeVisible();
+    await expect(page.locator('#bubbleTerm')).toHaveText('微观粒子');
+
+    await page.click('#explainBtn');
+
+    // 解释卡出现在右侧列表 + 预览，正文渲染成功
+    const listItem = page.locator('[data-child]');
+    await expect(listItem).toHaveCount(1);
+    await expect(listItem).toContainText('微观粒子');
+    await expect(page.locator('[data-exp]')).toContainText(
+      '微观粒子是构成物质的基本单元，例如电子、夸克。',
+    );
+    await expect(page.locator('#quotaBadge')).toHaveText('2/300');
+
+    const explainRequest = explain.requests.find((r) => r.mode === 'explain');
+    expect(explainRequest, '应当向 /api/explain 发出 explain 请求').toBeTruthy();
+    expect(explainRequest?.term).toBe('微观粒子');
+    expect(explainRequest?.context).toContain('微观粒子');
+    expect(explainRequest?.style).toBe('standard');
+    expect(explainRequest?.stream).toBe(true);
+
+    // —— 进入解释层 → 追问 ——
+    await listItem.locator('[data-enter]').click();
+    await expect(page.locator('#crumbs')).toContainText('微观粒子');
+    await expect(page.locator('#backBtn')).toBeEnabled();
+    const expBody = page.locator('[data-exp]').first();
+    await expect(expBody).toContainText('微观粒子是构成物质的基本单元');
+
+    const askInput = page.locator('[data-input-key^="ask-"]');
+    await expect(askInput).toBeVisible();
+    await askInput.fill('举个例子');
+    await page.click('[data-ask]');
+
+    const qa = page.locator('[data-fu]');
+    await expect(qa).toHaveCount(1);
+    await expect(qa).toContainText('追问：举个例子');
+    await expect(qa).toContainText('电子就是一种微观粒子，它带负电。');
+    await expect(page.locator('#quotaBadge')).toHaveText('3/300');
+
+    const followupRequest = explain.requests.find((r) => r.mode === 'followup');
+    expect(followupRequest, '应当向 /api/explain 发出 followup 请求').toBeTruthy();
+    expect(followupRequest?.term).toBe('微观粒子');
+    expect(followupRequest?.question).toBe('举个例子');
+    expect(followupRequest?.previous).toContain('微观粒子是构成物质的基本单元');
+
+    // 返回上一层：状态保留、无异常
+    await page.click('#backBtn');
+    await expect(page.locator('#crumbs')).toContainText('主对话');
+    await expect(page.locator('#backBtn')).toBeDisabled();
+    await expect(page.locator('[data-msg][data-quote-scope]')).toContainText(
+      '量子力学是研究微观粒子的运动规律的理论。',
+    );
+  });
+
+  test('未登录提问：真实 403 need_invite 打开注册弹窗', async ({ page, diag }) => {
+    // 未登录且内测期需要邀请码：server.py 的 _explain 在调用 LLM 之前直接 403。
+    // Chromium 会把这次 403 记成 console error，显式允许（同时下面断言了响应体）。
+    diag.allowConsoleError(/Failed to load resource: the server responded with a status of 403/);
+
+    await seedBrowserSession(page);
+    await page.goto('/app/');
+    await expect(page.locator('#authBtn')).toHaveText('登录');
+    await expect(page.locator('#quotaBadge')).toBeHidden();
+
+    const question = '什么是量子力学？';
+    await page.locator('[data-input-key^="conv-"]').fill(question);
+
+    const responsePromise = page.waitForResponse(
+      (res) => res.url().endsWith('/api/explain') && res.request().method() === 'POST',
+    );
+    await page.click('[data-send]');
+    const response = await responsePromise;
+
+    expect(response.status()).toBe(403);
+    const body = await response.json();
+    expect(body.need_invite).toBe(true);
+    expect(body.error).toContain('内测阶段需要邀请码');
+
+    // 前端把失败写进回答气泡，并打开「注册」弹窗
+    await expect(page.locator('[data-msg][data-quote-scope]')).toContainText(
+      '[失败] 内测阶段需要邀请码',
+    );
+    await expect(page.locator('#authModal')).toBeVisible();
+    await expect(page.locator('#authInvite')).toBeVisible();
+    await expect(page.locator('#toast')).toContainText('内测需要邀请码');
+    expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBeNull();
+  });
+
+  test('登录后工作台空态可交互且视觉主题生效', async ({ page, request }) => {
+    const account = await registerAccount(request, { tag: 'workspace-empty' });
+    await seedBrowserSession(page, { token: account.token });
+    await page.goto('/app/');
+
+    await expect(page.locator('[data-input-key^="conv-"]')).toBeVisible();
+    await expect(page.locator('[data-send]')).toBeVisible();
+    await expect(page.locator('[data-style]')).toBeVisible();
+    await expect(page.locator('[data-style]')).toHaveValue('standard');
+    await expect(page.locator('[data-child]')).toHaveCount(0);
+
+    // 档位切换写回 state（事件委托），刷新后仍保留
+    await page.selectOption('[data-style]', 'rigorous');
+    await page.reload();
+    await expect(page.locator('[data-style]')).toHaveValue('rigorous');
+    await expect(page.locator('[data-input-key^="conv-"]')).toBeVisible();
+
+    // 主题默认跟随系统（不写 data-theme），亮色下背景明显偏亮
+    expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBeNull();
+    const bg = await bodyBackground(page);
+    expect(bg.luminance).toBeGreaterThan(0.5);
+  });
+});
