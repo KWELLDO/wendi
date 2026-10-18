@@ -60,3 +60,10 @@
 - 复核：E2E 14 passed；390 无横向溢出；input 46px 等尺寸与 JS 未变；两套暗色映射 26 条声明一致
 - 遗留：亮色 paper-deep 与 surface-2 仅差 0.7 L\*；`site.css` 旧点阵 / `--noise` 成死代码；`@media print` 应去纸纹；暗色 `--slab-bg` 与纸面差较大
 - 提交：`b7a1b2c` style(theme)
+
+## 第三轮：暗色返工（用户否掉 B；亮色冻结）
+- 候选（同条件、同一张暗色纸纹）：P 初版（`#211d17`）/ A 深褐（`#241608`）/ C 暖炭墨（新方向）
+- 用户选定 **C 暖炭墨**：paper `#1a1712` / surface `#24211b` / surface-2 `#2c2822`；ink `#f4ead6`（即亮色纸白）；accent 朱红 `#fb5a40`
+- 实测：正文 14.96；ink-3 on paper 6.90 / surface 6.20；accent on surface-2 4.63；L\* 4.7 / 7.9 / 12.9 / 16.3
+- 亮色逐像素 0 改动；C 落地后 E2E 14 passed（提交前复跑）
+- 提交：`6527b1d` style(theme)；P/A/B 三套留档于 `web/tokens.css` 末尾注释块
