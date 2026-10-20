@@ -17,6 +17,7 @@ _tmp.close()
 
 import auth  # noqa: E402
 import db  # noqa: E402
+import messages  # noqa: E402
 import server  # noqa: E402
 
 
@@ -58,6 +59,7 @@ class Base(unittest.TestCase):
         cls._old_db = db.DB_PATH
         db.DB_PATH = Path(_tmp.name)
         db.init()
+        messages.init()  # /api/me 返回 unread_messages，需要 user_messages 表
         cls._old_token = server.ADMIN_TOKEN
         server.ADMIN_TOKEN = "test-token"
         cls._old_require = server.REQUIRE_INVITE
@@ -72,7 +74,7 @@ class Base(unittest.TestCase):
         server._feedback_rate.clear()
         server._event_rate.clear()
         for t in ("events", "daily_metrics", "admin_log", "users", "sessions",
-                  "codes", "syncs", "meter_requests"):
+                  "codes", "syncs", "meter_requests", "user_messages"):
             self._exec(f"DELETE FROM {t}")
 
     @staticmethod

@@ -540,7 +540,7 @@
     <div class="atabs"><span class="on">设置</span><span class="x" id="settingsClose">×</span></div>
 
     <div class="sgroup">反馈</div>
-    <div class="srow2"><button id="feedbackOpen">反馈 / 提建议</button></div>
+    <div class="srow2"><button id="feedbackOpen">反馈 / 提建议</button><button id="messagesOpen">消息</button></div>
     <div class="shint">出问题了（bug）、想要的功能、或者只是说不上来哪里别扭——都会进后台，一条条看。
       写清「你做了什么、期望什么、实际发生了什么」比写得客气有用得多；留个联系方式我能追问。</div>
 
@@ -1672,6 +1672,7 @@ $("#settingsClose").onclick = () => $("#settingsModal").classList.add("hidden");
 $("#settingsModal").onclick = e => { if(e.target.id === "settingsModal") $("#settingsModal").classList.add("hidden"); };
 $("#settingsAbout").onclick = () => { $("#settingsModal").classList.add("hidden"); intro.classList.remove("hidden"); };
 $("#feedbackOpen").onclick = () => window.open("/feedback.html", "_blank", "noopener");
+$("#messagesOpen").onclick = () => window.open("/messages.html", "_blank", "noopener");
 $("#settingsAuth").onclick = () => { $("#settingsModal").classList.add("hidden"); openAuth(); };
 $("#syncBtn2").onclick = syncUp;
 
@@ -1848,6 +1849,15 @@ function renderAccount(){
   $("#ibtnsAnon").classList.toggle("hidden", !!ME);
   $("#ibtnsAuthed").classList.toggle("hidden", !ME);
   $("#anonNote").classList.toggle("hidden", !!ME);
+  refreshMessageButton();
+}
+/* 站内消息入口：未读角标 = /api/messages 的 unread（登录后才查） */
+async function refreshMessageButton(){
+  const btn = $("#messagesOpen");
+  if (!btn) return;
+  if (!TOKEN) { btn.textContent = "消息"; return; }
+  const r = await api("/api/messages?limit=1");
+  btn.textContent = (r.ok && r.data.unread) ? ("消息 (" + r.data.unread + ")") : "消息";
 }
 function openAuth(mode){
   $("#authModal").classList.remove("hidden");
