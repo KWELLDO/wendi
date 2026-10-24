@@ -1453,6 +1453,27 @@ $("#exportJsonBtn").onclick = () => {
 
 /* ================= 分享卡片（解释树切片的只读渲染） ================= */
 let shareCard = null;
+/* PNG 是纯 canvas 文本，画不了 KaTeX——公式段转成 MathML 的纯文本线性形式；
+   KaTeX 不在场或解析失败就退化为去掉定界符的原文。 */
+function _mathPlainTex(tex){
+  try{
+    if (window.katex){
+      const d = document.createElement("div");
+      d.innerHTML = window.katex.renderToString(tex, { displayMode: false, throwOnError: false, output: "mathml" });
+      d.querySelector("annotation")?.remove();   // annotation 是原始 LaTeX 源码，不能混进可见文本
+      const t = (d.textContent || "").replace(/\s+/g, " ").trim();
+      if (t) return t;
+    }
+  }catch(e){}
+  return tex;
+}
+function plainMathText(text){
+  return String(text || "")
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) => _mathPlainTex(tex))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, tex) => _mathPlainTex(tex))
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => _mathPlainTex(tex))
+    .replace(/(^|[^\$\w\\])\$([^$\n]+?)\$(?![\$\w])/g, (_, pre, tex) => pre + _mathPlainTex(tex));
+}
 function cardChain(card){                     // 从主对话到该卡的词路径
   let out = null;
   (function dfs(node, acc){
@@ -1495,10 +1516,10 @@ function drawShare(o){
   const pathLines = (o.path && chainTxt !== (c.term || "")) ?
     m(`15px -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif`, chainTxt, IW) : [];
   const termLines = m(`600 46px ${SERIF}`, c.term || "…", IW);
-  const textLines = m(`23px ${SERIF}`, c.text || "（解释正文为空）", IW);
-  const ctxLines = o.ctx ? m(`19px ${SERIF}`, "语境 · " + (c.context || "（无）"), IW - 26) : [];
+  const textLines = m(`23px ${SERIF}`, plainMathText(c.text) || "（解释正文为空）", IW);
+  const ctxLines = o.ctx ? m(`19px ${SERIF}`, "语境 · " + plainMathText(c.context || "（无）"), IW - 26) : [];
   const fus = o.fu ? (c.followups || []).slice(0, 3) : [];
-  const fuRows = fus.map(f => ({ q: m(`600 20px ${SERIF}`, "追问 " + f.q, IW), a: m(`20px ${SERIF}`, f.a || "…", IW) }));
+  const fuRows = fus.map(f => ({ q: m(`600 20px ${SERIF}`, "追问 " + plainMathText(f.q), IW), a: m(`20px ${SERIF}`, plainMathText(f.a) || "…", IW) }));
   const LH = { path: 30, term: 60, meta: 40, text: 40, ctx: 32, fu: 34 };
   let H = PAD + 26;
   H += pathLines.length * LH.path + (pathLines.length ? 18 : 0);
@@ -1853,7 +1874,7 @@ function renderAccount(){
   if (sp) sp.textContent = ME
     ? ((ME.plan === "pro" ? "Pro" : "免费") + "账号 · 云端副本可同步 / 删除（在账号里）")
     : "免费注册即用：免费 40 次/天，Pro 300 次/天。";
-  // 内测期：没账号就没有可用的工作台，落地卡给注册/登录入口，不给「开始」
+  // 未登录：引导卡给注册/登录入口，不给「开始」
   $("#ibtnsAnon").classList.toggle("hidden", !!ME);
   $("#ibtnsAuthed").classList.toggle("hidden", !ME);
   $("#anonNote").classList.toggle("hidden", !!ME);

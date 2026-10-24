@@ -123,9 +123,11 @@ if [ -z "$ADMIN_TOKEN" ]; then
   fi
 fi
 scp_x -q deploy/upsert-env.py "$HOST:/tmp/wendi-upsert-env.py"
-printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\nWENDI_REQUIRE_INVITE=%s\n' \
-  "$API_KEY" "$ADMIN_TOKEN" "${WENDI_REQUIRE_INVITE:-1}" \
+printf 'WENDI_API_KEY=%s\nWENDI_ADMIN_TOKEN=%s\n' \
+  "$API_KEY" "$ADMIN_TOKEN" \
   | ssh_x $HOST 'sudo python3 /tmp/wendi-upsert-env.py /etc/wendi.env && rm -f /tmp/wendi-upsert-env.py'
+# 邀请制已取消：顺手把残留的 WENDI_REQUIRE_INVITE 从 env 里清掉（upsert-env 只增不删，单独处理）
+ssh_x $HOST 'sudo sed -i "/^WENDI_REQUIRE_INVITE=/d" /etc/wendi.env || true'
 
 echo "== 4) systemd 服务 =="
 scp_x -q deploy/wendi.service "$HOST:/tmp/wendi.service"

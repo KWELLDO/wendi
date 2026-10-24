@@ -3,7 +3,7 @@
 > **遇到不懂的词，就划它。解释里还有不懂的，继续划。一层层到底。**
 > *Get to the bottom of it.*
 
-在线体验：<https://know.kwelldo.cn>
+在线体验：<https://know.kwelldo.cn> · 开源（AGPL-3.0）· 欢迎自部署
 
 ---
 
@@ -37,9 +37,9 @@
 
 ### 在线用
 
-<https://know.kwelldo.cn>　（测试期，每台设备每天限量）
+<https://know.kwelldo.cn>　（开放注册；不注册也可匿名试用）
 
-### 自己跑（BYOK，自带 key）
+### 自己跑（AGPL-3.0，自备模型 key）
 
 ```bash
 git clone <this-repo> wendi && cd wendi
@@ -75,7 +75,9 @@ python3 -m venv .venv
 | `WENDI_ADMIN_IPS` | — | 管理端 IP 白名单（逗号分隔；空=不限制）。走 nginx 时认 `X-Real-IP` |
 | `WENDI_FEEDBACK_PER_DAY` | 5 | 反馈入口：每 IP 每天最多几条 |
 | `WENDI_FEEDBACK_INTERVAL` | 30 | 反馈入口：同一 IP 两条之间的最小间隔（秒） |
-| `WENDI_REQUIRE_INVITE` | 1 | 内测开关：注册需邀请码，**且未登录不能发起解释请求**（设 0 恢复公开注册与匿名体验） |
+| `WENDI_FEATURE_SYNC_FREE` | 1 | 增值权益「云同步」是否对所有人免费（设 0 = 仅 Pro） |
+| `WENDI_FEATURE_MATERIALS_FREE` | 1 | 增值权益「材料解析」是否对所有人免费（设 0 = 仅 Pro） |
+| `WENDI_FEATURE_EXPORT_FREE` | 1 | 增值权益「导出与高级功能」是否对所有人免费（设 0 = 仅 Pro） |
 | `WENDI_EVENT_PER_MIN` | 90 | 每 IP 每分钟事件上限（超出静默丢弃） |
 | `WENDI_LIMIT_PER_MIN` | 8 | 每 IP 每分钟请求上限 |
 | `WENDI_LIMIT_PER_DAY` | 80 | 每 IP 每天上限 |
@@ -119,7 +121,7 @@ web/messages.html 站内消息（登录用户查看开发 Agent / 站长的澄�
 web/admin.html   站长后台（总览 / 反馈 / 用户 / 兑换码 / 成本闸 / 审计）
 web/meter.html   计量台（逐日账、单用户 drill-down）
 web/site.css     文档页共用样式（大报编辑体 token）
-scripts/daily_report.py  内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
+scripts/daily_report.py  日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
 scripts/feedback_bridge.py  用户反馈 → OpenCode 免费分流 → clds fix/大改方案（本地轮询）
 .opencode/agents/feedback-triage.md  轻量单步、只输出 JSON 的免费模型分流 agent
 deploy/          部署件（systemd / nginx / 部署脚本；含 feedback agent 用户服务与 env 示例）
@@ -148,19 +150,18 @@ docs/deploy.md   上线部署（venv / 离线 wheel / nginx / 验证 / 回滚）
 ## 路线图
 
 - [x] **v0.1.0** 划词递归解释（分形房间 + 摄像机视野）
-- [x] **v0.2.0** 引导教程（30 秒上手）· 账户与配额 · 云同步 · 兑换码 + Pro 方案
+- [x] **v0.2.0** 引导教程（30 秒上手）· 账户与配额 · 云同步 · 增值兑换码
 - [ ] 知识图谱视图（术语卡积累成网）
 - [ ] 团队版
 
-## 内测第一阶段：测试支撑与采集
+## 匿名采集与看板
 
-- 注册需**邀请码**（`codes.kind='invite'`，可携带赠送天数）：发码 → 对方注册即得账号（可能直接是 Pro）。
+- 开放注册，无需任何码；Pro 由**增值兑换码**（`codes` 表，kind='pro'）开通。
 - 前端 12 个动作事件 + 服务端事件（注册/登录/反馈/系统错误）走 `POST /api/event`，落 `events` 表；
   **只记动作与元数据，不记正文**；IP 只存加盐哈希。
 - 每请求一行 JSON 日志（stderr，journal 可查）；LLM 计量补 `session_id` / `room_id`。
-- `daily_metrics` 按天聚合（幂等重算），看板：`/api/admin/metrics`、`/api/admin/events`、`/api/admin/testers`。
+- `daily_metrics` 按天聚合（幂等重算），看板：`/api/admin/metrics`、`/api/admin/events`。
 - 日报：`python3 daily_report.py [YYYY-MM-DD]`（服务器上由 `wendi-report.timer` 每天 23:55 跑）。
-- 设计口径与取舍见 `docs/plans/2026-09-27-internal-test-phase1.md`。
 
 ## 用户反馈 → 开发 Agent（一期，两段式）
 
@@ -225,13 +226,17 @@ journalctl --user -u wendi-feedback-agent.service -f
 
 | 身份 | 每日额度 | 说明 |
 |---|---|---|
-| 未登录 | 20 次 | 按 IP；**仅在 `WENDI_REQUIRE_INVITE=0` 时可用**（内测期未登录不能提问） |
-| 免费账号 | 40 次 | 注册即得 |
-| Pro | 300 次 | 兑换码激活，含云同步 |
+| 未登录（匿名） | 20 次 | 按 IP |
+| 免费账号 | 40 次 | 开放注册即得 |
+| Pro（增值） | 300 次 | 兑换码激活 |
+
+**核心功能（划词解释）不按使用收费**；Pro 属增值服务。云同步、材料解析、导出等增值点由
+`entitlements.py` 统一管理：`meter_config` 键 `feature_<名>_free`（或环境变量
+`WENDI_FEATURE_<名>_FREE`）设 0 即仅 Pro 可用，默认对所有人免费。
 
 云同步：登录后点顶栏「同步↑」把本地数据（对话 + 解释卡）备份到云端；换设备登录时会询问是否载入。
 
-### 部署方：生成兑换码
+### 部署方：生成增值兑换码
 
 ```bash
 ssh your-server 'cd /opt/wendi && python3 gencode.py 10 30 launch'
@@ -244,17 +249,17 @@ ssh your-server 'cd /opt/wendi && python3 gencode.py 10 30 launch'
 # 请求日志（每请求一行 JSON：状态码/延迟/用户/会话/成本）
 ssh <host> 'sudo journalctl -u wendi -n 200 -o cat | grep ^{'
 
-# 内测日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
+# 日报（重算聚合 + 写 reports/YYYY-MM-DD.md + 剪 90 天前事件）
 ssh <host> 'cd /opt/wendi && python3 daily_report.py'      # 或看 /opt/wendi/reports/
 
-# 看板（浏览器，需管理令牌）：总览 / 反馈 / 用户 / 测试者 / 指标 / 事件流 / 兑换码 / 闸门 / 审计
+# 看板（浏览器，需管理令牌）：总览 / 反馈 / 用户 / 指标 / 事件流 / 兑换码 / 闸门 / 审计
 https://know.kwelldo.cn/admin.html
 ```
 
 ## 许可
 
-**专有软件，保留所有权利**（All rights reserved）——闭源商业项目。
+**AGPL-3.0**（GNU Affero General Public License v3.0）——见 [LICENSE](LICENSE)。
 
-- 源码、界面、文档与提示词资产均**不公开授权**：未经书面许可，不得复制、修改、分发、再许可或用于商业用途。
-- 不提供自部署版本；只提供官方实例。想参与/读代码目前不开放，产品反馈走站点内的反馈页。
+- 自由使用、修改、再分发；以 AGPL-3.0 兼容方式开源你的修改版（含网络服务场景，见许可证第 13 条）。
+- 官方实例 <https://know.kwelldo.cn> 与本仓库源码一致；增值服务（Pro/兑换码）只在官方实例提供。
 - 第三方组件：KaTeX（MIT）见 `web/vendor/katex/LICENSE`；其余依赖各自的许可随代码保留。
