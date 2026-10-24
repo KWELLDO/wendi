@@ -1262,7 +1262,8 @@ document.addEventListener("mouseup", e => {
     const text = scope.innerText || "";
     const idx = Math.max(0, text.indexOf(term));
     bubbleInfo = { term, context: extractSentence(text, idx, term.length),
-                   fromMini: mini ? mini.dataset.miniOf : null };
+                   fromMini: mini ? mini.dataset.miniOf : null,
+                   msgId: (scope.dataset && scope.dataset.msg) || null };
     track("select_text", { chars: term.length }, { room_id: (mini && mini.dataset.miniOf) || "main" });
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     $("#bubbleTerm").textContent = term;
@@ -1281,7 +1282,7 @@ $("#doubtInput").addEventListener("keydown", e => {
 });
 $("#explainBtn").addEventListener("click", async () => {
   if(!bubbleInfo) return;
-  const { term, context, fromMini } = bubbleInfo;
+  const { term, context, fromMini, msgId } = bubbleInfo;
   const question = $("#doubtInput").value.trim();
   $("#bubble").style.display = "none";
   $("#doubtInput").value = "";
@@ -1293,14 +1294,26 @@ $("#explainBtn").addEventListener("click", async () => {
     state.focusPath = [...state.focusPath, fromMini];
     state.selected[target.id] = (target.children[0]||{}).id;
     save();
-    await addExplain(target, term, context, question);
+    await addExplain(target, term, context, question, msgId);
   } else {
-    await addExplain(currentNode(), term, context, question);
+    await addExplain(currentNode(), term, context, question, msgId);
   }
 });
-async function addExplain(node, term, context, question){
+/* 划词来自主对话的哪一轮（1 起）——图谱据此把卡片挂到它诞生的轮次上。
+   取不到来源消息（划的是自己写的提问、老数据）就归到当前最后一轮。 */
+function turnOfMessage(node, msgId){
+  if(!node || node.kind !== "conv") return 0;
+  let turn = 0;
+  for(const m of node.messages || []){
+    if(m.role === "user") turn++;
+    if(msgId && m.id === msgId) return Math.max(1, turn);
+  }
+  return Math.max(1, turn);
+}
+async function addExplain(node, term, context, question, srcMsgId){
   const exp = newExp(term, context, node.kind === "conv" ? null : node.term);
   if(question) exp.question = question;
+  if(node.kind === "conv") exp.turn = turnOfMessage(node, srcMsgId);
   node.children.push(exp);
   state.selected[node.id] = exp.id;
   save(); render("");
