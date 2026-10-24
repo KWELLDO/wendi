@@ -7,7 +7,7 @@ HOST="${WENDI_HOST:?请设 WENDI_HOST（ssh 主机别名或 user@host）}"
 
 echo "== 1) 后端 -> /opt/wendi =="
 ssh $HOST 'sudo mkdir -p /opt/wendi && sudo chown ubuntu:ubuntu /opt/wendi'
-rsync -az server.py prompts.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
+rsync -az server.py prompts.py explain_output.py db.py auth.py kernel.py "$HOST:/opt/wendi/"
 rsync -az deploy/gencode.py "$HOST:/opt/wendi/"
 
 echo "== 2) 前端 -> /var/www/kwelldo/know/ =="

@@ -25,6 +25,25 @@ class TestExplainMessages(unittest.TestCase):
         sys_prompt = explain_messages("x", "y", "rigorous")[0]["content"]
         self.assertIn("严谨", sys_prompt)
 
+    def test_source_meta_uses_context_and_low_confidence_without_doubt(self):
+        msgs = explain_messages("熵", "系统的熵在这里增加", include_source_meta=True)
+        system, user = msgs[0]["content"], msgs[1]["content"]
+        self.assertIn("[[WENDI_SOURCE_META]]", system)
+        self.assertIn("context_reading", system)
+        self.assertIn("likely_need", system)
+        self.assertIn("没有提供疑惑", system)
+        self.assertIn("低把握", system)
+        self.assertIn("[[WENDI_EXPLANATION]]", system)
+        self.assertIn("系统的熵在这里增加", user)
+
+    def test_source_meta_uses_user_doubt_as_evidence_not_as_fact(self):
+        msgs = explain_messages("熵", "系统的熵在这里增加", question="为什么不是能量守恒？",
+                               include_source_meta=True)
+        system, user = msgs[0]["content"], msgs[1]["content"]
+        self.assertIn("为什么不是能量守恒？", user)
+        self.assertIn("根据读者的疑惑", system)
+        self.assertIn("可能", system)
+
 
 if __name__ == "__main__":
     unittest.main()

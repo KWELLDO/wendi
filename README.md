@@ -83,8 +83,9 @@ python3 server.py        # → http://127.0.0.1:8899
 server.py        薄代理：转发 LLM 调用 + 限流（防滥用/成本闸）
 kernel.py        内核：事件总线 + 服务注册 + 作用域生命周期（借鉴 cordis，MIT）
 prompts.py       解释器人格：划词解释 / 卡内追问 / 主对话 三个提示词
+explain_output.py 流式解释的来源元数据拆分：语境说明 / 可能卡点与正文分离
 web/index.html   全部前端（单文件、零构建）：分形房间 + 摄像机 + 键盘导航
-web/graph2d.html 当前会话的 2D 图谱：底部 = 对话轮次时间线，向上 = 解释层数（只读同一份 localStorage）
+web/graph2d.html 当前会话的 2D 图谱：底部 = 对话轮次时间线，向上 = 解释层数；卡片详情可回看划词原文、语境和可能卡点（只读同一份 localStorage）
 web/vendor/katex 内置数学排版（KaTeX 0.18.9，升级步骤见该目录 README）
 web/about.html   关于 wendi（立场、数据主权、合规状态）
 web/privacy.html 隐私政策（收集什么/不收集什么、保留期、你的权利）

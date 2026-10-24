@@ -47,6 +47,19 @@ EXPLAIN_USER_DOUBT = """读者划这个词时带着一个具体疑惑：
 
 EXPLAIN_USER_TAIL = """请在"{term}"当前出现的这个句子/段落的语境里，解释它是什么意思。"""
 
+EXPLAIN_SOURCE_META = """这次界面会把“来源说明”和“解释正文”分开展示。请严格按以下格式输出，标记前后不要加代码围栏或其他文字：
+[[WENDI_SOURCE_META]]
+{"context_reading":"一句话说明所划内容在原语境中的意思或作用","likely_need":"一句谨慎的可能卡点推测"}
+[[/WENDI_SOURCE_META]]
+[[WENDI_EXPLANATION]]
+随后输出解释正文，遵守上面的长度和档位要求。
+
+字段要求：
+- context_reading：只解释它在这段原文中的语境含义，不重复一整段解释。
+- likely_need：这是对读者需要的推测，不是事实判断，不要评判读者。
+- 根据读者的疑惑（如果有），结合原文和语境，谨慎推测读者可能卡在哪里；不要把疑惑原样换句话重复。
+- 如果读者没有提供疑惑，只能根据划词和语境作低把握推测，明确使用“可能/也许”；不要臆测读者的经历、能力或心理。如果材料不足，就说“仅凭划词和语境，无法可靠判断”。"""
+
 # —— 卡内追问 ——
 FOLLOWUP_SYSTEM = """你是"解释场"里的解释器。读者正在追问你对某个词的解释。
 保持与初次解释相同的立场：不评判、不居高临下、允许含糊、不编造。
@@ -68,15 +81,19 @@ CHAT_SYSTEM = """你处在一个"解释场"里：你的回答会成为用户进�
 不确定就说不确定；不知道就说不知道。"""
 
 
-def explain_messages(term: str, context: str, style: str = "standard", question: str = ""):
+def explain_messages(term: str, context: str, style: str = "standard", question: str = "",
+                     include_source_meta: bool = False):
     style_instruction = STYLE_INSTRUCTIONS.get(style, STYLE_INSTRUCTIONS["standard"])
     doubt = (question or "").strip()
     parts = [EXPLAIN_USER.format(context=context, term=term)]
     if doubt:
         parts.append(EXPLAIN_USER_DOUBT.format(question=doubt))
     parts.append(EXPLAIN_USER_TAIL.format(term=term))
+    system = EXPLAIN_SYSTEM.format(style_instruction=style_instruction)
+    if include_source_meta:
+        system += "\n\n" + EXPLAIN_SOURCE_META
     return [
-        {"role": "system", "content": EXPLAIN_SYSTEM.format(style_instruction=style_instruction)},
+        {"role": "system", "content": system},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 

@@ -537,13 +537,14 @@ function div(c){ const d=document.createElement("div"); if(c) d.className=c; ret
 
 /* ================= 数据 =================
    node = { id, kind:'conv'|'exp', children:[node...],
-            conv: messages[] / exp: term,context,text,style,followups,createdAt,parentTerm,loading,error }
+            conv: messages[] / exp: term,context,question,contextReading,likelyNeed,text,style,followups,createdAt,parentTerm,loading,error }
    state = { root, focusPath:[id...]（根=root.id）, selected:{nodeId:childId}, removed:[] } */
 let state = null;
 function newConv(){ return { id: uid(), kind:"conv", children: [], messages: [] }; }
 function newExp(term, context, parentTerm){
   return { id: uid(), kind:"exp", children: [], term, context, parentTerm: parentTerm||null,
-           style: state.defaultStyle, text:"", loading:true, error:null, followups:[], createdAt: Date.now() };
+           style: state.defaultStyle, text:"", contextReading:"", likelyNeed:"", loading:true,
+           error:null, followups:[], createdAt: Date.now() };
 }
 function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); }
 function load(){
@@ -954,7 +955,8 @@ async function addExplain(node, term, context, question, srcMsgId){
 
 /* ================= API ================= */
 async function requestExplain(card){
-  card.loading = true; card.error = null; card.text = ""; save(); render("");
+  card.loading = true; card.error = null; card.text = "";
+  card.contextReading = ""; card.likelyNeed = ""; save(); render("");
   let lastPaint = 0;  // 生成中的卡片不在当前视野时:节流整页重绘,让列表/预览跟着长
   // 同一张卡可能同时出现在主区（[data-exp]）和右下预览（mini 里的 [data-exp]）——一起原地 patch，
   // 绝不在流式过程中整页 render()：那会重建 DOM、重放 .room 进入动画（就是预览闪屏的根因）。
@@ -967,8 +969,12 @@ async function requestExplain(card){
   };
   try{
     const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,
-      question: card.question || "", stream:true,
-      depth: state.focusPath.length, turns: 0}, d => { card.text += d; paint(); });
+      question: card.question || "", source_meta:true, stream:true,
+      depth: state.focusPath.length, turns: 0}, d => { card.text += d; paint(); }, meta => {
+        card.contextReading = String(meta.context_reading || "");
+        card.likelyNeed = String(meta.likely_need || "");
+        save();
+      });
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
     if (r.data.quota) renderQuota(r.data.quota);
@@ -1306,7 +1312,7 @@ async function api(path, method, body){
   return { ok: r.ok, status: r.status, data: d };
 }
 /* SSE 流式请求：每收到一个 {"delta":…} 事件就回调 onDelta。返回值语义同 api()。 */
-async function apiStream(path, body, onDelta){
+async function apiStream(path, body, onDelta, onMeta){
   const r = await fetch(path, { method: "POST", headers: apiHeaders(), body: JSON.stringify(body) });
   if(!r.ok || !r.body){
     let d = {}; try { d = await r.json(); } catch(e){}
@@ -1325,6 +1331,7 @@ async function apiStream(path, body, onDelta){
       const line = ev.split("\n").find(l => l.startsWith("data:"));
       if(!line) continue;
       let o; try { o = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
+      if(o.source_meta && onMeta && out.ok) onMeta(o.source_meta);
       if(o.delta){ if(out.ok) onDelta(o.delta); }
       else if(o.error){ out.ok = false; out.data = { error: o.error }; }
       if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; if(o.truncated) out.data.truncated = true;

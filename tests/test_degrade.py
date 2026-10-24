@@ -295,6 +295,30 @@ class TestExplainDegrade(P0Base):
         self.assertGreater(mid, 0)
 
 
+class TestSourceMetadata(P0Base):
+    def test_opt_in_metadata_is_split_from_explanation_body(self):
+        user = self._mkuser("source-meta@example.com")
+        row = db.get_user(user["id"])
+        body = {
+            "mode": "explain", "term": "熵", "context": "系统的熵在这里增加",
+            "question": "为什么不是能量守恒？", "source_meta": True,
+        }
+        model_output = (
+            '[[WENDI_SOURCE_META]]{"context_reading":"说明语境","likely_need":"可能在辨析概念边界"}'
+            '[[/WENDI_SOURCE_META]][[WENDI_EXPLANATION]]解释正文'
+        )
+        h = FakeExplainHandler(body=body, user=row)
+        with mock.patch.object(server, "call_llm", return_value=(model_output, {}, False)):
+            with mock.patch.object(server, "explain_messages", wraps=server.explain_messages) as prompt:
+                h._explain(body)
+        self.assertEqual(h.status, 200)
+        self.assertEqual(h.payload["text"], "解释正文")
+        self.assertEqual(h.payload["source_meta"], {
+            "context_reading": "说明语境", "likely_need": "可能在辨析概念边界",
+        })
+        self.assertTrue(prompt.call_args.kwargs["include_source_meta"])
+
+
 class TestBehaviorMetering(P0Base):
     def test_depth_turns_recorded(self):
         u = self._mkuser("meter@example.com")

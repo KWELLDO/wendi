@@ -117,6 +117,16 @@
            padding-top:11px;border-top:1px solid var(--hairline)}
   .dtext{white-space:pre-wrap;line-height:1.8;color:var(--ink-2);background:var(--surface-2);
          border:1px solid var(--hairline);padding:9px 11px;max-height:260px;overflow:auto}
+  .sourcebox{background:var(--surface-2);border:1px solid var(--hairline);padding:9px 11px;margin:6px 0 12px}
+  .sourcefield+.sourcefield{margin-top:9px;padding-top:8px;border-top:1px solid var(--hairline)}
+  .source-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:4px}
+  .source-label.context-label{margin-top:7px}
+  .source-term{color:var(--ink);font-weight:600;line-height:1.75}
+  .source-quote{white-space:pre-wrap;line-height:1.75;color:var(--ink-2);max-height:150px;overflow:auto}
+  .source-quote mark{background:var(--accent-wash);color:var(--ink);padding:0 2px}
+  .source-note{white-space:pre-wrap;line-height:1.7;color:var(--ink-2)}
+  .source-guess{white-space:pre-wrap;line-height:1.7;color:var(--ink);border-left:2px solid var(--accent-line);padding-left:8px}
+  .source-missing{color:var(--ink-3);font-style:italic}
   .dfu{margin:8px 0}
   .dturn .dq::before,.dturn .da::before{content:""}
   .dturn .da{color:var(--ink)}
@@ -455,6 +465,25 @@ function render(){
 /* ============ 右侧面板 ============ */
 const byId = id => DATA && DATA.nodes.find(n => n.id === id);
 
+function sourceQuoteHTML(context, term){
+  const text = String(context || "");
+  const selected = String(term || "");
+  const at = selected ? text.indexOf(selected) : -1;
+  if(at < 0) return esc(text || "（没有保存原文语境）");
+  return esc(text.slice(0, at)) + `<mark>${esc(selected)}</mark>` + esc(text.slice(at + selected.length));
+}
+
+function fallbackNeed(card){
+  const q = String(card.question || "").trim();
+  if(q){
+    if(/为什么|为何|原因|因果/.test(q)) return "你可能在确认这里的原因或因果关系。";
+    if(/怎么|如何|怎样|怎么办/.test(q)) return "你可能想弄清这里涉及的机制或做法。";
+    if(/区别|不同|是否|是不是|还是/.test(q)) return "你可能在辨析相近概念的边界或判断条件。";
+    return `你可能想解决这条疑惑：「${q}」`;
+  }
+  return `仅凭划词作低把握推测：你可能想确认「${String(card.term || "这个词")}」在这段语境中的具体含义。`;
+}
+
 function clearSel(){
   SEL = null;
   svg.querySelectorAll(".node.sel").forEach(g => g.classList.remove("sel"));
@@ -504,8 +533,21 @@ function selectNode(id){
       `<div class="dmeta">${fmtDay(n.t)} ${fmtTime(n.t)} · 第 ${n.depth} 层` +
       (r.style ? ` · ${esc(r.style)}` : "") +
       (typeof r.text === "string" && r.text ? ` · ${r.text.length} 字` : "") + `</div>` +
-      `<div class="drow">源自：<b>${esc(parent)}</b></div>` +
+      `<div class="drow">图谱位置：<b>${esc(parent)}</b></div>` +
       `<div class="drow">长出 <b>${n.kids}</b> 个子解释 · <b>${fu.length}</b> 条追问</div>` +
+      `<div class="ptitle2">来源</div>` +
+      `<div class="sourcebox">` +
+        `<div class="sourcefield"><div class="source-label">你划出的原文</div>` +
+          `<div class="source-term">${esc(r.term || "（未保存划词）")}</div>` +
+          `<div class="source-label context-label">所在语境</div>` +
+          `<div class="source-quote">${sourceQuoteHTML(r.context, r.term)}</div></div>` +
+        `<div class="sourcefield"><div class="source-label">语境说明</div>` +
+          `<div class="source-note${r.contextReading ? "" : " source-missing"}">${esc(r.contextReading || "尚未保存语境说明；重新解释后可生成。")}</div></div>` +
+        (r.question ? `<div class="sourcefield"><div class="source-label">你补充的疑惑</div>` +
+          `<div class="source-note">${esc(r.question)}</div></div>` : "") +
+        `<div class="sourcefield"><div class="source-label">可能的卡点 · ${r.likelyNeed ? (r.question ? "AI 推测（根据你的疑惑）" : "AI 推测（低把握）") : (r.question ? "系统弱推测（根据疑惑归纳）" : "系统弱推测（仅据划词）")}</div>` +
+          `<div class="source-guess">${esc(r.likelyNeed || fallbackNeed(r))}</div></div>` +
+      `</div>` +
       `<div class="ptitle2">正文</div>` +
       `<div class="dtext">${esc(r.text || (r.loading ? "生成中…" : (r.error ? "失败：" + r.error : "（暂无正文）")))}</div>` +
       (fu.length ? `<div class="ptitle2">追问（${fu.length}）</div>` + fu.map(f =>
