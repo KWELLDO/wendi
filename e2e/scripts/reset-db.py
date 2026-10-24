@@ -28,6 +28,8 @@ if db_path == home_db or allowed not in db_path.parents:
 db_path.parent.mkdir(parents=True, exist_ok=True)
 
 import db  # noqa: E402  （必须在 WENDI_DB 已就位后导入）
+import messages  # noqa: E402
 
 db.init()
+messages.init()  # user_messages 表（global-setup 会删掉 server.py 启动时建的库，schema 以这里为准）
 print(f"[e2e] 测试数据库已重建: {db.DB_PATH}")
