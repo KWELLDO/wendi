@@ -1,4 +1,4 @@
-"""内测第一阶段：事件采集 / 邀请码注册 / 日聚合 / 看板端点的测试。
+"""事件采集 / 注册 / 日聚合 / 看板端点的测试。
 
 运行：python3 -m unittest discover -s tests -v
 """
@@ -62,13 +62,10 @@ class Base(unittest.TestCase):
         messages.init()  # /api/me 返回 unread_messages，需要 user_messages 表
         cls._old_token = server.ADMIN_TOKEN
         server.ADMIN_TOKEN = "test-token"
-        cls._old_require = server.REQUIRE_INVITE
-        server.REQUIRE_INVITE = True
 
     @classmethod
     def tearDownClass(cls):
         server.ADMIN_TOKEN = cls._old_token
-        server.REQUIRE_INVITE = cls._old_require
 
     def setUp(self):
         server._feedback_rate.clear()
@@ -87,13 +84,9 @@ class Base(unittest.TestCase):
         finally:
             c.close()
 
-    def invite(self, days=30, label="A 研究者") -> str:
-        _, codes = db.gen_codes(1, days, batch="ITEST", kind="invite", tester_label=label)
-        return codes[0]
-
-    def mkuser(self, email, code="") -> dict:
+    def mkuser(self, email) -> dict:
         salt, h = auth.hash_password("secret1")
-        user, err, _ = db.register_with_invite(email, salt, h, code)
+        user, err = db.register(email, salt, h)
         self.assertIsNotNone(user, f"建号失败 {email}: {err}")
         return user
 
@@ -146,8 +139,9 @@ class TestEventIngest(Base):
             server.EVENT_PER_MIN = old
 
     def test_session_and_code_attribution(self):
-        code = self.invite()
-        u = self.mkuser("attr@example.com", code)
+        u = self.mkuser("attr@example.com")
+        code = "WD-OLD-ATTR-0001"      # 历史账号的邀请码归因列仍生效
+        self._exec("UPDATE users SET invite_code=? WHERE id=?", (code, u["id"]))
         tok = "tok-attr"
         db.create_session(tok, u["id"])
         h = Handler(token="")
@@ -173,8 +167,8 @@ class TestRollup(Base):
         self._exec("UPDATE events SET day_key=? WHERE day_key!=?", (day, day))
 
     def test_rollup_counts_and_idempotent(self):
-        code = self.invite()
-        u = self.mkuser("roll@example.com", code)
+        code = "WD-ROLL-CODE-001"
+        u = self.mkuser("roll@example.com")
         self._seed(db.today(), code, u["id"])
         db.meter_record(u["id"], "pro", "explain", "standard", True, 100, 10, 5, 3, True)
         m1 = db.rollup_day(db.today())
@@ -197,7 +191,7 @@ class TestRollup(Base):
         self.assertEqual(f["explain_success"], 1)
 
     def test_d1_return_across_days(self):
-        code = self.invite()
+        code = "WD-D1-CODE-0001"
         yesterday = db._day_shift(db.today(), -1)
         db.event_add("app_open", session_id="s1", code=code)
         db.event_add("app_open", session_id="s2", code=code)
@@ -216,107 +210,52 @@ class TestRollup(Base):
         self.assertEqual(db.prune_events(90), 1)
         self.assertEqual(len(db.events_list()), 1)
 
-    def test_tester_rows_signals(self):
-        code = self.invite(days=30, label="B 学生")
-        u = self.mkuser("tester@example.com", code)
-        d1 = db._day_shift(db.today(), -2)
-        for day, sid in ((d1, "s1"), (db.today(), "s2")):
-            db.event_add("app_open", session_id=sid, code=code, user_id=u["id"])
-            db.event_add("explain_success", session_id=sid, code=code, user_id=u["id"])
-            self._exec("UPDATE events SET day_key=? WHERE session_id=?", (day, sid))
-        db.meter_record(u["id"], "pro", "explain", "standard", True, 0, 0, 0, 7, True)
-        row = next(r for r in db.tester_rows() if r["code"] == code)
-        self.assertEqual(row["tester_label"], "B 学生")
-        self.assertEqual(row["email"], "tester@example.com")
-        self.assertEqual(row["explains"], 2)
-        self.assertTrue(row["returned"])
-        self.assertTrue(row["d1"], "隔两天再回来应算回访")
-        self.assertEqual(row["cost_cents"], 7)
 
 
-# ===================== 邀请码注册 =====================
-class TestInviteRegister(Base):
-    def test_requires_invite_code(self):
+# ===================== 开放注册 =====================
+class TestOpenRegister(Base):
+    def test_register_without_code(self):
         h = Handler(token="")
-        h._register({"email": "no@code.cn", "password": "secret1"})
-        self.assertEqual(h.status, 403)
-        self.assertTrue(h.payload["need_invite"])
-        self.assertEqual(len(db.list_users()), 0)
-
-    def test_bad_and_reused_code(self):
-        h = Handler(token="")
-        h._register({"email": "a@code.cn", "password": "secret1", "invite": "WD-NOPE-NOPE-NOPE"})
-        self.assertEqual(h.status, 403)
-        code = self.invite()
-        h2 = Handler(token="")
-        h2._register({"email": "b@code.cn", "password": "secret1", "invite": code})
-        self.assertEqual(h2.status, 200)
-        h3 = Handler(token="")
-        h3._register({"email": "c@code.cn", "password": "secret1", "invite": code})
-        self.assertEqual(h3.status, 403)
-        self.assertIn("用过", h3.payload["error"])
-
-    def test_pro_code_rejected_as_invite(self):
-        _, codes = db.gen_codes(1, 30, kind="pro")
-        h = Handler(token="")
-        h._register({"email": "d@code.cn", "password": "secret1", "invite": codes[0]})
-        self.assertEqual(h.status, 403)
-        self.assertIn("兑换码", h.payload["error"])
-
-    def test_success_grants_pro_and_records_attribution(self):
-        code = self.invite(days=30)
-        h = Handler(token="")
-        h._register({"email": "test1@example.com", "password": "secret1", "invite": code})
-        self.assertEqual(h.status, 200)
-        self.assertEqual(h.payload["plan"], "pro")
-        self.assertEqual(h.payload["invite_days"], 30)
-        user = db.get_user_by_email("test1@example.com")
-        self.assertEqual(user["invite_code"], code)
-        self.assertTrue(user["plan_until"])
-        rows = db.list_codes(kind="invite")
-        self.assertEqual(rows[0]["status"], "used")
-        # 注册事件落表（带码，便于按人看路径）
-        ev = db.events_list(event="register")
-        self.assertEqual(len(ev), 1)
-        self.assertEqual(ev[0]["code"], code)
-
-    def test_zero_day_invite_gives_free_account(self):
-        code = self.invite(days=0)
-        h = Handler(token="")
-        h._register({"email": "free@example.com", "password": "secret1", "invite": code})
+        h._register({"email": "open@example.com", "password": "secret1"})
         self.assertEqual(h.status, 200)
         self.assertEqual(h.payload["plan"], "free")
-
-    def test_open_registration_when_switch_off(self):
-        server.REQUIRE_INVITE = False
-        try:
-            h = Handler(token="")
-            h._register({"email": "open@example.com", "password": "secret1"})
-            self.assertEqual(h.status, 200)
-        finally:
-            server.REQUIRE_INVITE = True
+        self.assertEqual(h.payload["quota"]["plan"], "free")
+        self.assertNotIn("invite_days", h.payload)
+        user = db.get_user_by_email("open@example.com")
+        self.assertEqual(user["invite_code"], "")
+        ev = db.events_list(event="register")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(ev[0]["code"], "")
 
     def test_duplicate_email_conflict(self):
-        code1, code2 = self.invite(), self.invite()
         a = Handler(token="")
-        a._register({"email": "dup@example.com", "password": "secret1", "invite": code1})
+        a._register({"email": "dup@example.com", "password": "secret1"})
         self.assertEqual(a.status, 200)
         b = Handler(token="")
-        b._register({"email": "dup@example.com", "password": "secret1", "invite": code2})
+        b._register({"email": "dup@example.com", "password": "secret1"})
         self.assertEqual(b.status, 409)
-        self.assertEqual(next(c for c in db.list_codes(kind="invite")
-                              if c["code"] == code2)["status"], "unused",
-                         "注册失败的码不该被消耗")
+
+    def test_bad_email_and_short_password(self):
+        h = Handler(token="")
+        h._register({"email": "not-an-email", "password": "secret1"})
+        self.assertEqual(h.status, 400)
+        h2 = Handler(token="")
+        h2._register({"email": "ok@example.com", "password": "123"})
+        self.assertEqual(h2.status, 400)
 
 
 # ===================== 配额响应形状（登录/注册/兑换 vs /api/me） =====================
 class TestQuotaShape(Base):
     def _register_pro(self, email="pro-quota@example.com"):
-        code = self.invite(days=30)
         h = Handler(token="")
-        h._register({"email": email, "password": "secret1", "invite": code})
+        h._register({"email": email, "password": "secret1"})
         self.assertEqual(h.status, 200)
-        return h
+        u = db.get_user_by_email(email)
+        db.set_plan(u["id"], "pro", "2999-12-31")
+        h2 = Handler(token="")
+        h2._login({"email": email, "password": "secret1"})
+        self.assertEqual(h2.status, 200)
+        return h2
 
     def test_register_pro_quota_has_plan(self):
         h = self._register_pro()
@@ -339,9 +278,8 @@ class TestQuotaShape(Base):
                          "登录与 /api/me 的 quota 必须同形同值（前端读 quota.plan）")
 
     def test_free_and_expired_pro_report_free(self):
-        code = self.invite(days=0)
         h = Handler(token="")
-        h._register({"email": "free-quota@example.com", "password": "secret1", "invite": code})
+        h._register({"email": "free-quota@example.com", "password": "secret1"})
         self.assertEqual(h.payload["quota"]["plan"], "free")
 
         u = self.mkuser("expired-quota@example.com")
@@ -356,7 +294,7 @@ class TestQuotaShape(Base):
         u = self.mkuser("redeem-quota@example.com")
         tok = "tok-redeem-quota"
         db.create_session(tok, u["id"])
-        _, codes = db.gen_codes(1, 30, kind="pro")
+        _, codes = db.gen_codes(1, 30)
         h = Handler(token=tok)
         h._redeem({"code": codes[0]})
         self.assertEqual(h.status, 200)
@@ -394,27 +332,20 @@ class TestAdminIntakeEndpoints(Base):
         self.assertIsNotNone(db.metrics_get(db.today()))
         self.assertEqual(db.metrics_get(db.today())["explains"], 1)
 
-    def test_codes_kind_filter_and_generation(self):
+    def test_codes_generation_pro_only(self):
         h = Handler()
         h.payload = None
-        h._admin_gen_codes({"n": 2, "days": 30, "kind": "invite", "tester_label": "C 老师"})
+        h._admin_gen_codes({"n": 2, "days": 30})
         self.assertEqual(h.status, 200)
-        self.assertEqual(h.payload["kind"], "invite")
-        rows = db.list_codes(kind="invite")
-        self.assertEqual(len(rows), 2)
-        self.assertTrue(all(r["tester_label"] == "C 老师" for r in rows))
-        self.assertEqual(db.list_codes(kind="pro"), [])
-        bad = Handler()
-        bad._admin_gen_codes({"n": 1, "days": 30, "kind": "weird"})
-        self.assertEqual(bad.status, 400)
-
-    def test_invite_code_can_be_voided(self):
-        code = self.invite()
-        db.void_codes([code])
-        h = Handler(token="")
-        h._register({"email": "v@example.com", "password": "secret1", "invite": code})
-        self.assertEqual(h.status, 403)
-        self.assertIn("作废", h.payload["error"])
+        self.assertEqual(h.payload["kind"], "pro")
+        self.assertEqual(len(db.list_codes(kind="pro")), 2)
+        # 历史 kind/tester_label 参数直接忽略（邀请码已取消），一律生成增值兑换码
+        h2 = Handler()
+        h2.payload = None
+        h2._admin_gen_codes({"n": 1, "days": 30, "kind": "invite", "tester_label": "C 老师"})
+        self.assertEqual(h2.status, 200)
+        self.assertEqual(h2.payload["kind"], "pro")
+        self.assertEqual(db.list_codes(kind="invite"), [])
 
 
 # ===================== 请求日志 =====================
@@ -557,8 +488,8 @@ class TestStreamUsage(Base):
         self.assertEqual(h.status, 200)
 
 
-# ===================== 邀请制闸门：内测期未登录不给用 =====================
-class TestInviteGate(Base):
+# ===================== 匿名可用：核心免费，匿名走 IP 限速配额 =====================
+class TestAnonymousExplain(Base):
     def _explain_handler(self):
         class H(Handler):
             def __init__(self, *a, **kw):
@@ -566,35 +497,31 @@ class TestInviteGate(Base):
                 self.body = {}
         return H(token="")
 
-    def test_anonymous_explain_blocked_when_invite_only(self):
+    def test_anonymous_explain_allowed(self):
         h = self._explain_handler()
-        h._explain({"mode": "chat", "messages": [{"role": "user", "content": "x"}]})
-        self.assertEqual(h.status, 403)
-        self.assertTrue(h.payload["need_invite"])
-        # 被门挡住也算信号：落一条 gate_blocked，能看到「有多少人想用但没码」
-        ev = db.events_list(event="gate_blocked")
-        self.assertEqual(len(ev), 1)
-        self.assertEqual(ev[0]["meta"]["mode"], "chat")
-        row = db._conn().execute("SELECT COUNT(*) AS n FROM meter_requests").fetchone()
-        self.assertEqual(row["n"], 0, "被闸门拦住不该产生 LLM 调用")
+        # 打桩 LLM：不花钱，只验证匿名能一路走到配额/调用逻辑
+        with mock.patch.object(server, "call_llm",
+                               return_value=("答案", {"prompt_tokens": 10,
+                                                      "completion_tokens": 5}, False)):
+            h._explain({"mode": "chat", "messages": [{"role": "user", "content": "hi"}],
+                        "turns": 1})
+        self.assertEqual(h.status, 200, f"匿名应可用：{h.payload}")
 
-    def test_anonymous_allowed_when_switch_off(self):
-        server.REQUIRE_INVITE = False
+    def test_anonymous_rate_limited_no_llm_call(self):
+        old = server.LIMIT_ANON_PER_MIN
+        server.LIMIT_ANON_PER_MIN = 0
+        server._anon.clear()
         try:
             h = self._explain_handler()
-            # 打桩 LLM：不花钱，只验证闸门放行到配额/调用逻辑
-            with mock.patch.object(server, "call_llm",
-                                   return_value=("答案", {"prompt_tokens": 10,
-                                                          "completion_tokens": 5}, False)):
-                h._explain({"mode": "chat", "messages": [{"role": "user", "content": "hi"}],
-                            "turns": 1})
-            self.assertEqual(h.status, 200, f"开关关掉后匿名应可用：{h.payload}")
-            self.assertEqual(db.events_list(event="gate_blocked"), [])
+            h._explain({"mode": "chat", "messages": [{"role": "user", "content": "hi"}]})
+            self.assertEqual(h.status, 429)
+            row = db._conn().execute("SELECT COUNT(*) AS n FROM meter_requests").fetchone()
+            self.assertEqual(row["n"], 0, "被限流不该产生 LLM 调用")
         finally:
-            server.REQUIRE_INVITE = True
+            server.LIMIT_ANON_PER_MIN = old
+            server._anon.clear()
 
-    def test_feedback_still_open_without_code(self):
-        """没码的人至少能留言要码——闸门不能把反馈也关掉。"""
+    def test_feedback_still_open(self):
         h = Handler(token="")
-        h._feedback_add({"body": "我想要一个邀请码", "contact": "me@example.com", "can_reply": True})
+        h._feedback_add({"body": "有个建议", "contact": "me@example.com", "can_reply": True})
         self.assertEqual(h.status, 200)

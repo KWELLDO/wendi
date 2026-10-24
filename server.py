@@ -32,6 +32,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 import db  # noqa: E402
+import entitlements  # noqa: E402
 import materials  # noqa: E402
 import messages  # noqa: E402
 from auth import hash_password, new_token, verify_password  # noqa: E402
@@ -67,8 +68,6 @@ MATERIALS_MAX_MB = int(os.environ.get("WENDI_MATERIALS_MAX_MB", "500"))  # 单�
 MATERIALS_MAX_BYTES = MATERIALS_MAX_MB * 1024 * 1024
 MATERIAL_NAME_MAX = 200
 ADMIN_TOKEN = os.environ.get("WENDI_ADMIN_TOKEN", "")  # 空则 meter 端点拒绝一切请求
-# 内测：注册是否必须邀请码（WENDI_REQUIRE_INVITE=0 可临时放开公开注册）
-REQUIRE_INVITE = os.environ.get("WENDI_REQUIRE_INVITE", "1") != "0"
 EVENT_PER_MIN = int(os.environ.get("WENDI_EVENT_PER_MIN", "90"))   # 每 IP 每分钟事件上限（超出静默丢弃）
 # 可选的管理端 IP 白名单（逗号分隔；空=不限制）。只认 X-Real-IP/X-Forwarded-For 的第一跳。
 ADMIN_IPS = [ip.strip() for ip in os.environ.get("WENDI_ADMIN_IPS", "").split(",") if ip.strip()]
@@ -681,11 +680,6 @@ class Handler(SimpleHTTPRequestHandler):
                     code=qs.get("code", [None])[0] or None,
                     limit=self._qint(qs, "limit", 200, hi=1000))})
                 return
-            if path == "/api/admin/testers":
-                if not self._admin_ok(qs):
-                    return
-                self._json(200, {"items": db.tester_rows()})
-                return
             if path == "/api/admin/audit":
                 if not self._admin_ok(qs):
                     return
@@ -716,6 +710,8 @@ class Handler(SimpleHTTPRequestHandler):
                 user = self._user()
                 if not user:
                     self._json(401, {"error": "未登录"})
+                    return
+                if not self._entitled(user, "sync"):
                     return
                 data = db.sync_get(user["id"])
                 self._json(200, data if data else {"data": None, "updated_at": None})
@@ -748,6 +744,13 @@ class Handler(SimpleHTTPRequestHandler):
             return max(lo, min(hi, int(qs.get(key, [str(default)])[0])))
         except (TypeError, ValueError):
             return default
+
+    def _entitled(self, user, feature: str) -> bool:
+        """增值权益闸:通过返回 True;否则发 403 并返回 False。"""
+        if entitlements.has(user, feature):
+            return True
+        entitlements.deny(self, feature)
+        return False
 
     def _admin_ok(self, qs: dict | None = None) -> bool:
         """校验 ?token= 或 Authorization: Bearer 是否匹配 WENDI_ADMIN_TOKEN。不匹配 → 401 并返回 False。
@@ -831,34 +834,27 @@ class Handler(SimpleHTTPRequestHandler):
 
     # ---------- 账户 ----------
     def _register(self, body: dict):
-        """注册（内测期需邀请码）。邀请码可携带赠送天数 → 注册即得 Pro。"""
+        """注册(开放注册,无需任何码)。"""
         email = str(body.get("email", "")).strip()
         pw = str(body.get("password", ""))
-        code = str(body.get("invite", "") or body.get("code", "")).strip().upper()
         if not EMAIL_RE.match(email):
             self._json(400, {"error": "邮箱格式不正确"})
             return
         if len(pw) < 6:
             self._json(400, {"error": "密码至少 6 位"})
             return
-        if REQUIRE_INVITE and not code:
-            self._json(403, {"error": "内测阶段需要邀请码。没有码的话，在反馈页留个邮箱，我把码发给你。",
-                             "need_invite": True})
-            return
         salt, h = hash_password(pw)
-        user, err, days = db.register_with_invite(email, salt, h, code)
+        user, err = db.register(email, salt, h)
         if not user:
-            need = "邀请码" in err
-            self._json(409 if "注册过" in err else 403, {"error": err, "need_invite": need})
+            self._json(409, {"error": err})
             return
         token = new_token()
         db.create_session(token, user["id"])
         row = db.get_user(user["id"])
         self._uid = user["id"]
-        self._track("register", code=code, meta={"plan": db.effective_plan(row)})
+        self._track("register", meta={"plan": db.effective_plan(row)})
         self._json(200, {"token": token, "email": user["email"],
                          "plan": db.effective_plan(row), "plan_until": row["plan_until"],
-                         "invite_days": days,
                          "quota": db.quota_state(row)})
 
     def _login(self, body: dict):
@@ -1037,20 +1033,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         note = str(body.get("note", ""))[:200]
         batch = str(body.get("batch", "")).strip() or None
-        kind = str(body.get("kind", "pro")).strip() or "pro"
-        if kind not in ("pro", "invite"):
-            self._json(400, {"error": "kind 只能是 pro / invite"})
-            return
-        label = str(body.get("tester_label", ""))[:60]
-        if kind == "invite" and days < 0:
-            self._json(400, {"error": "邀请码赠送天数不能为负"})
-            return
-        batch, codes = db.gen_codes(n, days, note, batch, kind, label)
-        kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days,
-                    note=note, kind=kind)
-        db.admin_log("codes.gen", f"batch={batch} kind={kind} n={len(codes)} days={days} "
-                                  f"label={label} note={note}", self._ip())
-        self._json(200, {"batch": batch, "codes": codes, "kind": kind, "days": days})
+        batch, codes = db.gen_codes(n, days, note, batch)
+        kernel.emit("admin.codes_generated", batch=batch, n=len(codes), days=days, note=note)
+        db.admin_log("codes.gen", f"batch={batch} n={len(codes)} days={days} note={note}",
+                     self._ip())
+        self._json(200, {"batch": batch, "codes": codes, "kind": "pro", "days": days})
 
     def _admin_void_codes(self, body: dict):
         if not self._admin_ok():
@@ -1322,6 +1309,9 @@ class Handler(SimpleHTTPRequestHandler):
         if not user:
             self._json(401, {"error": "未登录"})
             return
+        if not entitlements.has(user, "sync"):
+            entitlements.deny(self, "sync")
+            return
         data = body.get("data")
         if not isinstance(data, str):
             self._json(400, {"error": "data 必须是字符串"})
@@ -1337,6 +1327,9 @@ class Handler(SimpleHTTPRequestHandler):
         user = self._user()
         if not user:
             self._json(401, {"error": "未登录"})
+            return
+        if not entitlements.has(user, "sync"):
+            entitlements.deny(self, "sync")
             return
         deleted = db.sync_delete(user["id"])
         self._json(200, {"ok": True, "deleted": deleted})
@@ -1367,6 +1360,8 @@ class Handler(SimpleHTTPRequestHandler):
         user = self._user()
         if not user:
             self._json(401, {"error": "未登录", "code": "unauthorized"})
+            return
+        if not self._entitled(user, "materials"):
             return
 
         raw_len = self.headers.get("Content-Length")
@@ -1491,6 +1486,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not user:
             self._json(401, {"error": "未登录"})
             return
+        if not self._entitled(user, "materials"):
+            return
         limit = self._qint(qs, "limit", 200, hi=1000)
         self._json(200, {"items": db.materials_list(user["id"], limit),
                          "total": db.material_count(user["id"])})
@@ -1499,6 +1496,8 @@ class Handler(SimpleHTTPRequestHandler):
         user = self._user()
         if not user:
             self._json(401, {"error": "未登录"})
+            return
+        if not self._entitled(user, "materials"):
             return
         with_content = str((qs.get("content") or ["1"])[0]).lower() not in ("0", "false", "no")
         row = db.material_get(user["id"], mid, with_content=with_content)
@@ -1515,6 +1514,8 @@ class Handler(SimpleHTTPRequestHandler):
         user = self._user()
         if not user:
             self._json(401, {"error": "未登录"})
+            return
+        if not self._entitled(user, "materials"):
             return
         row = db.material_get(user["id"], mid, with_content=False)
         if not row:
@@ -1566,12 +1567,6 @@ class Handler(SimpleHTTPRequestHandler):
     # ---------- 核心：解释 ----------
     def _explain(self, body: dict):
         user = self._user()
-        # —— 邀请制闸门：内测期没账号就不能提问（注册需邀请码）。落一条事件，方便看「有多少人被门挡住」 ——
-        if not user and REQUIRE_INVITE:
-            self._track("gate_blocked", meta={"mode": str(body.get("mode", ""))[:20]})
-            self._json(403, {"error": "内测阶段需要邀请码。到反馈页留个邮箱，我把码发给你。",
-                             "need_invite": True})
-            return
         # —— 成本闸（硬底线）：hard 硬停；degraded 当日全员降级 ——
         cost_state = _cost_state()
         if cost_state == "hard":

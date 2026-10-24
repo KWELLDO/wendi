@@ -10,7 +10,7 @@ export const REPO_ROOT = path.resolve(E2E_DIR, '..');
 export const TMP_DIR = path.join(E2E_DIR, '.tmp');
 export const DB_PATH = path.join(TMP_DIR, 'wendi-e2e.db');
 
-/** 仅测试用管理令牌：用来生成真实邀请码（走 /api/admin/codes）。 */
+/** 仅测试用管理令牌：走 /api/admin/*（发增值兑换码等）。 */
 export const ADMIN_TOKEN = 'e2e-admin-token';
 
 /** 前端 localStorage 键（见 web/app/index.html）。 */

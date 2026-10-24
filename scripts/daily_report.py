@@ -40,10 +40,7 @@ def build(day: str) -> str:
     db.rollup_day(db._day_shift(day, -1))     # 昨日重算，D1 才准
     m = db.rollup_day(day)
     fun = db.funnel(day)
-    testers = db.tester_rows()
     recent = db.metrics_range(7)
-    codes = db.list_codes(kind="invite")
-    unused = [c["code"] for c in codes if c["status"] == "unused"]
 
     alerts = []
     if m["cost_cents"] > COST_ALERT_CENTS:
@@ -53,7 +50,7 @@ def build(day: str) -> str:
     if m["app_opens"] and m["d1_return"] == 0:
         alerts.append("有活跃但 D1 回访 = 0（还没有人第二天自己回来）")
 
-    lines = [f"# 内测日报 · {day}", ""]
+    lines = [f"# 日报 · {day}", ""]
     if alerts:
         lines += ["## ⚠ 阈值提示", ""] + [f"- {a}" for a in alerts] + [""]
     lines += [
@@ -73,20 +70,7 @@ def build(day: str) -> str:
               "| 日 | 活跃 | 新增 | 解释 | 成本 | 错误 | D1 |", "|---|---|---|---|---|---|---|"]
     lines += [f"| {r['day']} | {r['active_users']} | {r['new_users']} | {r['explains']} | "
               f"{fmt_cents(r['cost_cents'])} | {r['errors']} | {r['d1_return']} |" for r in recent]
-    lines += ["", "## 测试者", "",
-              "| 标签 | 码 | 账号 | 解释 | 事件 | 成本 | 最近出现 | D1 | D7 |",
-              "|---|---|---|---|---|---|---|---|---|"]
-    if testers:
-        for t in testers:
-            last = t["last_day"] or "—"
-            lines.append(
-                f"| {t['tester_label'] or '—'} | {t['code']} | {t['email'] or '未注册'} | "
-                f"{t['explains']} | {t['events']} | {fmt_cents(t['cost_cents'])} | {last} | "
-                f"{'✓' if t['d1'] else '—'} | {'✓' if t['d7'] else '—'} |")
-    else:
-        lines.append("| （还没发过邀请码） | | | | | | | | |")
     lines += ["", "## 库存", "",
-              f"- 未用邀请码：{len(unused)} 个" + (f"（{'、'.join(unused[:10])}{' …' if len(unused) > 10 else ''}）" if unused else ""),
               f"- 事件流水保留：{KEEP_DAYS} 天（聚合指标永久）", ""]
     return "\n".join(lines)
 

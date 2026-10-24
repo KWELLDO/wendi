@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
-import { ADMIN_TOKEN, STORAGE_KEYS } from './env';
+import { STORAGE_KEYS } from './env';
 
 export type Quota = { plan: 'anon' | 'free' | 'pro'; used: number; limit: number };
 
@@ -36,30 +36,17 @@ export function uniqueEmail(tag: string): string {
   return `e2e-${tag}-${Date.now()}-${rand}@example.test`;
 }
 
-/** 用真实 admin API 生成一个邀请码（不是硬编码/不是绕过闸门）。 */
-export async function createInviteCode(request: APIRequestContext, days = 7): Promise<string> {
-  const res = await request.post('/api/admin/codes', {
-    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    data: { n: 1, days, kind: 'invite', note: 'e2e' },
-  });
-  expect(res.status(), `生成邀请码失败: ${await res.text()}`).toBe(200);
-  const body = (await res.json()) as { codes: string[] };
-  expect(body.codes).toHaveLength(1);
-  return body.codes[0];
-}
-
 export type Account = { email: string; password: string; token: string; plan: string; quota: Quota };
 
-/** 走真实 /api/auth/register 建号；返回 token 供 addInitScript 注入登录态。 */
+/** 走真实 /api/auth/register 建号（开放注册，无需码）；返回 token 供 addInitScript 注入登录态。 */
 export async function registerAccount(
   request: APIRequestContext,
-  opts: { tag?: string; days?: number } = {},
+  opts: { tag?: string } = {},
 ): Promise<Account> {
   const email = uniqueEmail(opts.tag ?? 'account');
   const password = 'e2e-pass-123';
-  const invite = await createInviteCode(request, opts.days ?? 7);
 
-  const res = await request.post('/api/auth/register', { data: { email, password, invite } });
+  const res = await request.post('/api/auth/register', { data: { email, password } });
   expect(res.status(), `注册失败: ${await res.text()}`).toBe(200);
   const body = (await res.json()) as {
     token: string;

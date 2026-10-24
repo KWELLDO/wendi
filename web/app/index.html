@@ -482,7 +482,7 @@
     <div class="slogan">Get to the bottom of it.</div>
     <div class="irow">遇到不懂的词 → <b>划它</b> → 得到解释 → <b>继续划</b>，一层层到底。</div>
     <div class="ibtns" id="ibtnsAnon">
-      <button id="introReg">我有邀请码，注册</button>
+      <button id="introReg">免费注册</button>
       <button id="introLogin" class="ghost">登录</button>
     </div>
     <div class="ibtns hidden" id="ibtnsAuthed">
@@ -490,7 +490,7 @@
       <button id="introGo">开始</button>
     </div>
     <div class="inote" id="anonNote">
-      没有码的话，到 <a href="/feedback.html">反馈页</a> 留个邮箱，我把码发给你。
+      不注册也能试：匿名每天 20 次。<a href="/app/?signup=1">注册</a>后免费额度更多。
     </div>
     <details class="imore">
       <summary>快捷键 · 数据与额度</summary>
@@ -498,8 +498,8 @@
         <div class="ikeys"><span>Esc / Alt+← 返回上一层</span><span>↑ ↓ 切换</span><span>Alt+Enter 进入</span></div>
         <div class="inote">
           数据只存在你自己的浏览器里；提问与解释内容会发送给 AI 服务处理（不做存储）。<br>
-          内测期会记录匿名使用事件（做了哪个动作、层级深度、你带来的邀请码，<b>不含</b>你划的词、提问与解释正文），详见 <a href="/privacy.html">隐私政策</a>。<br>
-          内测期凭邀请码注册后使用：免费 40 次/天，Pro 300 次/天。
+          会记录匿名使用事件（做了哪个动作、层级深度，<b>不含</b>你划的词、提问与解释正文），详见 <a href="/privacy.html">隐私政策</a>。<br>
+          免费注册即用：免费 40 次/天，Pro 300 次/天。
         </div>
       </div>
     </details>
@@ -517,9 +517,6 @@
     <div id="authForm">
       <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
       <input id="authPw" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password">
-      <input id="authInvite" class="hidden" type="text" placeholder="内测邀请码（WD-XXXX-XXXX-XXXX）"
-             autocomplete="off" spellcheck="false">
-      <div class="ahint hidden" id="authInviteHint">内测阶段注册需要邀请码。没有码的话，到「反馈」页留个邮箱。</div>
       <div id="authMsg" class="amsg"></div>
       <button id="authSubmit" class="primary">登录</button>
       <div class="afoot"><span id="authSwitch">还没有账号？点这里注册</span></div>
@@ -527,7 +524,7 @@
     <div id="authMine" class="hidden">
       <div class="mine">已登录：<b id="mineEmail"></b> <span id="minePlan"></span></div>
       <div id="redeemBox">
-        <input id="redeemCode" placeholder="兑换码（WD-XXXX-XXXX-XXXX）">
+        <input id="redeemCode" placeholder="增值服务兑换码（WD-XXXX-XXXX-XXXX）">
         <button id="redeemBtn">兑换</button>
       </div>
       <div id="authMsg2" class="amsg"></div>
@@ -645,25 +642,18 @@
 const SKEY = "explainer-proto-v2";
 const $ = s => document.querySelector(s);
 
-/* ================= 内测埋点（只记动作与元数据，不记提问/解释正文；失败静默） =================
-   会话 id 放 sessionStorage（一次浏览=一条线）；邀请码 ?ref= 落到 localStorage，注册与事件都带上。 */
+/* ================= 匿名埋点（只记动作与元数据，不记提问/解释正文；失败静默） =================
+   会话 id 放 sessionStorage（一次浏览=一条线）。 */
 const SID = (() => {
   let v = sessionStorage.getItem("wendi-sid");
   if(!v){ v = "s_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
           sessionStorage.setItem("wendi-sid", v); }
   return v;
 })();
-const REF = (() => {
-  try{
-    const q = new URLSearchParams(location.search).get("ref");
-    if(q){ localStorage.setItem("wendi-ref", q.trim().toUpperCase()); }
-    return localStorage.getItem("wendi-ref") || "";
-  }catch(e){ return ""; }
-})();
 function track(event, meta, extra){
   try{
     const payload = JSON.stringify(Object.assign({
-      event: event, session_id: SID, code: REF,
+      event: event, session_id: SID,
       depth: (state && state.focusPath) ? state.focusPath.length : -1,
       meta: meta || {}
     }, extra || {}));
@@ -1346,7 +1336,6 @@ async function requestExplain(card){
         card.likelyNeed = String(meta.likely_need || "");
         save();
       });
-    if(r.data && r.data.need_invite){ openAuth("reg"); toast("内测需要邀请码——留个邮箱，我把码发给你"); }
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
     if (r.data.quota) renderQuota(r.data.quota);
@@ -1379,7 +1368,6 @@ async function sendChat(node, text){
       if(el){ el.classList.remove("loading"); el.innerHTML = renderRich(pending.text); scroll(); }
     });
     pending.loading = false;
-    if(r.data && r.data.need_invite){ openAuth("reg"); toast("内测需要邀请码——留个邮箱，我把码发给你"); }
     if(!r.ok){ const em = friendlyErr(r.data.error); pending.text = pending.text ? pending.text + "\n[失败] " + em : "[失败] " + em; }
     else if(!pending.text) pending.text = "[失败] 空响应";
     if (r.data && r.data.quota) renderQuota(r.data.quota);
@@ -1864,7 +1852,7 @@ function renderAccount(){
   const sp = $("#settingsPlan");
   if (sp) sp.textContent = ME
     ? ((ME.plan === "pro" ? "Pro" : "免费") + "账号 · 云端副本可同步 / 删除（在账号里）")
-    : "内测期凭邀请码注册后使用：免费 40 次/天，Pro 300 次/天。";
+    : "免费注册即用：免费 40 次/天，Pro 300 次/天。";
   // 内测期：没账号就没有可用的工作台，落地卡给注册/登录入口，不给「开始」
   $("#ibtnsAnon").classList.toggle("hidden", !!ME);
   $("#ibtnsAuthed").classList.toggle("hidden", !ME);
@@ -1894,8 +1882,6 @@ function updateAuthUI(){
     return;
   }
   const isLogin = authMode === "login";
-  $("#authInvite").classList.toggle("hidden", isLogin);
-  $("#authInviteHint").classList.toggle("hidden", isLogin);
   $("#authSubmit").textContent = isLogin ? "登录" : "注册";
   $("#authSwitch").textContent = isLogin ? "还没有账号？点这里注册" : "已有账号？点这里登录";
   $("#authMsg").textContent = "";
@@ -1907,18 +1893,14 @@ async function doAuth(){
   const email = $("#authEmail").value.trim();
   const password = $("#authPw").value;
   if (!email || !password) { setMsg("请填邮箱和密码"); return; }
-  const invite = authMode === "reg" ? $("#authInvite").value.trim() : "";
   const r = await api("/api/auth/" + (authMode === "login" ? "login" : "register"), "POST",
-                      { email, password, invite });
+                      { email, password });
   if (!r.ok) { setMsg(r.data.error || "请求失败"); return; }
   TOKEN = r.data.token;
   localStorage.setItem("wendi-token", TOKEN);
-  if (authMode === "reg") localStorage.removeItem("wendi-ref");   // 归因已记在服务端账号上
   ME = { email: r.data.email, plan: r.data.plan, plan_until: r.data.plan_until };
   renderQuota(r.data.quota); renderAccount(); updateAuthUI();
-  toast(authMode === "reg" && r.data.invite_days
-        ? `已注册：${ME.email}（内测赠送 Pro ${r.data.invite_days} 天）`
-        : "已登录：" + ME.email);
+  toast((authMode === "reg" ? "已注册：" : "已登录：") + ME.email);
   const s = await api("/api/sync");
   if (s.ok && s.data && s.data.data) {
     if (await wdiag.confirm("云端有你的数据（" + s.data.updated_at + "）。\n\n载入云端数据？（取消 = 保留本地，之后可用「同步↑」把本地覆盖上去）")) {
@@ -1994,15 +1976,15 @@ function boot(){
   load();
   if(!state.focusPath || !state.focusPath.length) state.focusPath = [state.root.id];
   render("zin");
-  track("app_open", { ref: REF || "", returning: !!(state.root && state.root.children || []).length,
+  track("app_open", { returning: !!((state.root && state.root.children) || []).length,
                       logged_in: !!TOKEN });
 }
 if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();
 
 /* ================= 落地页 CTA 直达（?signup=1 / ?login=1） =================
-   从落地页点「我有邀请码，注册」会带 ?signup=1 过来。原来的流程是门禁卡再点一次
-   「我有邀请码，注册」，多一层；这里直接开注册/登录弹窗。
+   从落地页点「免费注册」会带 ?signup=1 过来。原来的流程是门禁卡再点一次
+   注册按钮，多一层；这里直接开注册/登录弹窗。
    放在脚本最末尾执行：openAuth() 依赖 `let authMode`（L1548）等顶层声明，
    提前调用会踩 TDZ（老毛病，见 docs/plans/2026-09-27-wendi-visual-restyle.md）。
    不带参数时行为完全不变：首次访问仍由 L1430 自动弹出引导卡。 */

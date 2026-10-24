@@ -1,11 +1,11 @@
 import { expect, test } from '../fixtures';
-import { createInviteCode, registerAccount, uniqueEmail } from '../lib/helpers';
+import { ADMIN_TOKEN } from '../lib/env';
+import { registerAccount, uniqueEmail } from '../lib/helpers';
 
 test.describe('注册 / 登录（真实前后端）', () => {
-  test('邀请码注册 → 登录态进入工作台 → 退出 → 重新登录', async ({ page, request }) => {
+  test('开放注册 → 登录态进入工作台 → 退出 → 重新登录', async ({ page, request }) => {
     const email = uniqueEmail('ui-register');
     const password = 'e2e-pass-123';
-    const invite = await createInviteCode(request, 7);
 
     await page.goto('/app/?signup=1');
     await expect(page.locator('#authModal')).toBeVisible();
@@ -13,7 +13,6 @@ test.describe('注册 / 登录（真实前后端）', () => {
 
     await page.fill('#authEmail', email);
     await page.fill('#authPw', password);
-    await page.fill('#authInvite', invite);
 
     const registerResponse = page.waitForResponse(
       (res) => res.url().endsWith('/api/auth/register') && res.request().method() === 'POST',
@@ -21,31 +20,27 @@ test.describe('注册 / 登录（真实前后端）', () => {
     await page.click('#authSubmit');
     const register = await registerResponse;
 
-    // 真实后端响应形状：200 + token + plan + invite_days + quota
+    // 真实后端响应形状：200 + token + plan + quota（开放注册 = free，Pro 靠兑换码）
     expect(register.status()).toBe(200);
     const registered = await register.json();
-    expect(registered).toMatchObject({
-      email,
-      plan: 'pro', // 邀请码携带 7 天 Pro
-      invite_days: 7,
-    });
+    expect(registered).toMatchObject({ email, plan: 'free' });
     expect(registered.token).toBeTruthy();
     // 真实 quota 形状来自 db.quota_state：{used, limit, date}（plan 在顶层返回）
-    expect(registered.quota).toMatchObject({ used: 0, limit: 300 });
+    expect(registered.quota).toMatchObject({ used: 0, limit: 40 });
 
     // UI：注册成功、进入登录态、配额徽章接上真实 data
     await expect(page.locator('#toast')).toContainText('已注册');
     await expect(page.locator('#mineEmail')).toHaveText(email);
-    await expect(page.locator('#minePlan')).toHaveText('（Pro）');
+    await expect(page.locator('#minePlan')).toHaveText('（免费）');
     await expect(page.locator('#authBtn')).toHaveText(email.split('@')[0]);
     await expect(page.locator('#quotaBadge')).toBeVisible();
-    await expect(page.locator('#quotaBadge')).toHaveText('0/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('0/40');
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBe(registered.token);
 
     // 刷新后登录态仍在（/api/me 恢复）
     await page.reload();
     await expect(page.locator('#authBtn')).toHaveText(email.split('@')[0]);
-    await expect(page.locator('#quotaBadge')).toHaveText('0/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('0/40');
 
     // 首次访问的引导卡在登录态下给「开始」而不是注册入口；点掉它
     const intro = page.locator('#intro');
@@ -75,25 +70,26 @@ test.describe('注册 / 登录（真实前后端）', () => {
 
     expect(login.status()).toBe(200);
     const loggedIn = await login.json();
-    expect(loggedIn).toMatchObject({ email, plan: 'pro' });
+    expect(loggedIn).toMatchObject({ email, plan: 'free' });
     expect(loggedIn.token).toBeTruthy();
     expect(loggedIn.token).not.toBe(registered.token);
 
     await expect(page.locator('#toast')).toContainText('已登录');
     await expect(page.locator('#authBtn')).toHaveText(email.split('@')[0]);
-    await expect(page.locator('#quotaBadge')).toHaveText('0/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('0/40');
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBe(loggedIn.token);
   });
 
-  test('无邀请码注册被真实 need_invite 闸门拦下', async ({ page, diag }) => {
-    // 真实后端对未登录/无码注册返回 403 + {error, need_invite:true}；
-    // Chromium 会把这次 403 记成一条 console error，显式允许它。
-    diag.allowConsoleError(/Failed to load resource: the server responded with a status of 403/);
+  test('重复邮箱注册被真实 409 拦下', async ({ page, request, diag }) => {
+    // 开放注册的守门规则只剩「邮箱唯一」；真实后端返回 409 + {error}。
+    // Chromium 会把 4xx 记成一条 console error，显式允许它。
+    diag.allowConsoleError(/Failed to load resource: the server responded with a status of 409/);
+
+    const account = await registerAccount(request, { tag: 'dup-email' });
 
     await page.goto('/app/?signup=1');
-    await expect(page.locator('#authInvite')).toBeVisible();
-
-    await page.fill('#authEmail', uniqueEmail('no-invite'));
+    await expect(page.locator('#authModal')).toBeVisible();
+    await page.fill('#authEmail', account.email);
     await page.fill('#authPw', 'e2e-pass-123');
 
     const responsePromise = page.waitForResponse(
@@ -102,12 +98,11 @@ test.describe('注册 / 登录（真实前后端）', () => {
     await page.click('#authSubmit');
     const response = await responsePromise;
 
-    expect(response.status()).toBe(403);
+    expect(response.status()).toBe(409);
     const body = await response.json();
-    expect(body.need_invite).toBe(true);
-    expect(body.error).toContain('内测阶段需要邀请码');
+    expect(body.error).toContain('已经注册过');
 
-    await expect(page.locator('#authMsg')).toContainText('内测阶段需要邀请码');
+    await expect(page.locator('#authMsg')).toContainText('已经注册过');
     // 失败后仍然是未登录，且没有拿到 token
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBeNull();
     await expect(page.locator('#authForm')).toBeVisible();
@@ -136,13 +131,25 @@ test.describe('注册 / 登录（真实前后端）', () => {
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBeNull();
   });
 
-  test('登录响应 quota 带 plan：Pro 账号登录瞬间即显示 Pro', async ({
+  test('兑换码开通 Pro 后，登录响应 quota 带 plan：登录瞬间即显示 Pro', async ({
     page,
     request,
   }) => {
     // 原缺陷曾用 test.fail 留证：登录/注册响应 quota 缺 plan，Pro 被瞬间标成「免费」。
     // product-dev 已修复（db.quota_state 统一形状且与 /api/me 同源；见 db.py / server.py _login）。
+    // Pro 现在只来自增值兑换码：admin 发码 → 用户 /api/redeem。
     const account = await registerAccount(request, { tag: 'quota-plan' });
+    const gen = await request.post('/api/admin/codes', {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      data: { n: 1, days: 30, note: 'e2e-pro' },
+    });
+    expect(gen.status()).toBe(200);
+    const { codes } = (await gen.json()) as { codes: string[] };
+    const redeem = await request.post('/api/redeem', {
+      headers: { Authorization: `Bearer ${account.token}` },
+      data: { code: codes[0] },
+    });
+    expect(redeem.status()).toBe(200);
 
     await page.goto('/app/?login=1');
     await page.fill('#authEmail', account.email);

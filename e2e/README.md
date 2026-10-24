@@ -32,7 +32,7 @@ npx playwright show-report
 | 文件 | 覆盖 |
 |---|---|
 | `tests/landing.spec.ts` | 落地页无 pageerror/console error；Hero、导航、四个区块、法务链接；CTA 直达 `/app` 注册弹窗 |
-| `tests/auth.spec.ts` | 真实邀请码注册 → 登录态 → 退出 → 重新登录；无邀请码的真实 403 `need_invite`；错误密码 401；已知缺陷（见下） |
+| `tests/auth.spec.ts` | 真实开放注册 → 登录态 → 退出 → 重新登录；重复邮箱 409；兑换码开 Pro；错误密码 401 |
 | `tests/workspace.spec.ts` | 登录态加载；输入→发送→划词→解释→进入→追问（SSE 形状对齐）；未登录提问真实 403 闸门；空态与档位持久化 |
 | `tests/share.spec.ts` | `[data-share]` → canvas 真实绘制、JSON 切片随勾选变化、下载 PNG、无外部请求 |
 | `tests/theme.spec.ts` | 三态主题（跟随系统/亮/暗）：`data-theme` + `localStorage["wendi-theme"]` + 实际配色；刷新持久化；方向键/Home/End |

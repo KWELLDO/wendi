@@ -6,7 +6,7 @@ assertSafeTestDbPath(DB_PATH);
 
 export default defineConfig({
   testDir: './tests',
-  // 同一个测试库 + 同一台本地服务：串行跑，避免注册/配额/邀请码互相踩。
+  // 同一个测试库 + 同一台本地服务：串行跑，避免注册/配额互相踩。
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -64,8 +64,6 @@ export default defineConfig({
       WENDI_API_KEY: 'e2e-no-external-calls',
       WENDI_BASE_URL: 'http://127.0.0.1:9',
       WENDI_ADMIN_TOKEN: 'e2e-admin-token',
-      // 真实内测闸门：注册必须邀请码，/api/explain 未登录返回 need_invite。
-      WENDI_REQUIRE_INVITE: '1',
       PYTHONUNBUFFERED: '1',
     },
   },

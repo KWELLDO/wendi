@@ -13,15 +13,15 @@ test.describe('/app 工作台主流程', () => {
     const explain = await mockExplain(page, {
       chat: {
         chunks: ['量子力学是研究', '微观粒子的运动规律的理论。'],
-        quota: { plan: 'pro', used: 1, limit: 300 },
+        quota: { plan: 'free', used: 1, limit: 40 },
       },
       explain: {
         chunks: ['微观粒子是构成物质的', '基本单元，例如电子、夸克。'],
-        quota: { plan: 'pro', used: 2, limit: 300 },
+        quota: { plan: 'free', used: 2, limit: 40 },
       },
       followup: {
         chunks: ['电子就是一种微观粒子，', '它带负电。'],
-        quota: { plan: 'pro', used: 3, limit: 300 },
+        quota: { plan: 'free', used: 3, limit: 40 },
       },
     });
 
@@ -30,7 +30,7 @@ test.describe('/app 工作台主流程', () => {
 
     // 登录态与配额来自真实 /api/me
     await expect(page.locator('#authBtn')).toHaveText(account.email.split('@')[0]);
-    await expect(page.locator('#quotaBadge')).toHaveText('0/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('0/40');
 
     // —— 主对话：输入 → 发送 ——
     const question = '什么是量子力学？';
@@ -42,7 +42,7 @@ test.describe('/app 工作台主流程', () => {
     const assistant = page.locator('[data-msg][data-quote-scope]');
     await expect(assistant).toContainText('量子力学是研究微观粒子的运动规律的理论。');
     await expect(page.getByText(question, { exact: true })).toBeVisible();
-    await expect(page.locator('#quotaBadge')).toHaveText('1/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('1/40');
 
     const chatRequest = explain.requests.find((r) => r.mode === 'chat');
     expect(chatRequest, '应当向 /api/explain 发出 chat 请求').toBeTruthy();
@@ -66,7 +66,7 @@ test.describe('/app 工作台主流程', () => {
     await expect(page.locator('[data-exp]')).toContainText(
       '微观粒子是构成物质的基本单元，例如电子、夸克。',
     );
-    await expect(page.locator('#quotaBadge')).toHaveText('2/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('2/40');
 
     const explainRequest = explain.requests.find((r) => r.mode === 'explain');
     expect(explainRequest, '应当向 /api/explain 发出 explain 请求').toBeTruthy();
@@ -91,7 +91,7 @@ test.describe('/app 工作台主流程', () => {
     await expect(qa).toHaveCount(1);
     await expect(qa).toContainText('追问：举个例子');
     await expect(qa).toContainText('电子就是一种微观粒子，它带负电。');
-    await expect(page.locator('#quotaBadge')).toHaveText('3/300');
+    await expect(page.locator('#quotaBadge')).toHaveText('3/40');
 
     const followupRequest = explain.requests.find((r) => r.mode === 'followup');
     expect(followupRequest, '应当向 /api/explain 发出 followup 请求').toBeTruthy();
@@ -108,38 +108,30 @@ test.describe('/app 工作台主流程', () => {
     );
   });
 
-  test('未登录提问：真实 403 need_invite 打开注册弹窗', async ({ page, diag }) => {
-    // 未登录且内测期需要邀请码：server.py 的 _explain 在调用 LLM 之前直接 403。
-    // Chromium 会把这次 403 记成 console error，显式允许（同时下面断言了响应体）。
-    diag.allowConsoleError(/Failed to load resource: the server responded with a status of 403/);
+  test('未登录（匿名）提问：核心免费可用，配额走 IP 限速', async ({ page }) => {
+    // 核心功能不再收费：匿名直接放行到打桩上游，不弹注册窗。
+    const explain = await mockExplain(page, {
+      chat: {
+        chunks: ['量子力学是研究', '微观粒子的运动规律的理论。'],
+        quota: { plan: 'anon', used: 1, limit: 20 },
+      },
+    });
 
     await seedBrowserSession(page);
     await page.goto('/app/');
     await expect(page.locator('#authBtn')).toHaveText('登录');
-    await expect(page.locator('#quotaBadge')).toBeHidden();
 
     const question = '什么是量子力学？';
     await page.locator('[data-input-key^="conv-"]').fill(question);
-
-    const responsePromise = page.waitForResponse(
-      (res) => res.url().endsWith('/api/explain') && res.request().method() === 'POST',
-    );
     await page.click('[data-send]');
-    const response = await responsePromise;
 
-    expect(response.status()).toBe(403);
-    const body = await response.json();
-    expect(body.need_invite).toBe(true);
-    expect(body.error).toContain('内测阶段需要邀请码');
-
-    // 前端把失败写进回答气泡，并打开「注册」弹窗
-    await expect(page.locator('[data-msg][data-quote-scope]')).toContainText(
-      '[失败] 内测阶段需要邀请码',
+    // 打桩上游正常回答；done 事件带来的匿名配额形状落到徽章
+    await expect(page.locator('[data-msg][data-quote-scope]').first()).toContainText(
+      '微观粒子的运动规律',
     );
-    await expect(page.locator('#authModal')).toBeVisible();
-    await expect(page.locator('#authInvite')).toBeVisible();
-    await expect(page.locator('#toast')).toContainText('内测需要邀请码');
+    await expect(page.locator('#quotaBadge')).toHaveText('1/20');
     expect(await page.evaluate(() => localStorage.getItem('wendi-token'))).toBeNull();
+    expect(explain.requests[0].messages?.[0]?.content).toContain(question);
   });
 
   test('登录后工作台空态可交互且视觉主题生效', async ({ page, request }) => {

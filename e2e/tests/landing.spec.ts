@@ -45,16 +45,17 @@ test.describe('落地页 /', () => {
     }
   });
 
-  test('「我有邀请码，注册」直达 /app 并打开注册弹窗', async ({ page }) => {
+  test('「免费注册」直达 /app 并打开注册弹窗', async ({ page }) => {
     await page.goto('/');
     await page.locator('a[href="/app/?signup=1"]').first().click();
 
     // directAuth 会立刻用 replaceState 清掉 ?signup=1，所以只断言落地结果：
-    // 已经进入工作台、注册弹窗打开、邀请码输入可见。
+    // 已经进入工作台、注册弹窗打开，表单只有邮箱 + 密码（无任何码）。
     await expect(page).toHaveURL(/\/app\/$/);
     await expect(page.locator('#authModal')).toBeVisible();
     await expect(page.locator('#authSubmit')).toHaveText('注册');
-    await expect(page.locator('#authInvite')).toBeVisible();
-    await expect(page.locator('#authInviteHint')).toBeVisible();
+    await expect(page.locator('#authEmail')).toBeVisible();
+    await expect(page.locator('#authPw')).toBeVisible();
+    await expect(page.locator('#authInvite')).toHaveCount(0);
   });
 });

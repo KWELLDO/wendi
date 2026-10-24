@@ -336,13 +336,11 @@ def refund_quota(uid: int) -> None:
 _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 去掉易混字符
 
 
-def gen_codes(n: int, days: int, note: str = "", batch: str | None = None,
-              kind: str = "pro", tester_label: str = "") -> tuple[str, list[str]]:
-    """生成 n 个码，返回 (batch, codes)。batch 缺省自动生成 YYYYMMDD-XXXX。
+def gen_codes(n: int, days: int, note: str = "", batch: str | None = None) -> tuple[str, list[str]]:
+    """生成 n 个增值兑换码（kind='pro'），返回 (batch, codes)。batch 缺省自动生成 YYYYMMDD-XXXX。
 
-    kind='pro'    → 登录后兑换 Pro；
-    kind='invite' → 注册邀请码（days>0 则注册即得 Pro 天数，tester_label 记「谁」）。
-    撞库（INSERT OR IGNORE 未插入）时重试，绝不把已存在的码返回给调用方。
+    登录后到「兑换」入口输入即可延长 Pro（增值服务）。撞库（INSERT OR IGNORE 未插入）时重试，
+    绝不把已存在的码返回给调用方。
     """
     import secrets as _s
     if not batch:
@@ -352,9 +350,8 @@ def gen_codes(n: int, days: int, note: str = "", batch: str | None = None,
         while len(out) < n:
             code = "WD-" + "-".join("".join(_s.choice(_CODE_ALPHABET) for _ in range(4)) for _ in range(3))
             cur = c.execute(
-                "INSERT OR IGNORE INTO codes (code, days, note, batch, kind, tester_label) "
-                "VALUES (?,?,?,?,?,?)",
-                (code, days, note, batch, kind, tester_label))
+                "INSERT OR IGNORE INTO codes (code, days, note, batch) VALUES (?,?,?,?)",
+                (code, days, note, batch))
             if cur.rowcount:  # 0 = 撞库，重试
                 out.append(code)
     return batch, out
@@ -826,57 +823,6 @@ def prune_events(keep_days: int = 90) -> int:
         return c.execute("DELETE FROM events WHERE day_key < ?", (cutoff,)).rowcount
 
 
-def tester_rows() -> list[dict]:
-    """每人一行：邀请码 → 账号 → 事件统计 → 成本 → D1/D7 回访。"""
-    with _conn() as c:
-        base = [dict(r) for r in c.execute(
-            "SELECT c.code, c.kind, c.days, c.batch, c.note, c.tester_label, c.voided, "
-            "c.used_at, u.id AS user_id, u.email, u.plan, u.plan_until, u.disabled, "
-            "u.created_at AS registered_at, u.invite_code "
-            "FROM codes c LEFT JOIN users u ON u.invite_code = c.code "
-            "WHERE c.kind='invite' ORDER BY c.code").fetchall()]
-        stats = {r["code"]: dict(r) for r in c.execute(
-            "SELECT code, COUNT(*) AS n, COUNT(DISTINCT day_key) AS days_active, "
-            "MAX(ts) AS last_ts, MIN(day_key) AS first_day, MAX(day_key) AS last_day, "
-            "SUM(event='app_open') AS opens, SUM(event='explain_success') AS explains, "
-            "SUM(event='drill_down') AS drills, SUM(event='go_back') AS backs "
-            "FROM events WHERE code != '' GROUP BY code").fetchall()}
-        cost = {r["code"]: r["cost"] for r in c.execute(
-            "SELECT u.invite_code AS code, COALESCE(SUM(m.cost_cents),0) AS cost "
-            "FROM meter_requests m JOIN users u ON u.id = m.user_id "
-            "WHERE u.invite_code != '' GROUP BY u.invite_code").fetchall()}
-        open_days: dict[str, list[str]] = {}
-        for r in c.execute("SELECT DISTINCT code, day_key FROM events "
-                           "WHERE code != '' AND event='app_open' ORDER BY day_key"):
-            open_days.setdefault(r["code"], []).append(r["day_key"])
-    for row in base:
-        code = row["code"]
-        st = stats.get(code, {})
-        row["events"] = st.get("n") or 0
-        row["days_active"] = st.get("days_active") or 0
-        row["explains"] = st.get("explains") or 0
-        row["drills"] = st.get("drills") or 0
-        row["opens"] = st.get("opens") or 0
-        row["last_ts"] = st.get("last_ts")
-        row["first_day"] = st.get("first_day")
-        row["last_day"] = st.get("last_day")
-        row["cost_cents"] = cost.get(code) or 0
-        days = open_days.get(code, [])
-        row["returned"] = len(days) >= 2
-        row["d1"] = _within(days, 1, 2)
-        row["d7"] = _within(days, 6, 8)
-    return base
-
-
-def _within(days: list[str], lo: int, hi: int) -> bool:
-    """首次打开之后，是否在第 lo–hi 天之间又打开过（回访信号，带一天容差）。"""
-    if len(days) < 2:
-        return False
-    first = time.mktime(time.strptime(days[0], "%Y-%m-%d"))
-    return any(lo <= (time.mktime(time.strptime(d, "%Y-%m-%d")) - first) / 86400 <= hi
-               for d in days[1:])
-
-
 def meter_session_cost(session_id: str, within_s: int = 900) -> int | None:
     """该会话最近一次 LLM 调用的折算成本（分）。给 explain_success 事件附着用；没有则 None。
 
@@ -891,60 +837,19 @@ def meter_session_cost(session_id: str, within_s: int = 900) -> int | None:
     return row["cost_cents"] if row else None
 
 
-# ================= 邀请码（kind='invite'：注册门槛，可携带赠送天数） =================
-def register_with_invite(email: str, salt: str, pw_hash: str,
-                         code: str = "") -> tuple[dict | None, str, int]:
-    """一条事务里完成注册：校验邀请码 → 建号 → 记归属 → （days>0 时）赠 Pro。
-
-    返回 (user | None, err, days)。err='' 表示成功；code 为空且允许空码时也可建号。
-    """
+# ================= 注册（开放注册；users.invite_code 列仅作历史账号归因） =================
+def register(email: str, salt: str, pw_hash: str) -> tuple[dict | None, str]:
+    """建号。返回 (user | None, err)；err='' 表示成功。"""
     email = email.lower().strip()
-    code = (code or "").strip().upper()
     with _conn() as c:
-        if code:
-            row = c.execute("SELECT * FROM codes WHERE code=?", (code,)).fetchone()
-            if not row:
-                return None, "邀请码不存在", 0
-            if row["voided"]:
-                return None, "邀请码已作废", 0
-            if row["used_by"]:
-                return None, "邀请码已经被用过了", 0
-            if (row["kind"] or "pro") != "invite":
-                return None, "这是兑换码，不是邀请码", 0
-            days = int(row["days"] or 0)
-        else:
-            days = 0
         try:
             cur = c.execute(
-                "INSERT INTO users (email, pw_salt, pw_hash, created_at, invite_code) "
-                "VALUES (?,?,?,?,?)", (email, salt, pw_hash, now(), code))
+                "INSERT INTO users (email, pw_salt, pw_hash, created_at) VALUES (?,?,?,?)",
+                (email, salt, pw_hash, now()))
         except sqlite3.IntegrityError:
-            return None, "这个邮箱已经注册过了", 0
-        uid = cur.lastrowid
-        if code:
-            c.execute("UPDATE codes SET used_by=?, used_at=? WHERE code=?", (uid, now(), code))
-        if days:
-            until = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 86400))
-            c.execute("UPDATE users SET plan='pro', plan_until=? WHERE id=?", (until, uid))
-        user = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-        return dict(user), "", days
-def invite_claim(code: str, uid: int) -> tuple[bool, str, int]:
-    """注册时用邀请码：校验 → 标记用掉 → 返回 (ok, message, 赠送天数)。账号归属由调用方写。"""
-    code = (code or "").strip().upper()
-    if not code:
-        return False, "需要邀请码", 0
-    with _conn() as c:
-        row = c.execute("SELECT * FROM codes WHERE code=?", (code,)).fetchone()
-        if not row:
-            return False, "邀请码不存在", 0
-        if row["voided"]:
-            return False, "邀请码已作废", 0
-        if row["used_by"]:
-            return False, "邀请码已被使用", 0
-        if (row["kind"] or "pro") != "invite":
-            return False, "这是兑换码，不是邀请码", 0
-        c.execute("UPDATE codes SET used_by=?, used_at=? WHERE code=?", (uid, now(), code))
-        return True, "ok", int(row["days"] or 0)
+            return None, "这个邮箱已经注册过了"
+        user = c.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
+        return dict(user), ""
 
 
 # ================= 材料 =================

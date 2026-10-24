@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>问底 WenDi · 递归解释器 · Get to the bottom of it.</title>
-<meta name="description" content="问底 WenDi 是一个递归解释器：遇到不懂的词，就划它；解释里还有不懂的，继续划，一层层到底。内测期凭邀请码进入。">
+<meta name="description" content="问底 WenDi 是一个递归解释器：遇到不懂的词，就划它；解释里还有不懂的，继续划，一层层到底。注册即用，核心功能免费。">
 <meta name="theme-color" content="#fbf8f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1a1713" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="website">
@@ -145,11 +145,10 @@ main.land{max-width:none;padding:0}
         <p class="slogan">Get to the bottom of it.</p>
         <p class="lede">遇到不懂的词，就划它；解释里还有不懂的，继续划，一层层到底。</p>
         <div class="cta">
-          <a class="btn primary" href="/app/?signup=1">我有邀请码，注册</a>
+          <a class="btn primary" href="/app/?signup=1">免费注册</a>
           <a class="btn" href="/app/?login=1">登录</a>
-          <a class="cta-link" href="/feedback.html">想要邀请码？</a>
         </div>
-        <p class="trial">内测期凭邀请码进入：免费 <b>40 次/天</b>，Pro <b>300 次/天</b>。
+        <p class="trial">注册即用：免费 <b>40 次/天</b>，Pro <b>300 次/天</b>(兑换码开通)。
           学习记录默认只存在你自己的浏览器里，细节见<a href="/privacy.html">隐私政策</a>。</p>
       </div>
 
@@ -249,17 +248,15 @@ main.land{max-width:none;padding:0}
   <!-- 5 · 门禁与入口：转化点 -->
   <section class="cta-band" aria-labelledby="enter-title">
     <div class="wrap">
-      <p class="kicker">内测中 · 凭邀请码进入</p>
+      <p class="kicker">开放注册 · 核心功能免费</p>
       <h2 id="enter-title">从手边那个卡住你的词开始</h2>
-      <p class="band-lede">内测期免费 40 次/天，Pro 300 次/天。学习记录默认只存在你自己的浏览器里；
-        内测期会记录匿名使用事件（做了哪个动作、层级深度、你带来的邀请码，<em>不含</em>你划的词与解释正文）。</p>
+      <p class="band-lede">免费 40 次/天，Pro 300 次/天(兑换码开通)。学习记录默认只存在你自己的浏览器里；
+        会记录匿名使用事件（做了哪个动作、层级深度，<em>不含</em>你划的词与解释正文）。</p>
       <div class="cta">
-        <a class="btn primary" href="/app/?signup=1">我有邀请码，注册</a>
+        <a class="btn primary" href="/app/?signup=1">免费注册</a>
         <a class="btn" href="/app/?login=1">登录</a>
-        <a class="cta-link" href="/feedback.html">想要邀请码？</a>
       </div>
-      <p class="trial">没有邀请码也可以：到<a href="/feedback.html">反馈页</a>留个邮箱，我把码发给你。
-        数据怎么存、存多久，见<a href="/privacy.html">隐私政策</a>。</p>
+      <p class="trial">数据怎么存、存多久，见<a href="/privacy.html">隐私政策</a>。</p>
     </div>
   </section>
 
@@ -276,33 +273,6 @@ main.land{max-width:none;padding:0}
   <div>问底 WenDi · 递归解释器 · Get to the bottom of it. · 专有软件</div>
 </footer>
 
-<script>
-/* ============================================================
-   邀请码归因：与工作台 web/app/index.html 中同一段逻辑、同一个 key。
-   分享链接形如 https://know.kwelldo.cn/?ref=WD-XXXX-XXXX-XXXX，
-   /  现在是落地页，所以这里必须自己接住，否则归因在落地页就断了。
-   ============================================================ */
-var REF = (function(){
-  try{
-    var q = new URLSearchParams(location.search).get("ref");
-    if(q){ localStorage.setItem("wendi-ref", q.trim().toUpperCase()); }
-    return localStorage.getItem("wendi-ref") || "";
-  }catch(e){ return ""; }
-})();
 
-/* 双保险：落地页上所有指向工作台的链接，把 ref 一并带上。
-   静态 href 已经能单独工作，这里只是增强（无 JS 时链接照常可用）。 */
-(function(){
-  if(!REF) return;
-  var links = document.querySelectorAll('a[href^="/app/"]');
-  for(var i = 0; i < links.length; i++){
-    try{
-      var u = new URL(links[i].getAttribute("href"), location.origin);
-      u.searchParams.set("ref", REF);
-      links[i].setAttribute("href", u.pathname + u.search + u.hash);
-    }catch(e){}
-  }
-})();
-</script>
 </body>
 </html>

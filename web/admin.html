@@ -105,7 +105,6 @@
       <button data-sec="fb">反馈 <span id="fbBadge" class="muted"></span></button>
       <button data-sec="users">用户</button>
       <button data-sec="codes">兑换码</button>
-      <button data-sec="testers">测试者</button>
       <button data-sec="metrics">指标</button>
       <button data-sec="events">事件流</button>
       <button data-sec="gate">闸门</button>
@@ -168,11 +167,7 @@
         <div class="row">
           <label for="cN" style="margin:0">数量</label>
           <input id="cN" type="text" value="10" style="width:70px">
-          <label for="cKind" style="margin:0">类型</label>
-          <select id="cKind" style="width:auto">
-            <option value="pro">pro（兑换码：登录后换 Pro）</option>
-            <option value="invite">invite（注册邀请码）</option>
-          </select>
+          <span class="hint">生成增值服务兑换码（登录后兑换 Pro 天数）</span>
           <label for="cDays" style="margin:0">天数</label>
           <input id="cDays" type="text" value="30" style="width:70px">
           <label for="cNote" style="margin:0">备注</label>
@@ -181,9 +176,6 @@
           <input id="cBatch" type="text" placeholder="沿用/自定义批次名" style="max-width:170px">
         </div>
         <div class="row">
-          <label for="cLabel" style="margin:0">测试者标签</label>
-          <input id="cLabel" type="text" placeholder="测试者标签，例：A 研究者" style="max-width:240px">
-          <span class="hint">仅 invite 有意义；pro 码忽略它。</span>
           <button class="primary" id="cGen">生成</button>
         </div>
         <div class="msg" id="cMsg"></div>
@@ -194,7 +186,6 @@
         <select id="cKindFilter" style="width:auto">
           <option value="">全部类型</option>
           <option value="pro">pro</option>
-          <option value="invite">invite</option>
         </select>
         <button id="cLoad">载入</button>
         <span class="hint" id="cStats"></span>
@@ -206,37 +197,6 @@
       <div style="overflow:auto"><table class="ct" id="cTable"></table></div>
     </section>
 
-    <!-- ============ 测试者 ============ -->
-    <section id="sec-testers" class="sec">
-      <div class="toolbar">
-        <h2 style="margin:0;font-size:19px">测试者</h2>
-        <span class="hint" id="tStats">一行 = 一个测试者（一条 invite 码及其带来的账号与行为）</span>
-        <span style="flex:1"></span>
-        <button id="tNewToggle">＋ 批量发邀请码</button>
-        <button id="tCopyUnused">复制全部未用邀请码</button>
-        <button id="tCsv">导出 CSV</button>
-      </div>
-      <div class="msg" id="tListMsg"></div>
-      <div id="tNewForm" class="card hidden">
-        <div class="row">
-          <label for="invLabels" style="margin:0">测试者标签（每行一个）</label>
-        </div>
-        <textarea id="invLabels" rows="4" placeholder="A 研究者&#10;B 同学" style="width:100%;max-width:520px"></textarea>
-        <div class="row">
-          <label for="invDays" style="margin:0">赠送天数</label>
-          <input id="invDays" type="text" value="30" style="width:80px">
-          <label for="invNote" style="margin:0">备注</label>
-          <input id="invNote" type="text" placeholder="例：第一批内测" style="max-width:240px">
-          <label for="invBatch" style="margin:0">批次（选填）</label>
-          <input id="invBatch" type="text" placeholder="例：ITEST" style="max-width:170px">
-          <button class="primary" id="invGo">按标签逐个发码</button>
-        </div>
-        <div class="hint">逐行串行调用（一次一个人），避免并发写库。完成后在下方列出「标签 → 码」。</div>
-        <div class="msg" id="tMsg"></div>
-        <pre id="invOut" class="hidden"></pre>
-      </div>
-      <div style="overflow:auto"><table class="ct" id="tTable"></table></div>
-    </section>
 
     <!-- ============ 指标 ============ -->
     <section id="sec-metrics" class="sec">
@@ -277,7 +237,7 @@
           <option value="system_error">system_error</option>
         </select>
         <input id="evSession" type="text" placeholder="session_id" style="min-width:150px">
-        <input id="evCode" type="text" placeholder="邀请码 / 归属码" style="min-width:140px">
+        <input id="evCode" type="text" placeholder="历史归因码" style="min-width:140px">
         <button id="evLoad">载入</button>
         <span class="hint" id="evStats"></span>
       </div>
@@ -504,81 +464,6 @@ async function loadCodes(){
     + "</tbody>";
 }
 
-/* ---------- 测试者 ---------- */
-let tRows = [];
-function testerStatus(t){
-  if(t.voided) return '<span class="tag off">已作废</span>';
-  if(t.disabled) return '<span class="tag off">已停用</span>';
-  if(t.user_id) return '<span class="tag s-done">已注册</span>';
-  if(!t.tester_label) return '<span class="tag">未发</span>';
-  return '<span class="tag">未注册（码未用）</span>';
-}
-function testerReturn(t){
-  const out = [];
-  if(t.d1) out.push('<span class="tag s-done">D1</span>');
-  if(t.d7) out.push('<span class="tag s-done">D7</span>');
-  if(!t.d1 && !t.d7 && t.returned) out.push('<span class="tag">回访</span>');
-  if(!t.d1 && !t.d7 && !t.returned) out.push('<span class="tag off">无回访</span>');
-  return out.join(" ");
-}
-function testerStatusText(t){
-  if(t.voided) return "已作废";
-  if(t.disabled) return "已停用";
-  if(t.user_id) return "已注册";
-  return t.tester_label ? "未注册（码未用）" : "未发";
-}
-function tsLocal(ms){ return ms ? new Date(Number(ms)).toLocaleString() : "—"; }
-async function loadTesters(){
-  const d = await api("/api/admin/testers");
-  tRows = d.items || [];
-  $("#tStats").textContent = "共 " + tRows.length + " 个测试者（邀请码）· 已注册 "
-    + tRows.filter(t => t.user_id).length + " · 未注册 " + tRows.filter(t => !t.user_id && !t.voided).length;
-  $("#tTable").innerHTML = "<thead><tr>"
-    + ["标签","码","账号","注册时间","解释次数","事件数","成本","最近出现","回访","状态"].map(h => "<th>" + h + "</th>").join("")
-    + "</tr></thead><tbody>"
-    + (tRows.length ? tRows.map(t =>
-        '<tr><td>' + esc(t.tester_label || "—") + "</td>"
-        + '<td class="mono">' + esc(t.code) + ' <span class="copy" data-c="' + esc(t.code) + '">复制</span></td>'
-        + "<td>" + esc(t.email || "—") + "</td>"
-        + "<td>" + esc(t.registered_at ? String(t.registered_at).slice(0, 16) : "—") + "</td>"
-        + '<td class="mono">' + (t.explains || 0) + "</td>"
-        + '<td class="mono">' + (t.events || 0) + "</td>"
-        + '<td class="mono">' + money(t.cost_cents) + "</td>"
-        + "<td>" + esc(tsLocal(t.last_ts)) + "</td>"
-        + "<td>" + testerReturn(t) + "</td>"
-        + "<td>" + testerStatus(t) + "</td></tr>").join("")
-      : '<tr><td colspan="10" class="muted">还没有 invite 码。去「兑换码」页生成，或在上方批量发码。</td></tr>')
-    + "</tbody>";
-}
-async function batchInvite(){
-  const msg = $("#tMsg"); msg.className = "msg"; $("#invOut").classList.add("hidden");
-  const labels = $("#invLabels").value.split("\n").map(s => s.trim()).filter(Boolean);
-  if(!labels.length){ msg.className = "msg err"; msg.textContent = "先填标签，每行一个。"; return; }
-  const days = $("#invDays").value.trim() || "30";
-  const note = $("#invNote").value.trim();
-  const batch = $("#invBatch").value.trim();
-  msg.textContent = "发码中（" + labels.length + " 个，逐个提交）…";
-  const out = [], fail = [];
-  for(const label of labels){
-    try{
-      const d = await api("/api/admin/codes", "POST", {
-        n: 1, days: days, note: note, batch: batch, kind: "invite", tester_label: label
-      });
-      out.push(label + " → " + d.codes[0]);
-    }catch(e){ fail.push(label + " → " + e.message); }
-  }
-  $("#invOut").textContent = out.concat(fail).join("\n");
-  $("#invOut").classList.remove("hidden");
-  if(fail.length){ msg.className = "msg err"; msg.textContent = "已生成 " + out.length + " 个，失败 " + fail.length + " 个（见下方）。"; }
-  else{
-    msg.className = "msg ok";
-    msg.textContent = "已生成 " + out.length + " 个，可点下面的码复制（或「复制全部未用邀请码」）。";
-    try{ await navigator.clipboard.writeText(out.map(s => s.split(" → ")[1]).join("\n")); msg.textContent = "已生成 " + out.length + " 个，已复制全部码。"; }
-    catch(e){ /* 剪贴板不可用时保留上面的提示 */ }
-  }
-  await loadTesters();
-}
-
 /* ---------- 指标 ---------- */
 function funnelRow(label, n, max){
   const pct = max > 0 ? Math.max(0, Math.min(100, n / max * 100)) : 0;
@@ -750,7 +635,6 @@ async function refreshAll(){
     if(on === "fb") await loadFeedback();
     if(on === "users") await loadUsers();
     if(on === "codes") await loadCodes();
-    if(on === "testers") await loadTesters();
     if(on === "metrics") await loadMetrics();
     if(on === "events") await loadEvents();
     if(on === "gate") await loadGate();
@@ -795,16 +679,14 @@ $("#uCsv").onclick = () => download("wendi-users.csv", csv([["id","邮箱","注�
 
 $("#cGen").onclick = async () => {
   const msg = $("#cMsg"); msg.className = "msg"; $("#cOut").classList.add("hidden");
-  const kind = $("#cKind").value;
   try{
     const d = await api("/api/admin/codes", "POST", {
-      n: $("#cN").value, days: $("#cDays").value, kind: kind,
-      note: $("#cNote").value.trim(), batch: $("#cBatch").value.trim(),
-      tester_label: $("#cLabel").value.trim()
+      n: $("#cN").value, days: $("#cDays").value,
+      note: $("#cNote").value.trim(), batch: $("#cBatch").value.trim()
     });
     msg.className = "msg ok";
-    msg.textContent = "批次 " + d.batch + " 生成了 " + d.codes.length + " 个" + (d.kind || kind)
-      + "码（" + (d.days != null ? d.days : $("#cDays").value) + " 天）。";
+    msg.textContent = "批次 " + d.batch + " 生成了 " + d.codes.length + " 个增值码（"
+      + (d.days != null ? d.days : $("#cDays").value) + " 天）。";
     $("#cOut").textContent = d.codes.join("\n");
     $("#cOut").classList.remove("hidden");
     $("#cFilter").value = "";
@@ -833,27 +715,6 @@ $("#cCopyUnused").onclick = () => {
 };
 $("#cCsv").onclick = () => download("wendi-codes.csv", csv([["码","类型","天数","状态","批次","备注","兑换人","兑换时间"]].concat(
   cRows.map(c => [c.code, c.kind || "pro", c.days, c.status, c.batch, c.note, c.used_by_email || "", c.used_at || ""]))));
-
-/* ---------- 测试者 ---------- */
-$("#tNewToggle").onclick = () => $("#tNewForm").classList.toggle("hidden");
-$("#invGo").onclick = () => batchInvite().catch(e => {
-  const msg = $("#tMsg"); msg.className = "msg err"; msg.textContent = e.message;
-});
-$("#tTable").addEventListener("click", e => {
-  const sp = e.target.closest(".copy");
-  if(sp) copyText(sp.dataset.c, sp);
-});
-$("#tCopyUnused").onclick = () => {
-  const list = tRows.filter(t => !t.voided && !t.used_at).map(t => t.code);
-  if(!list.length){ wdiag.toast("没有未用的邀请码。", { kind: "warn" }); return; }
-  copyText(list.join("\n"));
-  wdiag.toast("已复制 " + list.length + " 个未用邀请码。", { kind: "info" });
-};
-$("#tCsv").onclick = () => download("wendi-testers.csv", csv([["标签","码","账号","注册时间","解释次数","事件数","成本元","最近出现","回访","状态"]].concat(
-  tRows.map(t => [t.tester_label || "", t.code, t.email || "", t.registered_at || "", t.explains || 0, t.events || 0,
-    (Number(t.cost_cents || 0) / 100).toFixed(2), t.last_ts ? new Date(Number(t.last_ts)).toLocaleString() : "",
-    (t.d1 ? "D1 " : "") + (t.d7 ? "D7 " : "") + (t.d1 || t.d7 ? "" : (t.returned ? "回访" : "无回访")),
-    testerStatusText(t)]))));
 
 /* ---------- 指标 ---------- */
 $("#mLoad").onclick = () => loadMetrics().catch(toastErr);
