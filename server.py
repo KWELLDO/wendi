@@ -37,6 +37,7 @@ import messages  # noqa: E402
 from auth import hash_password, new_token, verify_password  # noqa: E402
 from kernel import Kernel  # noqa: E402
 from prompts import chat_messages, explain_messages, followup_messages  # noqa: E402
+from explain_output import ExplainOutputParser, split_explain_output  # noqa: E402
 
 PORT = int(os.environ.get("WENDI_PORT", "8899"))
 MODEL = os.environ.get("WENDI_MODEL", "deepseek-flash")
@@ -1596,6 +1597,7 @@ class Handler(SimpleHTTPRequestHandler):
                 degraded, degrade_reason = True, "quota"
 
         mode = body.get("mode", "explain")
+        source_meta_enabled = mode == "explain" and body.get("source_meta") is True
         # —— 行为信号（P0 埋点）：树深 + 对话轮数 ——
         depth = body.get("depth")
         turns = body.get("turns")
@@ -1620,7 +1622,8 @@ class Handler(SimpleHTTPRequestHandler):
             if mode == "explain":
                 msgs = explain_messages(term, body.get("context", ""),
                                         body.get("style", "standard"),
-                                        str(body.get("question", "") or ""))
+                                        str(body.get("question", "") or ""),
+                                        include_source_meta=source_meta_enabled)
             elif mode == "followup":
                 msgs = followup_messages(term, body.get("previous", ""),
                                          body.get("question", ""))
@@ -1636,9 +1639,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._explain_stream(user, msgs, max_tokens, mode=mode, term=term, t0=t0,
                                             depth=depth, turns=turns,
                                             degraded=degraded, degrade_reason=degrade_reason,
-                                            consumed=consumed, session_id=self._sid(),
+                                            consumed=consumed,
+                                            source_meta_enabled=source_meta_enabled,
+                                            session_id=self._sid(),
                                             room_id=str(body.get("room_id", "")))
             text, usage, truncated = call_llm(msgs, max_tokens)
+            source_meta = None
+            if source_meta_enabled:
+                source_meta, text = split_explain_output(text)
         except Exception as e:  # noqa: BLE001
             if user and consumed:
                 db.refund_quota(user["id"])
@@ -1659,6 +1667,8 @@ class Handler(SimpleHTTPRequestHandler):
                     truncated=truncated, depth=depth, turns=turns, degraded=degraded)
         payload = {"text": text,
                    "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
+        if source_meta is not None:
+            payload["source_meta"] = source_meta
         if truncated:
             payload["truncated"] = True
         if degraded:
@@ -1670,7 +1680,7 @@ class Handler(SimpleHTTPRequestHandler):
                         mode: str = "explain", term: str = "", t0: float = 0.0,
                         depth: int = -1, turns: int = -1,
                         degraded: bool = False, degrade_reason: str | None = None,
-                        consumed: bool = True,
+                        consumed: bool = True, source_meta_enabled: bool = False,
                         session_id: str = "", room_id: str = ""):
         """SSE 流式解释。事件：data: {"delta": "…"} … data: {"done": true, "quota": {…}} / {"error": "…"}"""
         try:
@@ -1691,16 +1701,33 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.flush()
 
         sent = 0
+        received = 0
         usage: dict = {}
         finish = ""
+        splitter = ExplainOutputParser() if source_meta_enabled and mode == "explain" else None
         try:
             for delta in sse_deltas(resp):
                 if isinstance(delta, dict) and "usage" in delta:
                     usage = delta["usage"]
                     finish = delta.get("finish") or ""
                     continue
+                received += 1
+                if splitter:
+                    source_meta, body_delta = splitter.feed(delta)
+                    if source_meta is not None:
+                        emit({"source_meta": source_meta})
+                    if not body_delta:
+                        continue
+                    delta = body_delta
                 sent += 1
                 emit({"delta": delta})
+            if splitter:
+                source_meta, body_delta = splitter.finish()
+                if source_meta is not None:
+                    emit({"source_meta": source_meta})
+                if body_delta:
+                    sent += 1
+                    emit({"delta": body_delta})
             done = {"done": True,
                     "quota": self._quota_payload(db.get_user(user["id"]) if user else None)}
             if finish == "length":
@@ -1719,7 +1746,7 @@ class Handler(SimpleHTTPRequestHandler):
                                              session_id=session_id, room_id=room_id)
             kernel.emit("explain.done", mode=mode, user_id=user["id"] if user else None,
                         term=term, parent_term=None, style="standard",
-                        ms=round((time.time() - t0) * 1000), stream=True, chunks=sent,
+                        ms=round((time.time() - t0) * 1000), stream=True, chunks=received,
                         truncated=(finish == "length"), depth=depth, turns=turns, degraded=degraded)
         except (BrokenPipeError, ConnectionResetError):
             return  # 客户端中途离开

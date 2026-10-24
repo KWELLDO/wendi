@@ -833,7 +833,8 @@ let state = null;
 function newConv(){ return { id: uid(), kind:"conv", children: [], messages: [] }; }
 function newExp(term, context, parentTerm){
   return { id: uid(), kind:"exp", children: [], term, context, parentTerm: parentTerm||null,
-           style: state.defaultStyle, text:"", loading:true, error:null, followups:[], createdAt: Date.now() };
+           style: state.defaultStyle, text:"", contextReading:"", likelyNeed:"", loading:true,
+           error:null, followups:[], createdAt: Date.now() };
 }
 function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); }
 function load(){
@@ -1323,7 +1324,8 @@ async function addExplain(node, term, context, question, srcMsgId){
 
 /* ================= API ================= */
 async function requestExplain(card){
-  card.loading = true; card.error = null; card.text = ""; save(); render("");
+  card.loading = true; card.error = null; card.text = "";
+  card.contextReading = ""; card.likelyNeed = ""; save(); render("");
   const t0 = Date.now(), depth = state.focusPath.length;
   track("explain_request", { mode: "explain", style: card.style, has_question: !!card.question });
   let lastPaint = 0;  // 生成中的卡片不在当前视野时:节流整页重绘,让列表/预览跟着长
@@ -1338,8 +1340,12 @@ async function requestExplain(card){
   };
   try{
     const r = await apiStream("/api/explain", {mode:"explain",term:card.term,context:card.context,style:card.style,
-      question: card.question || "", stream:true, room_id: card.id,
-      depth: state.focusPath.length, turns: 0}, d => { card.text += d; paint(); });
+      question: card.question || "", source_meta:true, stream:true, room_id: card.id,
+      depth: state.focusPath.length, turns: 0}, d => { card.text += d; paint(); }, meta => {
+        card.contextReading = String(meta.context_reading || "");
+        card.likelyNeed = String(meta.likely_need || "");
+        save();
+      });
     if(r.data && r.data.need_invite){ openAuth("reg"); toast("内测需要邀请码——留个邮箱，我把码发给你"); }
     if(!r.ok) throw new Error(friendlyErr(r.data.error) || "API error");
     card.loading = false;
@@ -1796,7 +1802,7 @@ async function api(path, method, body){
   return { ok: r.ok, status: r.status, data: d };
 }
 /* SSE 流式请求：每收到一个 {"delta":…} 事件就回调 onDelta。返回值语义同 api()。 */
-async function apiStream(path, body, onDelta){
+async function apiStream(path, body, onDelta, onMeta){
   const r = await fetch(path, { method: "POST", headers: apiHeaders(), body: JSON.stringify(body) });
   if(!r.ok || !r.body){
     let d = {}; try { d = await r.json(); } catch(e){}
@@ -1815,6 +1821,7 @@ async function apiStream(path, body, onDelta){
       const line = ev.split("\n").find(l => l.startsWith("data:"));
       if(!line) continue;
       let o; try { o = JSON.parse(line.slice(5).trim()); } catch(e){ continue; }
+      if(o.source_meta && onMeta && out.ok) onMeta(o.source_meta);
       if(o.delta){ if(out.ok) onDelta(o.delta); }
       else if(o.error){ out.ok = false; out.data = { error: o.error }; }
       if(o.done){ out.data.done = true; if(o.quota) out.data.quota = o.quota; if(o.truncated) out.data.truncated = true;
