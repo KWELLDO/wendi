@@ -1,0 +1,70 @@
+/* 问底 · 视觉方案乙「青灯 tmux」——组件层覆盖(评审用,定稿后并入或删除)
+   把「类 tmux」身份做成视觉主角:报头变状态栏,窗格挂 [0][1][2] 编号,
+   元数据/标签全部等宽字体,窗格边框变实,琥珀磷光强调。
+   色板沿用 tokens.css 的 [data-skin="yi"](冷宣+靛 / 靛夜+琥珀灯)。
+   只动观感:布局、分栏、交互、DOM 一律未动。 */
+
+/* —— 报头 → tmux 状态栏:深条、等宽、会话名与窗格表 —— */
+header{background:var(--slab-bg);color:var(--slab-fg);border-bottom:2px solid var(--accent);
+       padding:7px 14px;min-height:40px;font-family:var(--mono);position:relative}
+header .title{font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.04em;color:var(--slab-fg)}
+header .title::after{content:" [wendi]";color:var(--accent);font-weight:400}
+header .sub{color:var(--slab-fg);opacity:.55;font-family:var(--mono);letter-spacing:.06em}
+header button{color:var(--slab-fg);opacity:.8;font-family:var(--mono);font-size:12.5px}
+header button:hover{opacity:1;background:rgba(255,255,255,.08);color:var(--slab-fg)}
+header #authBtn{border:1px solid var(--slab-fg);opacity:1;padding:3px 12px}
+header #authBtn:hover{border-color:var(--accent);color:var(--accent);background:none;opacity:1}
+/* 窗格表(纯装饰,内容来自 CSS):当前窗格 = 亮块 */
+header::after{content:"0:主对话  1:解释列表  2:预览*";
+  position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--slab-fg);opacity:.5;pointer-events:none}
+header .hact{margin-right:190px}
+
+/* —— 题条:命令行提示符 —— */
+#crumbbar{font-family:var(--mono);background:var(--paper);min-height:32px}
+#crumbs::before{content:"$ ";color:var(--accent);font-weight:600}
+#crumbbar button,#crumbbar .qbadge{font-family:var(--mono)}
+
+/* —— 窗格:实线框 + 编号标签,像被 tiling 管理器框出来的 —— */
+.mainpane,.lists,.preview{border:1px solid var(--edge);background:var(--surface)}
+.lists,.preview{background:var(--paper-deep)}
+.splitter::before{top:0;bottom:0;left:3px;background:var(--edge);width:1px}
+.splitter:hover::before{background:var(--accent);width:2px;left:2.5px}
+.lists .lhead,.preview .phead{border-bottom:1px solid var(--edge);color:var(--ink-2);padding:7px 12px;letter-spacing:.08em}
+.lists .lhead::before{content:"[1] ";color:var(--accent);font-weight:600}
+.preview .phead::before{content:"[2] ";color:var(--accent);font-weight:600}
+.mainpane::after{content:"[0]";
+  position:absolute;top:6px;right:10px;z-index:2;pointer-events:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);opacity:.7}
+
+/* —— 内容:等宽元数据 + serif 正文(学者终端) —— */
+.msg .who{letter-spacing:.12em}
+.msg .who::before{content:"› ";color:var(--accent)}
+.qbadge{border-style:solid;letter-spacing:.06em}
+mark.hl{border-bottom:none;outline:1px solid var(--accent-line);background:var(--select)}
+
+/* —— 列表:窗口条目 —— */
+.litem .k{border-radius:0;letter-spacing:.04em}
+.litem.sel{border-left-width:3px;border-left-color:var(--accent);background:var(--accent-wash)}
+.litem .lm{letter-spacing:.04em}
+.lists .lempty,#crumbs{letter-spacing:.03em}
+
+/* —— 输入:命令行 —— */
+.inputrow{border-top:1px solid var(--edge);background:var(--paper)}
+.inputrow input{font-family:var(--mono);font-size:14px}
+.inputrow input::placeholder{font-family:var(--mono)}
+.inputrow button{letter-spacing:.1em;font-family:var(--mono)}
+.inputrow select{font-family:var(--mono)}
+
+/* —— 气泡/弹窗:滑出的浮层 —— */
+#bubble{box-shadow:6px 6px 0 rgba(0,0,0,.12);border:1px solid var(--edge)}
+#bubble input{font-family:var(--mono)}
+#bubble button{font-family:var(--mono);letter-spacing:.06em}
+#bubble .bterm::before{content:"? ";color:var(--accent)}
+.acard,.icard{border:1px solid var(--edge);box-shadow:8px 8px 0 rgba(0,0,0,.14)}
+.acard .primary,.srow .primary,.icard button{letter-spacing:.08em}
+#coach{border:1px solid var(--edge);box-shadow:6px 6px 0 rgba(0,0,0,.12)}
+#toast{font-family:var(--mono);letter-spacing:.04em}
+.blank .kicker{letter-spacing:.2em}
+.mini .m-list .t,.mini .m-deeper{letter-spacing:.06em}
+.mini .m-enter{font-family:var(--mono);letter-spacing:.1em}

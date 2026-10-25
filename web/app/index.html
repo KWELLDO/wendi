@@ -459,6 +459,12 @@
     *{animation:none !important;transition:none !important}
   }
 </style>
+<link rel="stylesheet" href="/skins/jia.css" data-skin-for="jia" disabled>
+<link rel="stylesheet" href="/skins/yi.css" data-skin-for="yi" disabled>
+<link rel="stylesheet" href="/skins/bing.css" data-skin-for="bing" disabled>
+<script>/* 评审:按 html[data-skin] 启用对应皮肤表(定稿后连同三份 skin 一起删) */
+(function(){var v=document.documentElement.getAttribute("data-skin")||"";
+document.querySelectorAll("link[data-skin-for]").forEach(function(l){l.disabled=(l.getAttribute("data-skin-for")!==v);});})();</script>
 </head>
 <body>
 <header>
@@ -2029,7 +2035,11 @@ else boot();
 </div>
 <script>(function(){
   var box=document.getElementById("skinPick"); if(!box) return;
+  function applySkin(v){
+    document.querySelectorAll("link[data-skin-for]").forEach(function(l){
+      l.disabled=(l.getAttribute("data-skin-for")!==v);});}
   function mark(){ var cur=document.documentElement.getAttribute("data-skin")||"";
+    applySkin(cur);
     box.querySelectorAll("[data-skin-pick]").forEach(function(b){
       b.style.color="var(--accent)"; b.style.fontWeight="";
       if((b.getAttribute("data-skin-pick")||"")===cur) b.style.fontWeight="700"; else b.style.color="var(--ink-2)"; });}

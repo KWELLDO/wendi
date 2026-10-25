@@ -1,0 +1,72 @@
+/* 问底 · 视觉方案丙「博物志 工作纸」——组件层覆盖(评审用,定稿后并入或删除)
+   方格坐标纸 + 硬偏移阴影(纸片叠放) + 图鉴式黑体正文 + 标签贴纸。
+   色板沿用 tokens.css 的 [data-skin="bing"](暖白+松绿 / 绿萼夜+竹月)。
+   只动观感:布局、分栏、交互、DOM 一律未动。 */
+
+/* —— 全场铺坐标纸(替代羊皮云斑):24px 方格,墨线极淡,钉在视口 —— */
+body,header,#crumbbar,.mainpane,.lists,.preview,.inputrow{
+  --wp-grid:rgba(28,32,27,.05);
+  background-image:
+    linear-gradient(var(--wp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wp-grid) 1px, transparent 1px);
+  background-size:24px 24px,24px 24px;
+  background-attachment:fixed;
+}
+:root[data-theme="dark"] body,:root[data-theme="dark"] header,:root[data-theme="dark"] #crumbbar,
+:root[data-theme="dark"] .mainpane,:root[data-theme="dark"] .lists,:root[data-theme="dark"] .preview,
+:root[data-theme="dark"] .inputrow{--wp-grid:rgba(230,235,228,.045)}
+
+/* —— 纸片叠放:实线框 + 硬偏移阴影(不用模糊投影) —— */
+.mainpane,.lists,.preview{border:1.5px solid var(--ink);box-shadow:4px 4px 0 rgba(28,32,27,.10)}
+:root[data-theme="dark"] .mainpane,:root[data-theme="dark"] .lists,
+:root[data-theme="dark"] .preview{box-shadow:4px 4px 0 rgba(0,0,0,.35)}
+#stage{padding:12px}
+.room{gap:13px}
+.splitter::before{left:5px}
+
+/* —— 报头:图鉴刊头,右侧加一条书脊绿 —— */
+header{border-bottom:1.5px solid var(--ink);padding:10px 18px;position:relative}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:2px;background:var(--accent);opacity:.9}
+header .title{letter-spacing:.04em}
+
+/* —— 标签贴纸化:页眉/页脚小字 → 带底色的小签 —— */
+.lists .lhead,.preview .phead{color:var(--ink);font-weight:600;letter-spacing:.12em;
+  background:var(--accent-wash);border-bottom:1.5px solid var(--ink)}
+.lists .lhead::before,.preview .phead::before{content:"◆ ";color:var(--accent)}
+
+/* —— 正文:图鉴式黑体(serif 退到标题) —— */
+.msg .txt,.expbody,.content .ctext.serif{font-family:var(--sans);font-size:15px;line-height:1.9}
+.icard h1,.blank h2,.mini .m-text.serif,.litem .lt{font-family:var(--serif)}
+.litem .lt{font-size:14.5px}
+.msg .who{color:var(--accent);letter-spacing:.16em}
+
+/* —— 列表:标本签 —— */
+.litem{margin:4px 6px;border:1px solid transparent;padding:9px 10px}
+.litem+.litem{border-top-color:transparent}
+.litem:hover{background:var(--surface);border-color:var(--hairline);box-shadow:3px 3px 0 rgba(28,32,27,.08)}
+.litem.sel{border-color:var(--ink);border-left:4px solid var(--accent);background:var(--surface);
+            box-shadow:3px 3px 0 rgba(28,32,27,.10)}
+.litem .k{background:var(--accent);border-color:var(--accent);color:#f3f1e8}
+
+/* —— 按钮:绿块主钮 —— */
+.inputrow button{background:var(--accent);border-color:var(--accent);color:#f3f1e8;letter-spacing:.06em}
+.inputrow button:hover{background:var(--ink);border-color:var(--ink)}
+.icard button,.acard .primary,.srow .primary,#bubble button{background:var(--accent);border-color:var(--accent);color:#f3f1e8}
+.icard button:hover,.acard .primary:hover,.srow .primary:hover,#bubble button:hover{background:var(--ink);border-color:var(--ink)}
+.seg button[aria-checked="true"]{background:var(--accent)}
+.seg button[aria-checked="true"]:hover{background:var(--ink)}
+
+/* —— 输入:手写行(底线式) —— */
+.inputrow{border-top:1.5px solid var(--ink);background:var(--paper)}
+.inputrow input{background:var(--surface);border:1.5px solid var(--ink)}
+
+/* —— 弹层:更厚的纸片 —— */
+.icard,.acard,#bubble,#coach{border:1.5px solid var(--ink);box-shadow:8px 8px 0 rgba(28,32,27,.14)}
+:root[data-theme="dark"] .icard,:root[data-theme="dark"] .acard,
+:root[data-theme="dark"] #bubble,:root[data-theme="dark"] #coach{box-shadow:8px 8px 0 rgba(0,0,0,.4)}
+#bubble::before{content:"";position:absolute;left:-1px;top:-9px;width:52px;height:8px;background:var(--accent)}
+#bubble{margin-top:9px}
+.mini .m-list{border:1px solid var(--hairline);background:var(--paper)}
+.mini .m-enter{letter-spacing:.06em}
+mark.hl{background:var(--select);border-bottom:none;outline:1.5px solid var(--accent-line)}
+#toast{letter-spacing:.03em}
