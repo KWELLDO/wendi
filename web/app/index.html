@@ -9,13 +9,15 @@
 <script>/* 视觉方案评审用(定稿后删):?skin=jia|yi|bing 或 localStorage["wendi-skin] */(function(){try{var s=new URLSearchParams(location.search).get("skin");if(!s){s=localStorage.getItem("wendi-skin");}if(s==="pingzhu"||s==="qianhang"||s==="lanshai"){document.documentElement.setAttribute("data-skin",s);}}catch(e){}})();
 /* 评审·潜航:面包屑层数 → html[data-depth],纯标记,无逻辑改动 */
 (function(){var upd=function(){var cr=document.getElementById("crumbs");if(!cr)return;
-document.documentElement.setAttribute("data-depth",String(cr.children.length));};
+var n=cr.querySelectorAll(".cr").length||1;
+document.documentElement.setAttribute("data-depth",String(n));};
 try{new MutationObserver(upd).observe(document.body,{childList:true,subtree:false});}catch(e){}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",upd);else upd();
 setTimeout(upd,300);})();</script>
 <link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <script defer src="/vendor/katex/katex.min.js"></script>
 <link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/vendor/fonts/lxgw-wenkai/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="/ui.css">
 <script src="/ui.js" defer></script>
 <style>

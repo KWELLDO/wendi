@@ -246,11 +246,6 @@ html body{
    暗色覆盖沿用「媒体查询 + 属性」双块契约,置于文件末尾以胜出。
    ===================================================================================== */
 
-/* 样品字体:霞鹜文楷(OFL)——批语的「手」、蓝晒的工程字;swap 防阻塞 */
-@font-face{font-family:"LXGW WenKai";
-  src:url("/vendor/fonts/LXGWWenKai-Regular.ttf") format("truetype");
-  font-display:swap}
-
 /* ——— 一「朱批」:瓷青灰纸 + 墨青字 + 批语朱 ——
    评点本:陪读者在你卡住的词旁落一条楷体批语;朱色只属于批语,不碰按钮与框线。 */
 [data-skin="pingzhu"]{
