@@ -1,72 +1,55 @@
-/* 问底 · 视觉方案丙「博物志 工作纸」——组件层覆盖(评审用,定稿后并入或删除)
-   方格坐标纸 + 硬偏移阴影(纸片叠放) + 图鉴式黑体正文 + 标签贴纸。
-   色板沿用 tokens.css 的 [data-skin="bing"](暖白+松绿 / 绿萼夜+竹月)。
-   只动观感:布局、分栏、交互、DOM 一律未动。 */
+/* 问底 · 方案三「蓝晒」——晒图纸(组件层,评审用)
+   把一个词的构造摊开 = 晒一张图。工程制图语法:
+   图线分级(粗实线/细实线/点画线轴线) + 标题栏 + 文楷代工程字。
+   普鲁士蓝地晒图白线(暗=原色晒图);亮=褪色晒图纸,蓝线红笔。 */
 
-/* —— 全场铺坐标纸(替代羊皮云斑):24px 方格,墨线极淡,钉在视口 —— */
-body,header,#crumbbar,.mainpane,.lists,.preview,.inputrow{
-  --wp-grid:rgba(28,32,27,.05);
-  background-image:
-    linear-gradient(var(--wp-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--wp-grid) 1px, transparent 1px);
-  background-size:24px 24px,24px 24px;
-  background-attachment:fixed;
-}
-:root[data-theme="dark"] body,:root[data-theme="dark"] header,:root[data-theme="dark"] #crumbbar,
-:root[data-theme="dark"] .mainpane,:root[data-theme="dark"] .lists,:root[data-theme="dark"] .preview,
-:root[data-theme="dark"] .inputrow{--wp-grid:rgba(230,235,228,.045)}
-
-/* —— 纸片叠放:实线框 + 硬偏移阴影(不用模糊投影) —— */
-.mainpane,.lists,.preview{border:1.5px solid var(--ink);box-shadow:4px 4px 0 rgba(28,32,27,.10)}
-:root[data-theme="dark"] .mainpane,:root[data-theme="dark"] .lists,
-:root[data-theme="dark"] .preview{box-shadow:4px 4px 0 rgba(0,0,0,.35)}
+/* —— 图线分级:主区粗实线,辅区细实线,分栏=点画线(轴线) —— */
+.mainpane{border:2px solid var(--rule)}
+.lists,.preview{border:1px solid var(--hairline)}
+.splitter::before{left:3px;width:1px;top:0;bottom:0;
+  background:repeating-linear-gradient(to bottom,var(--ink-2) 0 14px,transparent 14px 22px)}
+.splitter:hover::before{background:var(--accent);width:2px;left:2.5px}
 #stage{padding:12px}
-.room{gap:13px}
-.splitter::before{left:5px}
 
-/* —— 报头:图鉴刊头,右侧加一条书脊绿 —— */
-header{border-bottom:1.5px solid var(--ink);padding:10px 18px;position:relative}
-header::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:2px;background:var(--accent);opacity:.9}
-header .title{letter-spacing:.04em}
+/* —— 标题栏:图签。文楷、方框、字段化 —— */
+.lists .lhead,.preview .phead{font-family:var(--kai);color:var(--ink);letter-spacing:.1em;
+  border-bottom:1px solid var(--rule);padding:7px 12px;
+  background:linear-gradient(var(--accent-wash),var(--accent-wash))}
+.lists .lhead{border-left:6px solid var(--accent)}
+.preview .phead{border-left:6px solid var(--ink-2)}
 
-/* —— 标签贴纸化:页眉/页脚小字 → 带底色的小签 —— */
-.lists .lhead,.preview .phead{color:var(--ink);font-weight:600;letter-spacing:.12em;
-  background:var(--accent-wash);border-bottom:1.5px solid var(--ink)}
-.lists .lhead::before,.preview .phead::before{content:"◆ ";color:var(--accent)}
+/* —— 报头:图框栏 —— */
+header{border-bottom:2px solid var(--rule);padding:10px 18px}
+header .title{font-family:var(--kai);letter-spacing:.1em;font-size:18px}
+header .sub{font-family:var(--kai);letter-spacing:.06em}
+#crumbbar{border-bottom:1px solid var(--hairline)}
 
-/* —— 正文:图鉴式黑体(serif 退到标题) —— */
-.msg .txt,.expbody,.content .ctext.serif{font-family:var(--sans);font-size:15px;line-height:1.9}
-.icard h1,.blank h2,.mini .m-text.serif,.litem .lt{font-family:var(--serif)}
-.litem .lt{font-size:14.5px}
-.msg .who{color:var(--accent);letter-spacing:.16em}
+/* —— 内容:图纸注记 —— */
+.msg .who{letter-spacing:.18em;color:var(--ink-3)}
+.content .ctext{padding:24px 30px}
+.expbody,.msg .txt{max-width:40em}
+.qa{border-left:2px solid var(--accent-line)}
 
-/* —— 列表:标本签 —— */
-.litem{margin:4px 6px;border:1px solid transparent;padding:9px 10px}
-.litem+.litem{border-top-color:transparent}
-.litem:hover{background:var(--surface);border-color:var(--hairline);box-shadow:3px 3px 0 rgba(28,32,27,.08)}
-.litem.sel{border-color:var(--ink);border-left:4px solid var(--accent);background:var(--surface);
-            box-shadow:3px 3px 0 rgba(28,32,27,.10)}
-.litem .k{background:var(--accent);border-color:var(--accent);color:#f3f1e8}
+/* —— 列表:零件明细行 —— */
+.litem{margin:3px 6px;border:1px solid transparent}
+.litem:hover{background:var(--surface);border-color:var(--hairline)}
+.litem.sel{border:1px solid var(--rule);border-left:4px solid var(--accent);background:var(--surface)}
+.litem .lt{font-family:var(--kai);font-size:14.5px}
+.litem .k{background:transparent;border:1px solid var(--ink-2);color:var(--ink)}
+.litem .sel .k,.litem.sel .k{background:var(--accent);border-color:var(--accent);color:#dfe9ef}
 
-/* —— 按钮:绿块主钮 —— */
-.inputrow button{background:var(--accent);border-color:var(--accent);color:#f3f1e8;letter-spacing:.06em}
+/* —— 按钮:红铅笔只给主钮与当前项 —— */
+.inputrow{border-top:2px solid var(--rule)}
+.inputrow button{background:var(--accent);border-color:var(--accent);color:#dfe9ef;letter-spacing:.08em}
 .inputrow button:hover{background:var(--ink);border-color:var(--ink)}
-.icard button,.acard .primary,.srow .primary,#bubble button{background:var(--accent);border-color:var(--accent);color:#f3f1e8}
-.icard button:hover,.acard .primary:hover,.srow .primary:hover,#bubble button:hover{background:var(--ink);border-color:var(--ink)}
-.seg button[aria-checked="true"]{background:var(--accent)}
-.seg button[aria-checked="true"]:hover{background:var(--ink)}
-
-/* —— 输入:手写行(底线式) —— */
-.inputrow{border-top:1.5px solid var(--ink);background:var(--paper)}
-.inputrow input{background:var(--surface);border:1.5px solid var(--ink)}
-
-/* —— 弹层:更厚的纸片 —— */
-.icard,.acard,#bubble,#coach{border:1.5px solid var(--ink);box-shadow:8px 8px 0 rgba(28,32,27,.14)}
-:root[data-theme="dark"] .icard,:root[data-theme="dark"] .acard,
-:root[data-theme="dark"] #bubble,:root[data-theme="dark"] #coach{box-shadow:8px 8px 0 rgba(0,0,0,.4)}
-#bubble::before{content:"";position:absolute;left:-1px;top:-9px;width:52px;height:8px;background:var(--accent)}
-#bubble{margin-top:9px}
-.mini .m-list{border:1px solid var(--hairline);background:var(--paper)}
-.mini .m-enter{letter-spacing:.06em}
-mark.hl{background:var(--select);border-bottom:none;outline:1.5px solid var(--accent-line)}
-#toast{letter-spacing:.03em}
+.inputrow input{background:var(--surface);border:1px solid var(--hairline)}
+.inputrow input:focus{border-color:var(--accent)}
+mark.hl{background:var(--select);border-bottom:2px solid var(--accent)}
+#bubble{border:2px solid var(--rule)}
+#bubble .bterm{font-family:var(--kai)}
+#bubble button{background:var(--accent);border-color:var(--accent);color:#dfe9ef}
+.acard,.icard{border:2px solid var(--rule)}
+.icard h1{font-family:var(--kai);letter-spacing:.1em}
+.blank h2,.blank .t,.blank-prev .t{font-family:var(--kai)}
+#toast{font-family:var(--kai);letter-spacing:.04em}
+.mini .m-enter{letter-spacing:.08em}

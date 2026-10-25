@@ -239,200 +239,165 @@ html body{
    ===================================================================================== */
 
 /* =====================================================================================
-   视觉方案候选层(三选一评审用 · 定稿后整块删除)
+   视觉方案候选层 · 第二轮(三选一评审,定稿后整块删除)
    -------------------------------------------------------------------------------------
-   用法:<html data-skin="jia|yi|bing"> 生效;不带属性 = 现行方案(羊皮纸)。
-   ?skin= 参数或 localStorage["wendi-skin"] 由各页启动脚本写入。
-   只覆盖 token 色值与纸纹,不动尺寸/排版/组件形态/方角/发丝线宽度,更不动布局与交互。
-   暗色覆盖沿用「媒体查询 + 属性」双块契约,且必须放在文件末尾(同特异性,后者胜)。
+   用法:<html data-skin="pingzhu|qianhang|lanshai">;不带 = 现行羊皮纸。
+   本层只放 token 色板与字体;组件形态在 /skins/*.css(按 data-skin 启用)。
+   暗色覆盖沿用「媒体查询 + 属性」双块契约,置于文件末尾以胜出。
    ===================================================================================== */
 
-/* ——— 甲「宋刻本」:羊皮纸的精修进化 ———
-   亮:宣纸象牙(比现行更素更亮,米褐退掉),墨更黑,朱砂更鲜一档,发丝线退后让红出场;
-   暗:不走暖褐,走「碑帖」——墨蓝黑纸 + 宣白字,同一支朱砂(拓片黑底白字朱印)。 */
-[data-skin="jia"]{
-  --paper:#f5efdf; --paper-deep:#ece4cf; --surface:#fbf7ec; --surface-2:#efe7d2;
-  --ink:#201c14; --ink-2:#4d4636; --ink-3:#665e4c;
-  --rule:#201c14; --hairline:#dcd2b8;
-  --accent:#b1301f; --accent-wash:rgba(177,48,31,.08); --accent-line:rgba(177,48,31,.42);
-  --select:rgba(177,48,31,.16);
-  --ok:#2e6353; --warn:#8a5f0e; --err:#8f2317;
-  --slab-bg:#1c1810; --slab-fg:#f5efdf; --slab-line:rgba(245,239,223,.18);
-  --scrim:rgba(32,28,20,.55); --float:0 6px 18px rgba(32,28,20,.16);
-  --noise:rgba(74,56,31,.04); --edge:rgba(32,28,20,.28); --edge-hot:rgba(177,48,31,.85);
+/* 样品字体:霞鹜文楷(OFL)——批语的「手」、蓝晒的工程字;swap 防阻塞 */
+@font-face{font-family:"LXGW WenKai";
+  src:url("/vendor/fonts/LXGWWenKai-Regular.ttf") format("truetype");
+  font-display:swap}
+
+/* ——— 一「朱批」:瓷青灰纸 + 墨青字 + 批语朱 ——
+   评点本:陪读者在你卡住的词旁落一条楷体批语;朱色只属于批语,不碰按钮与框线。 */
+[data-skin="pingzhu"]{
+  --paper:#e4e8e1; --paper-deep:#dbe1d9; --surface:#edf0e9; --surface-2:#e0e6dd;
+  --ink:#24313c; --ink-2:#4d5c66; --ink-3:#66767f;
+  --rule:#24313c; --hairline:#c6cfc6;
+  --accent:#b23a25; --accent-wash:rgba(178,58,37,.07); --accent-line:rgba(178,58,37,.40);
+  --select:rgba(178,58,37,.14);
+  --ok:#3a6b52; --warn:#8a6a1a; --err:#a03425;
+  --slab-bg:#22312b; --slab-fg:#e6ebe2; --slab-line:rgba(230,235,226,.16);
+  --scrim:rgba(36,49,60,.55); --float:0 6px 18px rgba(36,49,60,.16);
+  --noise:rgba(60,75,70,.04); --edge:rgba(36,49,60,.28); --edge-hot:rgba(178,58,37,.85);
+  --kai:"LXGW WenKai","Kaiti SC","STKaiti","KaiTi","Noto Sans CJK SC",serif;
   --paper-tex:
-    radial-gradient(circle, rgba(90,70,40,.022) .6px, transparent 1.4px),
-    radial-gradient(circle, rgba(90,70,40,.015) .5px, transparent 1.2px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(150,120,70,.040), rgba(150,120,70,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(170,140,90,.032), rgba(170,140,90,0) 100%),
-    radial-gradient(78vw 62vw at 22% 112%, rgba(120,95,55,.038),  rgba(120,95,55,0) 100%),
-    radial-gradient(40vw 34vw at 72% 64%,  rgba(190,160,110,.022), rgba(190,160,110,0) 100%),
-    radial-gradient(26vw 20vw at 42% 32%,  rgba(130,105,60,.014), rgba(130,105,60,0) 100%);
-  --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+    radial-gradient(circle, rgba(60,80,72,.020) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(110,135,120,.038), rgba(110,135,120,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,120,130,.030), rgba(90,120,130,0) 100%),
+    radial-gradient(78vw 62vw at 22% 112%, rgba(100,120,105,.034), rgba(100,120,105,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto,auto;
+}
+[data-skin="pingzhu"][data-theme="dark"]{
+  --paper:#16212b; --paper-deep:#121a23; --surface:#1b2733; --surface-2:#223040;
+  --ink:#d9e2ea; --ink-2:#9fb0be; --ink-3:#7d90a0;
+  --rule:#d9e2ea; --hairline:#2c3d4d;
+  --accent:#d96a52; --accent-wash:rgba(217,106,82,.12); --accent-line:rgba(217,106,82,.48);
+  --select:rgba(217,106,82,.20);
+  --ok:#6fae94; --warn:#d0a95c; --err:#d97a68;
+  --slab-bg:#0f1720; --slab-fg:#d9e2ea; --slab-line:rgba(217,226,234,.15);
+  --scrim:rgba(8,13,18,.62); --float:0 6px 18px rgba(0,0,0,.5);
+  --noise:rgba(217,226,234,.03); --edge:rgba(217,226,234,.28); --edge-hot:rgba(217,106,82,.9);
+  --paper-tex:
+    radial-gradient(circle, rgba(217,226,234,.015) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(70,100,125,.042), rgba(70,100,125,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,80,70,.028), rgba(90,80,70,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto;
 }
 @media (prefers-color-scheme: dark){
-  [data-skin="jia"]:not([data-theme="light"]){
-    --paper:#1a1c21; --paper-deep:#14161a; --surface:#20232a; --surface-2:#282c34;
-    --ink:#ece7da; --ink-2:#c6bfae; --ink-3:#a39b87;
-    --rule:#ece7da; --hairline:#353943;
-    --accent:#e0563f; --accent-wash:rgba(224,86,63,.13); --accent-line:rgba(224,86,63,.50);
-    --select:rgba(224,86,63,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#e07a6c;
-    --slab-bg:#101216; --slab-fg:#ece7da; --slab-line:rgba(236,231,218,.18);
-    --scrim:rgba(10,11,14,.62); --float:0 6px 18px rgba(0,0,0,.5);
-    --noise:rgba(236,231,218,.03); --edge:rgba(236,231,218,.30); --edge-hot:rgba(224,86,63,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(220,214,200,.018) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(220,214,200,.012) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(110,130,170,.045), rgba(110,130,170,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(90,110,150,.036), rgba(90,110,150,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(70,85,115,.042),  rgba(70,85,115,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(130,145,175,.024), rgba(130,145,175,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(100,115,145,.016), rgba(100,115,145,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+  [data-skin="pingzhu"]:not([data-theme="light"]){
+  --paper:#16212b; --paper-deep:#121a23; --surface:#1b2733; --surface-2:#223040;
+  --ink:#d9e2ea; --ink-2:#9fb0be; --ink-3:#7d90a0;
+  --rule:#d9e2ea; --hairline:#2c3d4d;
+  --accent:#d96a52; --accent-wash:rgba(217,106,82,.12); --accent-line:rgba(217,106,82,.48);
+  --select:rgba(217,106,82,.20);
+  --ok:#6fae94; --warn:#d0a95c; --err:#d97a68;
+  --slab-bg:#0f1720; --slab-fg:#d9e2ea; --slab-line:rgba(217,226,234,.15);
+  --scrim:rgba(8,13,18,.62); --float:0 6px 18px rgba(0,0,0,.5);
+  --noise:rgba(217,226,234,.03); --edge:rgba(217,226,234,.28); --edge-hot:rgba(217,106,82,.9);
+  --paper-tex:
+    radial-gradient(circle, rgba(217,226,234,.015) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(70,100,125,.042), rgba(70,100,125,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,80,70,.028), rgba(90,80,70,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto;
   }
 }
-[data-skin="jia"][data-theme="dark"]{
-    --paper:#1a1c21; --paper-deep:#14161a; --surface:#20232a; --surface-2:#282c34;
-    --ink:#ece7da; --ink-2:#c6bfae; --ink-3:#a39b87;
-    --rule:#ece7da; --hairline:#353943;
-    --accent:#e0563f; --accent-wash:rgba(224,86,63,.13); --accent-line:rgba(224,86,63,.50);
-    --select:rgba(224,86,63,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#e07a6c;
-    --slab-bg:#101216; --slab-fg:#ece7da; --slab-line:rgba(236,231,218,.18);
-    --scrim:rgba(10,11,14,.62); --float:0 6px 18px rgba(0,0,0,.5);
-    --noise:rgba(236,231,218,.03); --edge:rgba(236,231,218,.30); --edge-hot:rgba(224,86,63,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(220,214,200,.018) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(220,214,200,.012) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(110,130,170,.045), rgba(110,130,170,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(90,110,150,.036), rgba(90,110,150,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(70,85,115,.042),  rgba(70,85,115,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(130,145,175,.024), rgba(130,145,175,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(100,115,145,.016), rgba(100,115,145,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+
+/* ——— 二「潜航」:青白水面纸 + 深青墨 + 浮标橙(只作寻路) ———
+   递归=下潜。层级越深,整场水色越沉;左缘标尺读深度(组件层实现)。
+   橙是潜水旗色,只给:返回、当前深度、主钮、选中词。 */
+[data-skin="qianhang"]{
+  --paper:#edf3f2; --paper-deep:#e1ecea; --surface:#f4f9f8; --surface-2:#e5efed;
+  --ink:#14333a; --ink-2:#3f5f66; --ink-3:#5f7f86;
+  --rule:#14333a; --hairline:#c9dcd9;
+  --accent:#e0662e; --accent-wash:rgba(224,102,46,.10); --accent-line:rgba(224,102,46,.42);
+  --select:rgba(224,102,46,.15);
+  --ok:#2e6b5e; --warn:#8a6a1a; --err:#b03a2a;
+  --slab-bg:#10262c; --slab-fg:#e2efee; --slab-line:rgba(226,239,238,.16);
+  --scrim:rgba(20,51,58,.55); --float:0 6px 18px rgba(20,51,58,.16);
+  --noise:rgba(50,90,95,.04); --edge:rgba(20,51,58,.28); --edge-hot:rgba(224,102,46,.9);
+  --paper-tex:
+    radial-gradient(circle, rgba(60,100,100,.020) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(120,165,160,.042), rgba(120,165,160,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(150,185,180,.032), rgba(150,185,180,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto;
+}
+[data-skin="qianhang"][data-theme="dark"]{
+  --paper:#0d1a1f; --paper-deep:#091215; --surface:#12222a; --surface-2:#172c34;
+  --ink:#d9e8e8; --ink-2:#9db8ba; --ink-3:#7a9698;
+  --rule:#d9e8e8; --hairline:#223a42;
+  --accent:#f07a3d; --accent-wash:rgba(240,122,61,.12); --accent-line:rgba(240,122,61,.5);
+  --select:rgba(240,122,61,.20);
+  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
+  --slab-bg:#081114; --slab-fg:#d9e8e8; --slab-line:rgba(217,232,232,.15);
+  --scrim:rgba(4,10,12,.64); --float:0 6px 18px rgba(0,0,0,.55);
+  --noise:rgba(217,232,232,.03); --edge:rgba(217,232,232,.26); --edge-hot:rgba(240,122,61,.95);
+  --paper-tex:
+    radial-gradient(circle, rgba(217,232,232,.014) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(50,95,105,.05), rgba(50,95,105,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(40,75,85,.04), rgba(40,75,85,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto;
+}
+@media (prefers-color-scheme: dark){
+  [data-skin="qianhang"]:not([data-theme="light"]){
+  --paper:#0d1a1f; --paper-deep:#091215; --surface:#12222a; --surface-2:#172c34;
+  --ink:#d9e8e8; --ink-2:#9db8ba; --ink-3:#7a9698;
+  --rule:#d9e8e8; --hairline:#223a42;
+  --accent:#f07a3d; --accent-wash:rgba(240,122,61,.12); --accent-line:rgba(240,122,61,.5);
+  --select:rgba(240,122,61,.20);
+  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
+  --slab-bg:#081114; --slab-fg:#d9e8e8; --slab-line:rgba(217,232,232,.15);
+  --scrim:rgba(4,10,12,.64); --float:0 6px 18px rgba(0,0,0,.55);
+  --noise:rgba(217,232,232,.03); --edge:rgba(217,232,232,.26); --edge-hot:rgba(240,122,61,.95);
+  --paper-tex:
+    radial-gradient(circle, rgba(217,232,232,.014) .6px, transparent 1.4px),
+    radial-gradient(70vw 56vw at -8% -12%, rgba(50,95,105,.05), rgba(50,95,105,0) 100%),
+    radial-gradient(64vw 52vw at 108% 8%,  rgba(40,75,85,.04), rgba(40,75,85,0) 100%);
+  --paper-tex-size:3px 3px,auto,auto;
+  }
 }
 
-/* ——— 乙「青灯」:冷调书斋 ———
-   亮:冷宣纸(灰青白),蓝墨,靛青强调——像新裁的玉版宣;
-   暗:「青灯」意象——靛夜纸,字是月色,强调换成琥珀灯光(暖冷对照,灯下读书)。 */
-[data-skin="yi"]{
-  --paper:#f1f2ee; --paper-deep:#e7e9e2; --surface:#f8f9f5; --surface-2:#ebede4;
-  --ink:#1d2126; --ink-2:#464e58; --ink-3:#5b6470;
-  --rule:#1d2126; --hairline:#c9cfc6;
-  --accent:#2f4f93; --accent-wash:rgba(47,79,147,.08); --accent-line:rgba(47,79,147,.40);
-  --select:rgba(47,79,147,.16);
-  --ok:#2e6353; --warn:#86600f; --err:#8f2317;
-  --slab-bg:#1b2027; --slab-fg:#f1f2ee; --slab-line:rgba(241,242,238,.18);
-  --scrim:rgba(29,33,38,.55); --float:0 6px 18px rgba(29,33,38,.16);
-  --noise:rgba(60,70,80,.04); --edge:rgba(29,33,38,.28); --edge-hot:rgba(47,79,147,.85);
+/* ——— 三「蓝晒」:普鲁士蓝晒图 + 晒图白线稿 + 红铅笔校对(亮色=褪色晒图纸) ———
+   把一个词的构造摊开 = 晒一张图。图线分级(粗实线/细实线/点画线)在组件层。 */
+[data-skin="lanshai"]{
+  --paper:#dfe9ef; --paper-deep:#d3e1e9; --surface:#e9f1f6; --surface-2:#d6e3ec;
+  --ink:#1d3a52; --ink-2:#3d5a74; --ink-3:#587690;
+  --rule:#1d3a52; --hairline:#b5c9d6;
+  --accent:#c74a3c; --accent-wash:rgba(199,74,60,.08); --accent-line:rgba(199,74,60,.42);
+  --select:rgba(199,74,60,.14);
+  --ok:#2e6b5e; --warn:#8a6a1a; --err:#b03a2a;
+  --slab-bg:#1d3a52; --slab-fg:#dfeef8; --slab-line:rgba(223,238,248,.2);
+  --scrim:rgba(29,58,82,.55); --float:0 6px 18px rgba(29,58,82,.18);
+  --noise:rgba(60,90,115,.05); --edge:rgba(29,58,82,.32); --edge-hot:rgba(199,74,60,.85);
+  --kai:"LXGW WenKai","Kaiti SC","STKaiti","KaiTi","Noto Sans CJK SC",serif;
+  --paper-tex:none; --paper-tex-size:auto;
+}
+[data-skin="lanshai"][data-theme="dark"]{
+  --paper:#102a40; --paper-deep:#0c2233; --surface:#16334d; --surface-2:#1b3c59;
+  --ink:#d8eaf6; --ink-2:#9cbcd4; --ink-3:#7799b4;
+  --rule:#d8eaf6; --hairline:#2c4d6e;
+  --accent:#e05a4a; --accent-wash:rgba(224,90,74,.13); --accent-line:rgba(224,90,74,.5);
+  --select:rgba(224,90,74,.20);
+  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
+  --slab-bg:#0b1f30; --slab-fg:#d8eaf6; --slab-line:rgba(216,234,246,.16);
+  --scrim:rgba(5,15,24,.64); --float:0 6px 18px rgba(0,0,0,.5);
+  --noise:rgba(216,234,246,.03); --edge:rgba(216,234,246,.3); --edge-hot:rgba(224,90,74,.9);
   --paper-tex:none; --paper-tex-size:auto;
 }
 @media (prefers-color-scheme: dark){
-  [data-skin="yi"]:not([data-theme="light"]){
-    --paper:#151a24; --paper-deep:#10141d; --surface:#1b2130; --surface-2:#232a3c;
-    --ink:#e7eaf2; --ink-2:#c0c6d4; --ink-3:#98a1b3;
-    --rule:#e7eaf2; --hairline:#2e3648;
-    --accent:#d9a662; --accent-wash:rgba(217,166,98,.13); --accent-line:rgba(217,166,98,.50);
-    --select:rgba(217,166,98,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#e07a6c;
-    --slab-bg:#0e1119; --slab-fg:#e7eaf2; --slab-line:rgba(231,234,242,.18);
-    --scrim:rgba(6,9,16,.62); --float:0 6px 18px rgba(0,0,0,.55);
-    --noise:rgba(231,234,242,.03); --edge:rgba(231,234,242,.28); --edge-hot:rgba(217,166,98,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(210,218,235,.016) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(210,218,235,.011) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(90,115,170,.05), rgba(90,115,170,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(217,166,98,.030), rgba(217,166,98,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(70,90,140,.045),  rgba(70,90,140,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(120,140,185,.026), rgba(120,140,185,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(90,110,155,.016), rgba(90,110,155,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+  [data-skin="lanshai"]:not([data-theme="light"]){
+  --paper:#102a40; --paper-deep:#0c2233; --surface:#16334d; --surface-2:#1b3c59;
+  --ink:#d8eaf6; --ink-2:#9cbcd4; --ink-3:#7799b4;
+  --rule:#d8eaf6; --hairline:#2c4d6e;
+  --accent:#e05a4a; --accent-wash:rgba(224,90,74,.13); --accent-line:rgba(224,90,74,.5);
+  --select:rgba(224,90,74,.20);
+  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
+  --slab-bg:#0b1f30; --slab-fg:#d8eaf6; --slab-line:rgba(216,234,246,.16);
+  --scrim:rgba(5,15,24,.64); --float:0 6px 18px rgba(0,0,0,.5);
+  --noise:rgba(216,234,246,.03); --edge:rgba(216,234,246,.3); --edge-hot:rgba(224,90,74,.9);
+  --paper-tex:none; --paper-tex-size:auto;
   }
-}
-[data-skin="yi"][data-theme="dark"]{
-    --paper:#151a24; --paper-deep:#10141d; --surface:#1b2130; --surface-2:#232a3c;
-    --ink:#e7eaf2; --ink-2:#c0c6d4; --ink-3:#98a1b3;
-    --rule:#e7eaf2; --hairline:#2e3648;
-    --accent:#d9a662; --accent-wash:rgba(217,166,98,.13); --accent-line:rgba(217,166,98,.50);
-    --select:rgba(217,166,98,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#e07a6c;
-    --slab-bg:#0e1119; --slab-fg:#e7eaf2; --slab-line:rgba(231,234,242,.18);
-    --scrim:rgba(6,9,16,.62); --float:0 6px 18px rgba(0,0,0,.55);
-    --noise:rgba(231,234,242,.03); --edge:rgba(231,234,242,.28); --edge-hot:rgba(217,166,98,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(210,218,235,.016) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(210,218,235,.011) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(90,115,170,.05), rgba(90,115,170,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(217,166,98,.030), rgba(217,166,98,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(70,90,140,.045),  rgba(70,90,140,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(120,140,185,.026), rgba(120,140,185,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(90,110,155,.016), rgba(90,110,155,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
-}
-
-/* ——— 丙「博物志」:科学图鉴的平静 ———
-   亮:暖白(不偏黄) + 墨绿黑字 + 松绿强调——植物图鉴/考察手记的气质,最克制;
-   暗:绿萼夜——墨绿黑纸 + 苔白字 + 竹月绿强调。 */
-[data-skin="bing"]{
-  --paper:#f3f1e8; --paper-deep:#e9e6d9; --surface:#faf8f0; --surface-2:#eceade;
-  --ink:#1c201b; --ink-2:#454e44; --ink-3:#5a645a;
-  --rule:#1c201b; --hairline:#d4d2c0;
-  --accent:#2f5d50; --accent-wash:rgba(47,93,80,.08); --accent-line:rgba(47,93,80,.42);
-  --select:rgba(47,93,80,.16);
-  --ok:#35705f; --warn:#86600f; --err:#a03125;
-  --slab-bg:#171d18; --slab-fg:#f3f1e8; --slab-line:rgba(243,241,232,.18);
-  --scrim:rgba(28,32,27,.55); --float:0 6px 18px rgba(28,32,27,.16);
-  --noise:rgba(60,70,58,.04); --edge:rgba(28,32,27,.28); --edge-hot:rgba(47,93,80,.85);
-  --paper-tex:
-    radial-gradient(circle, rgba(70,80,66,.022) .6px, transparent 1.4px),
-    radial-gradient(circle, rgba(70,80,66,.015) .5px, transparent 1.2px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(110,130,105,.040), rgba(110,130,105,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(140,155,125,.032), rgba(140,155,125,0) 100%),
-    radial-gradient(78vw 62vw at 22% 112%, rgba(95,115,90,.038),  rgba(95,115,90,0) 100%),
-    radial-gradient(40vw 34vw at 72% 64%,  rgba(160,175,140,.022), rgba(160,175,140,0) 100%),
-    radial-gradient(26vw 20vw at 42% 32%,  rgba(110,125,100,.014), rgba(110,125,100,0) 100%);
-  --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
-}
-@media (prefers-color-scheme: dark){
-  [data-skin="bing"]:not([data-theme="light"]){
-    --paper:#161c18; --paper-deep:#111612; --surface:#1c2420; --surface-2:#242e28;
-    --ink:#e6ebe4; --ink-2:#bcc4bb; --ink-3:#98a297;
-    --rule:#e6ebe4; --hairline:#2b352e;
-    --accent:#6fae9b; --accent-wash:rgba(111,174,155,.13); --accent-line:rgba(111,174,155,.50);
-    --select:rgba(111,174,155,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#dd8172;
-    --slab-bg:#0f1411; --slab-fg:#e6ebe4; --slab-line:rgba(230,235,228,.18);
-    --scrim:rgba(6,10,7,.62); --float:0 6px 18px rgba(0,0,0,.55);
-    --noise:rgba(230,235,228,.03); --edge:rgba(230,235,228,.28); --edge-hot:rgba(111,174,155,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(215,225,212,.016) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(215,225,212,.011) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(95,140,115,.045), rgba(95,140,115,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(80,120,95,.036), rgba(80,120,95,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(60,95,72,.042),  rgba(60,95,72,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(110,150,122,.024), rgba(110,150,122,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(88,122,98,.016), rgba(88,122,98,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
-  }
-}
-[data-skin="bing"][data-theme="dark"]{
-    --paper:#161c18; --paper-deep:#111612; --surface:#1c2420; --surface-2:#242e28;
-    --ink:#e6ebe4; --ink-2:#bcc4bb; --ink-3:#98a297;
-    --rule:#e6ebe4; --hairline:#2b352e;
-    --accent:#6fae9b; --accent-wash:rgba(111,174,155,.13); --accent-line:rgba(111,174,155,.50);
-    --select:rgba(111,174,155,.22);
-    --ok:#7fbfa8; --warn:#d9ad5c; --err:#dd8172;
-    --slab-bg:#0f1411; --slab-fg:#e6ebe4; --slab-line:rgba(230,235,228,.18);
-    --scrim:rgba(6,10,7,.62); --float:0 6px 18px rgba(0,0,0,.55);
-    --noise:rgba(230,235,228,.03); --edge:rgba(230,235,228,.28); --edge-hot:rgba(111,174,155,.9);
-    --paper-tex:
-      radial-gradient(circle, rgba(215,225,212,.016) .6px, transparent 1.4px),
-      radial-gradient(circle, rgba(215,225,212,.011) .5px, transparent 1.2px),
-      radial-gradient(70vw 56vw at -8% -12%, rgba(95,140,115,.045), rgba(95,140,115,0) 100%),
-      radial-gradient(64vw 52vw at 108% 8%,  rgba(80,120,95,.036), rgba(80,120,95,0) 100%),
-      radial-gradient(78vw 62vw at 22% 112%, rgba(60,95,72,.042),  rgba(60,95,72,0) 100%),
-      radial-gradient(40vw 34vw at 72% 64%,  rgba(110,150,122,.024), rgba(110,150,122,0) 100%),
-      radial-gradient(26vw 20vw at 42% 32%,  rgba(88,122,98,.016), rgba(88,122,98,0) 100%);
-    --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
 }

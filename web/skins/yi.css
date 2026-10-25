@@ -1,70 +1,74 @@
-/* 问底 · 视觉方案乙「青灯 tmux」——组件层覆盖(评审用,定稿后并入或删除)
-   把「类 tmux」身份做成视觉主角:报头变状态栏,窗格挂 [0][1][2] 编号,
-   元数据/标签全部等宽字体,窗格边框变实,琥珀磷光强调。
-   色板沿用 tokens.css 的 [data-skin="yi"](冷宣+靛 / 靛夜+琥珀灯)。
-   只动观感:布局、分栏、交互、DOM 一律未动。 */
+/* 问底 · 方案二「潜航」——深度分层(组件层,评审用)
+   递归=下潜:层级越深,整场水色越沉;左缘深度标尺读水深。
+   橙=潜水旗,只给寻路:返回、当前深度、主钮、选中词。 */
 
-/* —— 报头 → tmux 状态栏:深条、等宽、会话名与窗格表 —— */
-header{background:var(--slab-bg);color:var(--slab-fg);border-bottom:2px solid var(--accent);
-       padding:7px 14px;min-height:40px;font-family:var(--mono);position:relative}
-header .title{font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.04em;color:var(--slab-fg)}
-header .title::after{content:" [wendi]";color:var(--accent);font-weight:400}
-header .sub{color:var(--slab-fg);opacity:.55;font-family:var(--mono);letter-spacing:.06em}
-header button{color:var(--slab-fg);opacity:.8;font-family:var(--mono);font-size:12.5px}
-header button:hover{opacity:1;background:rgba(255,255,255,.08);color:var(--slab-fg)}
-header #authBtn{border:1px solid var(--slab-fg);opacity:1;padding:3px 12px}
-header #authBtn:hover{border-color:var(--accent);color:var(--accent);background:none;opacity:1}
-/* 窗格表(纯装饰,内容来自 CSS):当前窗格 = 亮块 */
-header::after{content:"0:主对话  1:解释列表  2:预览*";
-  position:absolute;right:14px;top:50%;transform:translateY(-50%);
-  font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--slab-fg);opacity:.5;pointer-events:none}
-header .hact{margin-right:190px}
+/* —— 深度水色:越深越沉(亮=青白→浅海,暗=靛黑→深渊) —— */
+:root[data-skin="qianhang"][data-depth="1"]{
+  --paper:#e6efee; --paper-deep:#dae8e6; --surface:#eef6f5; --surface-2:#e0edeb}
+:root[data-skin="qianhang"][data-depth="2"]{
+  --paper:#dde9e9; --paper-deep:#d0e1e0; --surface:#e5f0ef; --surface-2:#d6e5e3}
+:root[data-skin="qianhang"][data-depth="3"],:root[data-skin="qianhang"][data-depth="4"],
+:root[data-skin="qianhang"][data-depth="5"],:root[data-skin="qianhang"][data-depth="6"]{
+  --paper:#d3e3e4; --paper-deep:#c6dbdc; --surface:#dcebec; --surface-2:#ccdfdf}
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="1"]{
+  --paper:#0e1c22; --paper-deep:#0a151a; --surface:#13252d; --surface-2:#182f38}
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="2"]{
+  --paper:#0f1f26; --paper-deep:#0b181d; --surface:#142830; --surface-2:#1a323b}
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="3"],
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="4"],
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="5"],
+:root[data-skin="qianhang"][data-theme="dark"][data-depth="6"]{
+  --paper:#10222a; --paper-deep:#0c1a20; --surface:#152b33; --surface-2:#1b3540}
 
-/* —— 题条:命令行提示符 —— */
-#crumbbar{font-family:var(--mono);background:var(--paper);min-height:32px}
-#crumbs::before{content:"$ ";color:var(--accent);font-weight:600}
-#crumbbar button,#crumbbar .qbadge{font-family:var(--mono)}
+/* —— 左缘深度标尺:刻度带 + 当前深度橙标(attr 取数,纯 CSS 定位) —— */
+html[data-skin="qianhang"] body::before{content:"";position:fixed;left:0;top:0;bottom:0;width:16px;
+  z-index:60;pointer-events:none;
+  background:
+    linear-gradient(var(--hairline),var(--hairline)) left 8px top 64px/1px calc(100% - 64px) no-repeat,
+    repeating-linear-gradient(to bottom, transparent 0 55px, var(--hairline) 55px 56px);
+  background-position:left 8px top 64px, left 0 top 64px;
+  opacity:.9}
+html[data-skin="qianhang"] body::after{content:var(--depth-label,"0m");
+  position:fixed;left:0;top:64px;z-index:61;pointer-events:none;
+  width:16px;padding:3px 0;text-align:center;
+  font:600 8.5px/1.2 "Noto Sans Mono CJK SC",ui-monospace,monospace;color:#f4f9f8;
+  background:var(--accent);letter-spacing:.02em}
+html[data-skin="qianhang"][data-theme="dark"] body::after{color:#0d1a1f}
+html[data-skin="qianhang"][data-depth="1"] body::after{--d:1;top:calc(64px + 0px)}
+html[data-skin="qianhang"][data-depth="2"] body::after{top:calc(64px + 56px)}
+html[data-skin="qianhang"][data-depth="3"] body::after{top:calc(64px + 112px)}
+html[data-skin="qianhang"][data-depth="4"] body::after{top:calc(64px + 168px)}
+html[data-skin="qianhang"][data-depth="5"] body::after{top:calc(64px + 224px)}
+html[data-skin="qianhang"][data-depth="6"] body::after{top:calc(64px + 280px)}
+html[data-skin="qianhang"] body{--depth-label:"0m"}
+html[data-skin="qianhang"][data-depth="1"] body{--depth-label:"5m"}
+html[data-skin="qianhang"][data-depth="2"] body{--depth-label:"20m"}
+html[data-skin="qianhang"][data-depth="3"] body{--depth-label:"50m"}
+html[data-skin="qianhang"][data-depth="4"] body{--depth-label:"100m"}
+html[data-skin="qianhang"][data-depth="5"] body{--depth-label:"200m"}
+html[data-skin="qianhang"][data-depth="6"] body{--depth-label:"400m"}
+/* 标尺占掉 16px,给 #stage 让位(仅潜航) */
+html[data-skin="qianhang"] #stage{padding-left:24px}
 
-/* —— 窗格:实线框 + 编号标签,像被 tiling 管理器框出来的 —— */
-.mainpane,.lists,.preview{border:1px solid var(--edge);background:var(--surface)}
-.lists,.preview{background:var(--paper-deep)}
-.splitter::before{top:0;bottom:0;left:3px;background:var(--edge);width:1px}
+/* —— 窗格:无框,水位线示意;分栏线是锚缆 —— */
+.mainpane,.lists,.preview{border:none}
+.lists{border-top:1px solid var(--accent-line);box-shadow:inset 0 2px 0 -1px var(--accent-wash)}
+.preview{border-top:1px solid var(--hairline)}
+.mainpane{border-top:1px solid var(--hairline)}
+.splitter::before{background:repeating-linear-gradient(to bottom,var(--ink-3) 0 6px,transparent 6px 12px);width:1px;left:3px;top:0;bottom:0}
 .splitter:hover::before{background:var(--accent);width:2px;left:2.5px}
-.lists .lhead,.preview .phead{border-bottom:1px solid var(--edge);color:var(--ink-2);padding:7px 12px;letter-spacing:.08em}
-.lists .lhead::before{content:"[1] ";color:var(--accent);font-weight:600}
-.preview .phead::before{content:"[2] ";color:var(--accent);font-weight:600}
-.mainpane::after{content:"[0]";
-  position:absolute;top:6px;right:10px;z-index:2;pointer-events:none;
-  font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);opacity:.7}
-
-/* —— 内容:等宽元数据 + serif 正文(学者终端) —— */
-.msg .who{letter-spacing:.12em}
-.msg .who::before{content:"› ";color:var(--accent)}
-.qbadge{border-style:solid;letter-spacing:.06em}
-mark.hl{border-bottom:none;outline:1px solid var(--accent-line);background:var(--select)}
-
-/* —— 列表:窗口条目 —— */
-.litem .k{border-radius:0;letter-spacing:.04em}
-.litem.sel{border-left-width:3px;border-left-color:var(--accent);background:var(--accent-wash)}
-.litem .lm{letter-spacing:.04em}
-.lists .lempty,#crumbs{letter-spacing:.03em}
-
-/* —— 输入:命令行 —— */
-.inputrow{border-top:1px solid var(--edge);background:var(--paper)}
-.inputrow input{font-family:var(--mono);font-size:14px}
-.inputrow input::placeholder{font-family:var(--mono)}
-.inputrow button{letter-spacing:.1em;font-family:var(--mono)}
-.inputrow select{font-family:var(--mono)}
-
-/* —— 气泡/弹窗:滑出的浮层 —— */
-#bubble{box-shadow:6px 6px 0 rgba(0,0,0,.12);border:1px solid var(--edge)}
-#bubble input{font-family:var(--mono)}
-#bubble button{font-family:var(--mono);letter-spacing:.06em}
-#bubble .bterm::before{content:"? ";color:var(--accent)}
-.acard,.icard{border:1px solid var(--edge);box-shadow:8px 8px 0 rgba(0,0,0,.14)}
-.acard .primary,.srow .primary,.icard button{letter-spacing:.08em}
-#coach{border:1px solid var(--edge);box-shadow:6px 6px 0 rgba(0,0,0,.12)}
-#toast{font-family:var(--mono);letter-spacing:.04em}
-.blank .kicker{letter-spacing:.2em}
-.mini .m-list .t,.mini .m-deeper{letter-spacing:.06em}
-.mini .m-enter{font-family:var(--mono);letter-spacing:.1em}
+.lists .lhead,.preview .phead{letter-spacing:.18em;color:var(--ink-3);border-bottom:none;padding:9px 14px 6px}
+/* —— 寻路:返回=浮标,主钮=旗色,选中词=旗底 —— */
+#backBtn{color:var(--accent);font-weight:600}
+#backBtn:not(:disabled):hover{background:var(--accent-wash)}
+.inputrow button{background:var(--accent);border-color:var(--accent);color:#f4f9f8;letter-spacing:.08em}
+.inputrow button:hover{background:var(--ink);border-color:var(--ink)}
+.inputrow input:focus{outline:none;border-bottom:2px solid var(--accent)}
+.inputrow input{background:transparent;border:none;border-bottom:1px solid var(--hairline);padding:0 8px}
+.litem.sel{border-left:3px solid var(--accent);background:var(--accent-wash)}
+.litem .k{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+mark.hl{background:var(--select);border-bottom:2px solid var(--accent)}
+.msg .who{letter-spacing:.16em}
+.msg.user .who{color:var(--accent)}
+#toast{letter-spacing:.04em}
+.blank .kicker::before{background:var(--accent)}
