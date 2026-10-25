@@ -1,74 +1,111 @@
-/* 问底 · 方案二「潜航」——深度分层(组件层,评审用)
-   递归=下潜:层级越深,整场水色越沉;左缘深度标尺读水深。
-   橙=潜水旗,只给寻路:返回、当前深度、主钮、选中词。 */
+/* 问底 · 方案「黑金」——luxury-noir spec 应用壳(评审用)
+   黑底、细金线、衬线大字与巨大留白;金 <5%,正文永远暖白。
+   动效预算两处:报头分层入场一次 + 金线呼吸;其余全静止。 */
+@import url("/vendor/fonts/cormorant-garamond/400.css");
+@import url("/vendor/fonts/cormorant-garamond/500.css");
+@import url("/vendor/fonts/cormorant-garamond/400-italic.css");
+@import url("/vendor/fonts/cinzel/400.css");
+@import url("/vendor/fonts/inter/300.css");
+@import url("/vendor/fonts/inter/400.css");
+@import url("/vendor/fonts/inter/500.css");
 
-/* —— 深度水色:越深越沉(亮=青白→浅海,暗=靛黑→深渊) —— */
-:root[data-skin="qianhang"][data-depth="1"]{
-  --paper:#e6efee; --paper-deep:#dae8e6; --surface:#eef6f5; --surface-2:#e0edeb}
-:root[data-skin="qianhang"][data-depth="2"]{
-  --paper:#dde9e9; --paper-deep:#d0e1e0; --surface:#e5f0ef; --surface-2:#d6e5e3}
-:root[data-skin="qianhang"][data-depth="3"],:root[data-skin="qianhang"][data-depth="4"],
-:root[data-skin="qianhang"][data-depth="5"],:root[data-skin="qianhang"][data-depth="6"]{
-  --paper:#d3e3e4; --paper-deep:#c6dbdc; --surface:#dcebec; --surface-2:#ccdfdf}
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="1"]{
-  --paper:#0e1c22; --paper-deep:#0a151a; --surface:#13252d; --surface-2:#182f38}
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="2"]{
-  --paper:#0f1f26; --paper-deep:#0b181d; --surface:#142830; --surface-2:#1a323b}
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="3"],
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="4"],
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="5"],
-:root[data-skin="qianhang"][data-theme="dark"][data-depth="6"]{
-  --paper:#10222a; --paper-deep:#0c1a20; --surface:#152b33; --surface-2:#1b3540}
+:root[data-skin="noir"]{
+  --serif:"Cormorant Garamond","LXGW WenKai","Songti SC","Noto Serif CJK SC",Georgia,serif;
+  --caps:"Cinzel","Cormorant Garamond",serif;
+  --sans:"Inter","Noto Sans CJK SC","PingFang SC",system-ui,sans-serif;
+}
 
-/* —— 左缘深度标尺:刻度带 + 当前深度橙标(attr 取数,纯 CSS 定位) —— */
-html[data-skin="qianhang"] body::before{content:"";position:fixed;left:0;top:0;bottom:0;width:16px;
-  z-index:60;pointer-events:none;
-  background:
-    linear-gradient(var(--hairline),var(--hairline)) left 8px top 64px/1px calc(100% - 64px) no-repeat,
-    repeating-linear-gradient(to bottom, transparent 0 55px, var(--hairline) 55px 56px);
-  background-position:left 8px top 64px, left 0 top 64px;
-  opacity:.9}
-html[data-skin="qianhang"] body::after{content:var(--depth-label,"0m");
-  position:fixed;left:0;top:64px;z-index:61;pointer-events:none;
-  width:16px;padding:3px 0;text-align:center;
-  font:600 8.5px/1.2 "Noto Sans Mono CJK SC",ui-monospace,monospace;color:#f4f9f8;
-  background:var(--accent);letter-spacing:.02em}
-html[data-skin="qianhang"][data-theme="dark"] body::after{color:#0d1a1f}
-html[data-skin="qianhang"][data-depth="1"] body::after{--d:1;top:calc(64px + 0px)}
-html[data-skin="qianhang"][data-depth="2"] body::after{top:calc(64px + 56px)}
-html[data-skin="qianhang"][data-depth="3"] body::after{top:calc(64px + 112px)}
-html[data-skin="qianhang"][data-depth="4"] body::after{top:calc(64px + 168px)}
-html[data-skin="qianhang"][data-depth="5"] body::after{top:calc(64px + 224px)}
-html[data-skin="qianhang"][data-depth="6"] body::after{top:calc(64px + 280px)}
-html[data-skin="qianhang"] body{--depth-label:"0m"}
-html[data-skin="qianhang"][data-depth="1"] body{--depth-label:"5m"}
-html[data-skin="qianhang"][data-depth="2"] body{--depth-label:"20m"}
-html[data-skin="qianhang"][data-depth="3"] body{--depth-label:"50m"}
-html[data-skin="qianhang"][data-depth="4"] body{--depth-label:"100m"}
-html[data-skin="qianhang"][data-depth="5"] body{--depth-label:"200m"}
-html[data-skin="qianhang"][data-depth="6"] body{--depth-label:"400m"}
-/* 标尺占掉 16px,给 #stage 让位(仅潜航) */
-html[data-skin="qianhang"] #stage{padding-left:24px}
+/* 氛围层:顶部一束金晕(照抄 spec),钉在视口 */
+html[data-skin="noir"] body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(1000px 500px at 50% -10%,rgba(201,168,106,.10),transparent 70%)}
+html[data-skin="noir"] #stage,html[data-skin="noir"] header,html[data-skin="noir"] #crumbbar{position:relative;z-index:1}
 
-/* —— 窗格:无框,水位线示意;分栏线是锚缆 —— */
-.mainpane,.lists,.preview{border:none}
-.lists{border-top:1px solid var(--accent-line);box-shadow:inset 0 2px 0 -1px var(--accent-wash)}
-.preview{border-top:1px solid var(--hairline)}
-.mainpane{border-top:1px solid var(--hairline)}
-.splitter::before{background:repeating-linear-gradient(to bottom,var(--ink-3) 0 6px,transparent 6px 12px);width:1px;left:3px;top:0;bottom:0}
-.splitter:hover::before{background:var(--accent);width:2px;left:2.5px}
-.lists .lhead,.preview .phead{letter-spacing:.18em;color:var(--ink-3);border-bottom:none;padding:9px 14px 6px}
-/* —— 寻路:返回=浮标,主钮=旗色,选中词=旗底 —— */
-#backBtn{color:var(--accent);font-weight:600}
-#backBtn:not(:disabled):hover{background:var(--accent-wash)}
-.inputrow button{background:var(--accent);border-color:var(--accent);color:#f4f9f8;letter-spacing:.08em}
-.inputrow button:hover{background:var(--ink);border-color:var(--ink)}
-.inputrow input:focus{outline:none;border-bottom:2px solid var(--accent)}
-.inputrow input{background:transparent;border:none;border-bottom:1px solid var(--hairline);padding:0 8px}
-.litem.sel{border-left:3px solid var(--accent);background:var(--accent-wash)}
-.litem .k{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-mark.hl{background:var(--select);border-bottom:2px solid var(--accent)}
-.msg .who{letter-spacing:.16em}
+/* 报头:分层入场一次(0.5/0.8/1.1s,1.6s 总长),字距拉开的衬线刊名 */
+header{background:transparent;border-bottom:1px solid var(--rule);padding:13px 22px;animation:noir-in 1.6s ease-out both}
+header .title{font-family:var(--serif);font-weight:500;font-size:21px;letter-spacing:.06em;color:var(--ink)}
+header .title::first-letter{color:var(--accent)}
+header .sub{font-family:var(--caps);letter-spacing:.3em;text-transform:uppercase;font-size:9.5px;color:var(--ink-3);animation:noir-in 1.6s .3s ease-out both}
+header button{font-family:var(--caps);letter-spacing:.22em;text-transform:uppercase;font-size:10.5px;color:var(--ink-2);animation:noir-in 1.6s .45s ease-out both}
+header #authBtn{border:1px solid var(--edge);padding:5px 14px}
+header #authBtn:hover{border-color:var(--accent);color:var(--gold-hi);background:none}
+@keyframes noir-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){header,header .sub,header button{animation:none!important}}
+
+/* 题条:Cinzel 眉标语法;当前词金 */
+#crumbbar{background:transparent;border-bottom:1px solid var(--hairline);animation:noir-in 1.6s .6s ease-out both}
+#crumbs{font-family:var(--caps);letter-spacing:.24em;text-transform:uppercase;font-size:10px;color:var(--ink-3)}
+#crumbs .cr.cur{color:var(--gold-hi)}
+#crumbbar button{font-family:var(--caps);letter-spacing:.2em;text-transform:uppercase;font-size:10px}
+.qbadge{font-family:var(--caps);letter-spacing:.18em;font-size:10px;border-color:var(--edge)}
+
+/* 三联屏:透明面板 + 白 6% 界线;留白是奢侈品,别省 */
+.mainpane,.lists,.preview{border:none;background:transparent}
+.mainpane{border-top:1px solid var(--rule)}
+.lists{border-top:1px solid var(--rule)}
+.preview{border-top:1px solid var(--rule)}
+#stage{padding:16px}
+.room{gap:16px}
+.splitter::before{width:1px;background:linear-gradient(to bottom,transparent,var(--accent-line),transparent)}
+.splitter:hover::before{background:var(--accent)}
+
+/* 页眉:小型大写眉标 + 竖金线收尾 */
+.lists .lhead,.preview .phead{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em;
+  font-size:9.5px;color:var(--ink-3);border-bottom:1px solid var(--hairline);padding:10px 14px}
+.preview .phead button.mini{font-family:var(--caps);letter-spacing:.14em;font-size:10.5px;color:var(--accent)}
+
+/* 列表:金线划界,当前项金字金发线 */
+.litem{border-left:none;padding:12px 14px}
+.litem+.litem{border-top:1px solid var(--hairline)}
+.litem:hover{background:rgba(201,168,106,.05)}
+.litem .lt{font-family:var(--serif);font-weight:500;font-size:16.5px;letter-spacing:.02em}
+.litem .lm{font-family:var(--caps);text-transform:uppercase;letter-spacing:.14em;font-size:9.5px}
+.litem .k{background:none;border:1px solid var(--edge);color:var(--ink-2);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.12em;padding:1px 6px}
+.litem.sel{border-left:2px solid var(--accent);padding-left:12px;background:transparent}
+.litem.sel .lt{color:var(--gold-hi)}
+
+/* 正文:Inter 300 暖白 15.5/1.8;词头衬线抬高 */
+.content .ctext{padding:26px 32px}
+.content .ctext.serif{font-family:var(--serif);font-size:17.5px;line-height:1.85}
+.msg .txt{font-family:var(--serif);font-size:17.5px;line-height:1.85;max-width:34em;font-weight:500}
+.msg .txt,.expbody{color:var(--ink)}
+.expbody{font-family:var(--serif);font-size:16.5px;line-height:1.85;max-width:34em;font-weight:500}
+.msg .who{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em;font-size:9.5px;color:var(--ink-3)}
 .msg.user .who{color:var(--accent)}
-#toast{letter-spacing:.04em}
-.blank .kicker::before{background:var(--accent)}
+/* 追问 = 引言:斜体衬线,金重点 */
+.qa{border-left:none;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);
+    padding:14px 0;margin-top:18px;max-width:30em}
+.qa .q{font-family:var(--serif);font-style:italic;font-size:16.5px;color:var(--gold-hi)}
+.qa .q::before{content:"✦ ";color:var(--accent);font-style:normal;font-size:13px}
+.qa .a{font-family:var(--sans);font-weight:300;font-size:14.5px;color:var(--ink-2);margin-top:6px}
+
+/* 输入:1px 金线框,hover 填金反黑,字距 .24em→.3em */
+.inputrow{border-top:1px solid var(--hairline);background:transparent;padding:14px 18px}
+.inputrow input{background:transparent;border:1px solid var(--edge);color:var(--ink);font-family:var(--sans);font-weight:300}
+.inputrow input:focus{outline:none;border-color:var(--accent)}
+.inputrow button{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.24em;font-weight:400;transition:all .35s}
+.inputrow button:hover{background:var(--accent);color:#0a0a0b;letter-spacing:.3em}
+:root[data-theme="light"] .inputrow button:hover{color:#f4f1e9}
+
+/* 弹层:1px 金线框 */
+#bubble,.icard,.acard,#coach{background:var(--surface);border:1px solid var(--edge);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+:root[data-theme="light"] #bubble,:root[data-theme="light"] .icard,
+:root[data-theme="light"] .acard,:root[data-theme="light"] #coach{box-shadow:0 20px 60px rgba(26,24,21,.15)}
+#bubble .bterm{font-family:var(--serif);font-style:italic;font-size:14.5px}
+#bubble button{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.2em;font-size:11px}
+#bubble button:hover{background:var(--accent);color:#0a0a0b}
+.acard .primary,.srow .primary{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.24em;font-weight:400}
+.acard .primary:hover,.srow .primary:hover{background:var(--accent);color:#0a0a0b}
+.icard h1{font-family:var(--serif);font-weight:400;font-size:40px;letter-spacing:.04em}
+.icard .slogan{font-family:var(--serif);font-style:italic;color:var(--gold-hi)}
+.blank h2{font-family:var(--serif);font-weight:400;letter-spacing:.01em;font-size:clamp(30px,3.4vw,44px)}
+.blank .lede{font-family:var(--sans);font-weight:300}
+.blank .kicker{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em}
+.blank .kicker::before{background:var(--accent);width:30px}
+mark.hl{background:var(--select);border-bottom:1px solid var(--accent)}
+#toast{font-family:var(--caps);letter-spacing:.2em;text-transform:uppercase;font-size:11px;
+  background:var(--surface);color:var(--gold-hi);border:1px solid var(--edge)}
+:root[data-theme="light"] #toast{color:#f4f1e9;background:#1a1815;border-color:#1a1815}

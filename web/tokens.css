@@ -239,160 +239,127 @@ html body{
    ===================================================================================== */
 
 /* =====================================================================================
-   视觉方案候选层 · 第二轮(三选一评审,定稿后整块删除)
+   视觉方案候选层 · 第四轮(来源:design-picks.md 用户亲选 × design-library spec)
    -------------------------------------------------------------------------------------
-   用法:<html data-skin="pingzhu|qianhang|lanshai">;不带 = 现行羊皮纸。
-   本层只放 token 色板与字体;组件形态在 /skins/*.css(按 data-skin 启用)。
-   暗色覆盖沿用「媒体查询 + 属性」双块契约,置于文件末尾以胜出。
+   swiss  = styles/swiss-grid.md(瑞士国际主义,亮即主张;暗=整页反相)
+   noir   = styles/luxury-noir.md(黑金奢华,暗为原色;亮=暖金白变体)
+   docs   = styles/docs-minimal.md(文档站极简,白底灰阶蓝点睛)
+   token 色板照抄 spec;组件规则在 /skins/{jia,yi,bing}.css。
    ===================================================================================== */
 
-/* ——— 一「朱批」:瓷青灰纸 + 墨青字 + 批语朱 ——
-   评点本:陪读者在你卡住的词旁落一条楷体批语;朱色只属于批语,不碰按钮与框线。 */
-[data-skin="pingzhu"]{
-  --paper:#e4e8e1; --paper-deep:#dbe1d9; --surface:#edf0e9; --surface-2:#e0e6dd;
-  --ink:#24313c; --ink-2:#4d5c66; --ink-3:#66767f;
-  --rule:#24313c; --hairline:#c6cfc6;
-  --accent:#b23a25; --accent-wash:rgba(178,58,37,.07); --accent-line:rgba(178,58,37,.40);
-  --select:rgba(178,58,37,.14);
-  --ok:#3a6b52; --warn:#8a6a1a; --err:#a03425;
-  --slab-bg:#22312b; --slab-fg:#e6ebe2; --slab-line:rgba(230,235,226,.16);
-  --scrim:rgba(36,49,60,.55); --float:0 6px 18px rgba(36,49,60,.16);
-  --noise:rgba(60,75,70,.04); --edge:rgba(36,49,60,.28); --edge-hot:rgba(178,58,37,.85);
-  --kai:"LXGW WenKai","Kaiti SC","STKaiti","KaiTi","Noto Sans CJK SC",serif;
-  --paper-tex:
-    radial-gradient(circle, rgba(60,80,72,.020) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(110,135,120,.038), rgba(110,135,120,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,120,130,.030), rgba(90,120,130,0) 100%),
-    radial-gradient(78vw 62vw at 22% 112%, rgba(100,120,105,.034), rgba(100,120,105,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto,auto;
+/* ——— 瑞士国际主义:白底黑字一点红 —— */
+[data-skin="swiss"]{
+  --paper:#ffffff; --paper-deep:#f7f7f7; --surface:#ffffff; --surface-2:#f2f2f2;
+  --ink:#111111; --ink-2:#666666; --ink-3:#8a8a8a;
+  --rule:#111111; --hairline:#e3e3e3;
+  --accent:#e30613; --accent-wash:rgba(227,6,19,.05); --accent-line:rgba(227,6,19,.55);
+  --select:rgba(227,6,19,.10);
+  --ok:#1a7f37; --warn:#b25e00; --err:#c22a1e;
+  --slab-bg:#111111; --slab-fg:#ffffff; --slab-line:#111111;
+  --scrim:rgba(17,17,17,.5); --float:0 8px 24px rgba(17,17,17,.14);
+  --noise:transparent; --edge:rgba(17,17,17,.35); --edge-hot:#e30613;
+  --paper-tex:none; --paper-tex-size:auto;
 }
-[data-skin="pingzhu"][data-theme="dark"]{
-  --paper:#16212b; --paper-deep:#121a23; --surface:#1b2733; --surface-2:#223040;
-  --ink:#d9e2ea; --ink-2:#9fb0be; --ink-3:#7d90a0;
-  --rule:#d9e2ea; --hairline:#2c3d4d;
-  --accent:#d96a52; --accent-wash:rgba(217,106,82,.12); --accent-line:rgba(217,106,82,.48);
-  --select:rgba(217,106,82,.20);
-  --ok:#6fae94; --warn:#d0a95c; --err:#d97a68;
-  --slab-bg:#0f1720; --slab-fg:#d9e2ea; --slab-line:rgba(217,226,234,.15);
-  --scrim:rgba(8,13,18,.62); --float:0 6px 18px rgba(0,0,0,.5);
-  --noise:rgba(217,226,234,.03); --edge:rgba(217,226,234,.28); --edge-hot:rgba(217,106,82,.9);
-  --paper-tex:
-    radial-gradient(circle, rgba(217,226,234,.015) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(70,100,125,.042), rgba(70,100,125,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,80,70,.028), rgba(90,80,70,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto;
+[data-skin="swiss"][data-theme="dark"]{
+  --paper:#111111; --paper-deep:#0c0c0c; --surface:#161616; --surface-2:#1d1d1d;
+  --ink:#f2f2f2; --ink-2:#a3a3a3; --ink-3:#7a7a7a;
+  --rule:#f2f2f2; --hairline:#2c2c2c;
+  --accent:#e30613; --accent-wash:rgba(227,6,19,.10); --accent-line:rgba(227,6,19,.6);
+  --select:rgba(227,6,19,.18);
+  --ok:#4a9e63; --warn:#d08a2e; --err:#e04a3a;
+  --slab-bg:#f2f2f2; --slab-fg:#111111; --slab-line:#f2f2f2;
+  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
+  --noise:transparent; --edge:rgba(242,242,242,.4); --edge-hot:#e30613;
 }
 @media (prefers-color-scheme: dark){
-  [data-skin="pingzhu"]:not([data-theme="light"]){
-  --paper:#16212b; --paper-deep:#121a23; --surface:#1b2733; --surface-2:#223040;
-  --ink:#d9e2ea; --ink-2:#9fb0be; --ink-3:#7d90a0;
-  --rule:#d9e2ea; --hairline:#2c3d4d;
-  --accent:#d96a52; --accent-wash:rgba(217,106,82,.12); --accent-line:rgba(217,106,82,.48);
-  --select:rgba(217,106,82,.20);
-  --ok:#6fae94; --warn:#d0a95c; --err:#d97a68;
-  --slab-bg:#0f1720; --slab-fg:#d9e2ea; --slab-line:rgba(217,226,234,.15);
-  --scrim:rgba(8,13,18,.62); --float:0 6px 18px rgba(0,0,0,.5);
-  --noise:rgba(217,226,234,.03); --edge:rgba(217,226,234,.28); --edge-hot:rgba(217,106,82,.9);
-  --paper-tex:
-    radial-gradient(circle, rgba(217,226,234,.015) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(70,100,125,.042), rgba(70,100,125,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(90,80,70,.028), rgba(90,80,70,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto;
+  [data-skin="swiss"]:not([data-theme="light"]){
+  --paper:#111111; --paper-deep:#0c0c0c; --surface:#161616; --surface-2:#1d1d1d;
+  --ink:#f2f2f2; --ink-2:#a3a3a3; --ink-3:#7a7a7a;
+  --rule:#f2f2f2; --hairline:#2c2c2c;
+  --accent:#e30613; --accent-wash:rgba(227,6,19,.10); --accent-line:rgba(227,6,19,.6);
+  --select:rgba(227,6,19,.18);
+  --ok:#4a9e63; --warn:#d08a2e; --err:#e04a3a;
+  --slab-bg:#f2f2f2; --slab-fg:#111111; --slab-line:#f2f2f2;
+  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
+  --noise:transparent; --edge:rgba(242,242,242,.4); --edge-hot:#e30613;
   }
 }
 
-/* ——— 二「潜航」:青白水面纸 + 深青墨 + 浮标橙(只作寻路) ———
-   递归=下潜。层级越深,整场水色越沉;左缘标尺读深度(组件层实现)。
-   橙是潜水旗色,只给:返回、当前深度、主钮、选中词。 */
-[data-skin="qianhang"]{
-  --paper:#edf3f2; --paper-deep:#e1ecea; --surface:#f4f9f8; --surface-2:#e5efed;
-  --ink:#14333a; --ink-2:#3f5f66; --ink-3:#5f7f86;
-  --rule:#14333a; --hairline:#c9dcd9;
-  --accent:#e0662e; --accent-wash:rgba(224,102,46,.10); --accent-line:rgba(224,102,46,.42);
-  --select:rgba(224,102,46,.15);
-  --ok:#2e6b5e; --warn:#8a6a1a; --err:#b03a2a;
-  --slab-bg:#10262c; --slab-fg:#e2efee; --slab-line:rgba(226,239,238,.16);
-  --scrim:rgba(20,51,58,.55); --float:0 6px 18px rgba(20,51,58,.16);
-  --noise:rgba(50,90,95,.04); --edge:rgba(20,51,58,.28); --edge-hot:rgba(224,102,46,.9);
-  --paper-tex:
-    radial-gradient(circle, rgba(60,100,100,.020) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(120,165,160,.042), rgba(120,165,160,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(150,185,180,.032), rgba(150,185,180,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto;
+/* ——— 黑金奢华:黑底金线,让视线慢下来(暗为原色;亮=暖金白变体) —— */
+[data-skin="noir"]{
+  --paper:#0a0a0b; --paper-deep:#0d0d0f; --surface:#121214; --surface-2:#17171a;
+  --ink:#eae6dd; --ink-2:#9b968a; --ink-3:#6a6558;
+  --rule:rgba(234,230,221,.16); --hairline:rgba(234,230,221,.09);
+  --accent:#c9a86a; --accent-wash:rgba(201,168,106,.09); --accent-line:rgba(201,168,106,.42);
+  --select:rgba(201,168,106,.17);
+  --ok:#7fa08a; --warn:#c9a86a; --err:#c9705f;
+  --slab-bg:#111113; --slab-fg:#d6d1c4; --slab-line:rgba(201,168,106,.22);
+  --scrim:rgba(0,0,0,.66); --float:0 10px 30px rgba(0,0,0,.6);
+  --noise:transparent; --edge:rgba(201,168,106,.30); --edge-hot:rgba(201,168,106,.85);
+  --gold-hi:#e8d3a2;
+  --paper-tex:none; --paper-tex-size:auto;
 }
-[data-skin="qianhang"][data-theme="dark"]{
-  --paper:#0d1a1f; --paper-deep:#091215; --surface:#12222a; --surface-2:#172c34;
-  --ink:#d9e8e8; --ink-2:#9db8ba; --ink-3:#7a9698;
-  --rule:#d9e8e8; --hairline:#223a42;
-  --accent:#f07a3d; --accent-wash:rgba(240,122,61,.12); --accent-line:rgba(240,122,61,.5);
-  --select:rgba(240,122,61,.20);
-  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
-  --slab-bg:#081114; --slab-fg:#d9e8e8; --slab-line:rgba(217,232,232,.15);
-  --scrim:rgba(4,10,12,.64); --float:0 6px 18px rgba(0,0,0,.55);
-  --noise:rgba(217,232,232,.03); --edge:rgba(217,232,232,.26); --edge-hot:rgba(240,122,61,.95);
-  --paper-tex:
-    radial-gradient(circle, rgba(217,232,232,.014) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(50,95,105,.05), rgba(50,95,105,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(40,75,85,.04), rgba(40,75,85,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto;
+[data-skin="noir"][data-theme="light"]{
+  --paper:#f4f1e9; --paper-deep:#ede9de; --surface:#faf8f1; --surface-2:#eae5d7;
+  --ink:#1a1815; --ink-2:#57503f; --ink-3:#847b64;
+  --rule:rgba(26,24,21,.2); --hairline:rgba(26,24,21,.1);
+  --accent:#a07d3f; --accent-wash:rgba(160,125,63,.08); --accent-line:rgba(160,125,63,.45);
+  --select:rgba(160,125,63,.15);
+  --ok:#5f7f62; --warn:#8a6f2e; --err:#a04a3a;
+  --slab-bg:#1a1815; --slab-fg:#eae6dd; --slab-line:rgba(160,125,63,.3);
+  --scrim:rgba(26,24,21,.5); --float:0 10px 30px rgba(26,24,21,.18);
+  --noise:transparent; --edge:rgba(160,125,63,.4); --edge-hot:rgba(160,125,63,.9);
+  --gold-hi:#7a5f2a;
 }
-@media (prefers-color-scheme: dark){
-  [data-skin="qianhang"]:not([data-theme="light"]){
-  --paper:#0d1a1f; --paper-deep:#091215; --surface:#12222a; --surface-2:#172c34;
-  --ink:#d9e8e8; --ink-2:#9db8ba; --ink-3:#7a9698;
-  --rule:#d9e8e8; --hairline:#223a42;
-  --accent:#f07a3d; --accent-wash:rgba(240,122,61,.12); --accent-line:rgba(240,122,61,.5);
-  --select:rgba(240,122,61,.20);
-  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
-  --slab-bg:#081114; --slab-fg:#d9e8e8; --slab-line:rgba(217,232,232,.15);
-  --scrim:rgba(4,10,12,.64); --float:0 6px 18px rgba(0,0,0,.55);
-  --noise:rgba(217,232,232,.03); --edge:rgba(217,232,232,.26); --edge-hot:rgba(240,122,61,.95);
-  --paper-tex:
-    radial-gradient(circle, rgba(217,232,232,.014) .6px, transparent 1.4px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(50,95,105,.05), rgba(50,95,105,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(40,75,85,.04), rgba(40,75,85,0) 100%);
-  --paper-tex-size:3px 3px,auto,auto;
+@media (prefers-color-scheme: light){
+  [data-skin="noir"]:not([data-theme="dark"]){
+  --paper:#f4f1e9; --paper-deep:#ede9de; --surface:#faf8f1; --surface-2:#eae5d7;
+  --ink:#1a1815; --ink-2:#57503f; --ink-3:#847b64;
+  --rule:rgba(26,24,21,.2); --hairline:rgba(26,24,21,.1);
+  --accent:#a07d3f; --accent-wash:rgba(160,125,63,.08); --accent-line:rgba(160,125,63,.45);
+  --select:rgba(160,125,63,.15);
+  --ok:#5f7f62; --warn:#8a6f2e; --err:#a04a3a;
+  --slab-bg:#1a1815; --slab-fg:#eae6dd; --slab-line:rgba(160,125,63,.3);
+  --scrim:rgba(26,24,21,.5); --float:0 10px 30px rgba(26,24,21,.18);
+  --noise:transparent; --edge:rgba(160,125,63,.4); --edge-hot:rgba(160,125,63,.9);
+  --gold-hi:#7a5f2a;
   }
 }
 
-/* ——— 三「蓝晒」:普鲁士蓝晒图 + 晒图白线稿 + 红铅笔校对(亮色=褪色晒图纸) ———
-   把一个词的构造摊开 = 晒一张图。图线分级(粗实线/细实线/点画线)在组件层。 */
-[data-skin="lanshai"]{
-  --paper:#dfe9ef; --paper-deep:#d3e1e9; --surface:#e9f1f6; --surface-2:#d6e3ec;
-  --ink:#1d3a52; --ink-2:#3d5a74; --ink-3:#587690;
-  --rule:#1d3a52; --hairline:#b5c9d6;
-  --accent:#c74a3c; --accent-wash:rgba(199,74,60,.08); --accent-line:rgba(199,74,60,.42);
-  --select:rgba(199,74,60,.14);
-  --ok:#2e6b5e; --warn:#8a6a1a; --err:#b03a2a;
-  --slab-bg:#1d3a52; --slab-fg:#dfeef8; --slab-line:rgba(223,238,248,.2);
-  --scrim:rgba(29,58,82,.55); --float:0 6px 18px rgba(29,58,82,.18);
-  --noise:rgba(60,90,115,.05); --edge:rgba(29,58,82,.32); --edge-hot:rgba(199,74,60,.85);
-  --kai:"LXGW WenKai","Kaiti SC","STKaiti","KaiTi","Noto Sans CJK SC",serif;
+/* ——— 文档站极简:白底灰阶,蓝只给链接与当前态 —— */
+[data-skin="docs"]{
+  --paper:#ffffff; --paper-deep:#fafafb; --surface:#ffffff; --surface-2:#f6f7f9;
+  --ink:#18191a; --ink-2:#5c5f66; --ink-3:#8b8e96;
+  --rule:#e6e7eb; --hairline:#e6e7eb;
+  --accent:#2f6feb; --accent-wash:rgba(47,111,235,.07); --accent-line:rgba(47,111,235,.45);
+  --select:rgba(47,111,235,.12);
+  --ok:#1a7f37; --warn:#8a6a1a; --err:#c22a1e;
+  --slab-bg:#f6f7f9; --slab-fg:#24262b; --slab-line:#e6e7eb;
+  --scrim:rgba(24,25,26,.45); --float:0 8px 24px rgba(24,25,26,.12);
+  --noise:transparent; --edge:#d5d7dc; --edge-hot:#2f6feb;
   --paper-tex:none; --paper-tex-size:auto;
 }
-[data-skin="lanshai"][data-theme="dark"]{
-  --paper:#102a40; --paper-deep:#0c2233; --surface:#16334d; --surface-2:#1b3c59;
-  --ink:#d8eaf6; --ink-2:#9cbcd4; --ink-3:#7799b4;
-  --rule:#d8eaf6; --hairline:#2c4d6e;
-  --accent:#e05a4a; --accent-wash:rgba(224,90,74,.13); --accent-line:rgba(224,90,74,.5);
-  --select:rgba(224,90,74,.20);
-  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
-  --slab-bg:#0b1f30; --slab-fg:#d8eaf6; --slab-line:rgba(216,234,246,.16);
-  --scrim:rgba(5,15,24,.64); --float:0 6px 18px rgba(0,0,0,.5);
-  --noise:rgba(216,234,246,.03); --edge:rgba(216,234,246,.3); --edge-hot:rgba(224,90,74,.9);
-  --paper-tex:none; --paper-tex-size:auto;
+[data-skin="docs"][data-theme="dark"]{
+  --paper:#0f1011; --paper-deep:#141519; --surface:#131417; --surface-2:#1a1c1f;
+  --ink:#e8e9eb; --ink-2:#a0a3ab; --ink-3:#6b6e76;
+  --rule:#26282c; --hairline:#26282c;
+  --accent:#6ea3f5; --accent-wash:rgba(110,163,245,.10); --accent-line:rgba(110,163,245,.45);
+  --select:rgba(110,163,245,.16);
+  --ok:#4a9e63; --warn:#c9a35c; --err:#e0685c;
+  --slab-bg:#1a1c1f; --slab-fg:#e8e9eb; --slab-line:#26282c;
+  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
+  --noise:transparent; --edge:#33363c; --edge-hot:#6ea3f5;
 }
 @media (prefers-color-scheme: dark){
-  [data-skin="lanshai"]:not([data-theme="light"]){
-  --paper:#102a40; --paper-deep:#0c2233; --surface:#16334d; --surface-2:#1b3c59;
-  --ink:#d8eaf6; --ink-2:#9cbcd4; --ink-3:#7799b4;
-  --rule:#d8eaf6; --hairline:#2c4d6e;
-  --accent:#e05a4a; --accent-wash:rgba(224,90,74,.13); --accent-line:rgba(224,90,74,.5);
-  --select:rgba(224,90,74,.20);
-  --ok:#5fae95; --warn:#d0a95c; --err:#e07a64;
-  --slab-bg:#0b1f30; --slab-fg:#d8eaf6; --slab-line:rgba(216,234,246,.16);
-  --scrim:rgba(5,15,24,.64); --float:0 6px 18px rgba(0,0,0,.5);
-  --noise:rgba(216,234,246,.03); --edge:rgba(216,234,246,.3); --edge-hot:rgba(224,90,74,.9);
-  --paper-tex:none; --paper-tex-size:auto;
+  [data-skin="docs"]:not([data-theme="light"]){
+  --paper:#0f1011; --paper-deep:#141519; --surface:#131417; --surface-2:#1a1c1f;
+  --ink:#e8e9eb; --ink-2:#a0a3ab; --ink-3:#6b6e76;
+  --rule:#26282c; --hairline:#26282c;
+  --accent:#6ea3f5; --accent-wash:rgba(110,163,245,.10); --accent-line:rgba(110,163,245,.45);
+  --select:rgba(110,163,245,.16);
+  --ok:#4a9e63; --warn:#c9a35c; --err:#e0685c;
+  --slab-bg:#1a1c1f; --slab-fg:#e8e9eb; --slab-line:#26282c;
+  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
+  --noise:transparent; --edge:#33363c; --edge-hot:#6ea3f5;
   }
 }

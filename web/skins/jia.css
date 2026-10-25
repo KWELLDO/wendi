@@ -1,65 +1,85 @@
-/* 问底 · 方案一「朱批」——评点本(组件层,评审用)
-   题材:陪读者在你卡住的词旁落一条批语。楷体批语、着重号点在当前词下,
-   朱色只属于批语与选中,不碰框线与按钮填充。界栏用双细线(线装书界行)。 */
+/* 问底 · 方案「瑞士」——swiss-grid spec 应用壳(评审用)
+   白底黑字一点红:12 栅格精神、极端字号差、等宽元数据;红<2%,只给入口。
+   禁忌执行:无圆角/无阴影/无渐变/无色块分区;标题永不居中;除行反白零动效。 */
+@import url("/vendor/fonts/inter/400.css");
+@import url("/vendor/fonts/inter/500.css");
+@import url("/vendor/fonts/inter/600.css");
+@import url("/vendor/fonts/inter/700.css");
+@import url("/vendor/fonts/inter/800.css");
+@import url("/vendor/fonts/ibm-plex-mono/400.css");
+@import url("/vendor/fonts/ibm-plex-mono/500.css");
 
-/* 批语的手:追问/答疑块整体转楷体,「批 ·」起首 */
-.qa{border-left:none;padding:14px 0 2px 0;margin-top:16px;position:relative}
-.qa::before{content:"";position:absolute;left:-8px;top:14px;bottom:2px;width:2px;background:var(--accent-line)}
-.qa .q{font-family:var(--kai);font-size:15.5px}
-.qa .q::before{content:"批 · ";color:var(--accent)}
-.qa .a{font-family:var(--kai);font-size:14.5px;color:var(--ink-2)}
+:root[data-skin="swiss"]{
+  --serif:"Inter","Helvetica Neue",Helvetica,"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif;
+  --sans:"Inter","Helvetica Neue",Helvetica,"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
 
-/* 当前词:着重号(text-emphasis)——评点本的原生强调 */
-.litem .lt,.litem.sel .lt{font-family:var(--kai)}
-.litem.sel .lt{text-emphasis:filled circle var(--accent);text-emphasis-position:under right;
-  -webkit-text-emphasis:filled circle var(--accent);-webkit-text-emphasis-position:under under}
-#crumbs .cr.cur{text-emphasis:filled circle var(--accent);text-emphasis-position:under right;
-  -webkit-text-emphasis:filled circle var(--accent);-webkit-text-emphasis-position:under under;padding-bottom:3px}
-.litem.sel{border-left-color:transparent}
+/* 报头:3px 黑界;刊名 800 负字距;副题转等宽大写灰 */
+header{border-bottom:3px solid var(--rule);padding:10px 20px}
+header .title{font-weight:800;font-size:17px;letter-spacing:-.02em}
+header .sub{font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;font-size:10px;color:var(--ink-3)}
+header button{font-family:var(--sans)}
+#crumbbar{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--hairline)}
+#crumbs .cr.cur{color:var(--accent);font-weight:500}
+#crumbs .sep{color:var(--ink-3)}
 
-/* 划词落点:词头拓了个朱印底 */
-mark.hl{background:var(--accent-wash);border-bottom:none;text-emphasis:filled circle var(--accent-line);
-  text-emphasis-position:under right;-webkit-text-emphasis:filled circle var(--accent-line);
-  -webkit-text-emphasis-position:under under}
+/* 三联屏:三栏卡语法——无边框无阴影,只有 border-top:3px 黑线 */
+.mainpane,.lists,.preview{border:none;border-top:3px solid var(--ink);background:transparent}
+.lists{background:transparent}
+.preview{background:transparent}
+#stage{padding:12px}
+.splitter::before{background:var(--hairline)}
+.splitter:hover::before{background:var(--accent)}
 
-/* 界行:双细线替代发丝线;窗格退成纸面,不画盒子 */
-header,#crumbbar{border-bottom-style:double;border-bottom-width:3px}
-header{padding:12px 20px}
-header .title{font-family:var(--kai);font-size:20px;letter-spacing:.08em}
-.lists,.preview,.mainpane{border:none}
-.lists{border-top:1px solid var(--hairline);box-shadow:inset 0 3px 0 -2px var(--hairline)}
-.preview{border-top:1px solid var(--hairline)}
-.mainpane{border-top:3px double var(--rule)}
-.lists .lhead,.preview .phead{font-family:var(--kai);letter-spacing:.14em;font-size:11.5px;border-bottom:none;padding:9px 14px 6px}
-.lists .lbody{padding-top:0}
+/* 页眉行 = 章节标签条:等宽大写,编号红 */
+.lists .lhead,.preview .phead{font-family:var(--mono);text-transform:uppercase;letter-spacing:.16em;
+  font-size:10px;color:var(--ink-3);border-bottom:1px solid var(--hairline);padding:8px 12px}
+.lists .lhead::before{content:"— ";color:var(--accent)}
 
-/* 正文:阅读栏不变,消息署名转楷 */
-.msg .who{font-family:var(--kai);letter-spacing:.2em}
-.content .ctext{padding:24px 30px}
+/* 列表 = 索引行列表:grid 行,hover 整行反黑 + 内移(签名交互) */
+.litem{border-left:none;padding:10px 12px;transition:background .12s,padding-left .12s}
+.litem+.litem{border-top:1px solid var(--hairline)}
+.litem:hover{background:var(--ink);color:var(--paper);padding-left:22px}
+.litem:hover .lt{color:var(--paper)}
+.litem:hover .lm{color:var(--paper);opacity:.6}
+.litem:hover button.mini{color:var(--paper)}
+.litem .lt{font-weight:600;font-size:14px;letter-spacing:-.01em}
+.litem .lm{font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+.litem .k{background:none;border:none;color:var(--accent);font-family:var(--mono);font-weight:500;
+  font-size:10.5px;letter-spacing:.1em;padding:0}
+.litem .k.l2,.litem .k.l3,.litem .k.l4{color:var(--ink-3);border:none}
+.litem.sel{border-left:3px solid var(--accent);padding-left:9px}
+.litem.sel .lt{color:var(--accent)}
 
-/* 按钮:墨青填充,悬停染批朱;输入底线式 */
-.inputrow{border-top:3px double var(--rule)}
-.inputrow button{letter-spacing:.1em}
+/* 正文:15.5px/1.5 Inter;页边距收紧 */
+.content .ctext{padding:22px 26px}
+.content .ctext.serif{font-family:var(--sans);font-size:15.5px;line-height:1.55}
+.msg .txt{font-family:var(--sans);font-size:15.5px;line-height:1.55;max-width:40em}
+.msg .who{font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;font-size:10px}
+.msg.user .who{color:var(--accent)}
+.expbody{font-family:var(--sans);font-size:15px;line-height:1.55;max-width:40em}
+.qa{border-left:none;border-top:1px solid var(--hairline);padding-top:10px}
+.qa .q{font-weight:600}
+.qa .q::before{content:"→ ";color:var(--accent)}
+
+/* 输入:底线输入 + 墨块主钮(hover 红) */
+.inputrow{border-top:1px solid var(--hairline);background:var(--paper)}
+.inputrow input{border:1px solid var(--hairline);border-radius:0;font-family:var(--sans)}
+.inputrow input:focus{outline:none;border-color:var(--ink)}
+.inputrow button{border-radius:0;background:var(--ink);color:var(--paper);border-color:var(--ink);font-weight:600}
 .inputrow button:hover{background:var(--accent);border-color:var(--accent)}
-.inputrow input{background:transparent;border:none;border-bottom:1px solid var(--ink-3);padding:0 6px}
-.inputrow input:focus{outline:none;border-bottom:2px solid var(--accent)}
-#bubble input{border:none;border-bottom:1px solid var(--ink-3);background:transparent}
-#bubble{border:1px solid var(--rule)}
-#bubble .bterm{font-family:var(--kai)}
-#bubble button{background:var(--ink)}
-#bubble button:hover{background:var(--accent)}
-.acard,.icard{border:1px solid var(--rule);border-top:3px double var(--rule)}
-.icard h1{font-family:var(--kai);letter-spacing:.1em}
-.acard .primary{background:var(--ink)}
-.acard .primary:hover{background:var(--accent);border-color:var(--accent)}
 
-/* 空态:批注本扉页 */
-.blank h2,.blank .t,.blank-prev .t{font-family:var(--kai)}
-.blank .kicker::before{background:var(--accent)}
-.blank li .t{font-family:var(--kai);font-size:14.5px}
-
-/* 层级章:朱印小方章 */
-.litem .k{background:var(--accent);border-color:var(--accent);color:#e4e8e1}
-.litem .k.l2,.litem .k.l3,.litem .k.l4{background:transparent;color:var(--accent);border-color:var(--accent-line)}
-.qbadge{font-family:var(--kai)}
-#toast{font-family:var(--kai)}
+/* 浮层:方角,3px 顶线,零阴影(取 --float 关掉) */
+#bubble,.icard,.acard,#coach{border:1px solid var(--ink);border-top:3px solid var(--ink);box-shadow:none}
+.icard h1{font-weight:800;letter-spacing:-.03em;font-size:34px}
+.blank h2{font-weight:800;letter-spacing:-.04em;line-height:.98;text-transform:uppercase}
+.blank{font-family:var(--sans)}
+.blank .kicker{font-family:var(--mono);text-transform:uppercase;letter-spacing:.18em}
+.blank .kicker::before{width:18px;background:var(--accent)}
+button.primary,.acard .primary,.srow .primary{background:var(--ink);color:var(--paper);border-radius:0}
+button.primary:hover,.acard .primary:hover,.srow .primary:hover{background:var(--accent);border-color:var(--accent)}
+select,button{border-radius:0}
+mark.hl{background:var(--select);border-bottom:2px solid var(--accent)}
+#toast{font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+.qbadge{font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;font-size:10px}
