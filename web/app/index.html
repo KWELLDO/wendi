@@ -6,8 +6,6 @@
 <title>问底 WenDi · get to the bottom of it</title>
 <!-- 主题启动脚本：必须在任何 <link rel="stylesheet"> 之前，防首帧闪白/闪暗（契约见 site.css 顶部） -->
 <script>(function(){try{var t=localStorage.getItem("wendi-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();</script>
-<script>/* 视觉方案评审用(定稿后删):?skin=jia|yi|bing 或 localStorage["wendi-skin] */(function(){try{var s=new URLSearchParams(location.search).get("skin");if(!s){s=localStorage.getItem("wendi-skin");}if(s==="swiss"||s==="noir"||s==="docs"){document.documentElement.setAttribute("data-skin",s);}}catch(e){}})();
-</script>
 <link rel="stylesheet" href="/vendor/katex/katex.min.css">
 <script defer src="/vendor/katex/katex.min.js"></script>
 <link rel="stylesheet" href="/tokens.css">
@@ -15,6 +13,13 @@
 <link rel="stylesheet" href="/ui.css">
 <script src="/ui.js" defer></script>
 <style>
+@import url("/vendor/fonts/cormorant-garamond/400.css");
+@import url("/vendor/fonts/cormorant-garamond/500.css");
+@import url("/vendor/fonts/cormorant-garamond/400-italic.css");
+@import url("/vendor/fonts/cinzel/400.css");
+@import url("/vendor/fonts/inter/300.css");
+@import url("/vendor/fonts/inter/400.css");
+@import url("/vendor/fonts/inter/500.css");
   /* 设计 token（亮色 + --dk-* + 两个暗色映射块 + color-scheme）已抽到单源 /tokens.css，
      由上面的 <link> 引入；主题契约与 site.css 一致（见 web/site.css 顶部注释）：
      localStorage["wendi-theme"]="light"|"dark"，缺失/非法=跟随系统；
@@ -460,13 +465,126 @@
   @media (prefers-reduced-motion:reduce){
     *{animation:none !important;transition:none !important}
   }
+
+  /* ===================== 黑金(luxury-noir)应用壳 · 2026-10-25 定稿 =====================
+     来源 design-library/styles/luxury-noir.md;金<5%,正文永远暖白,动效预算两处。
+     字体分批 @import 在样式表顶部。 */
+@import url("/vendor/fonts/cormorant-garamond/500.css");
+@import url("/vendor/fonts/cinzel/400.css");
+@import url("/vendor/fonts/inter/400.css");
+/* 问底 · 方案「黑金」——luxury-noir spec 应用壳(评审用)
+   黑底、细金线、衬线大字与巨大留白;金 <5%,正文永远暖白。
+   动效预算两处:报头分层入场一次 + 金线呼吸;其余全静止。 */
+
+
+
+
+
+
+
+
+:root{
+  --serif:"Cormorant Garamond","LXGW WenKai","Songti SC","Noto Serif CJK SC",Georgia,serif;
+  --caps:"Cinzel","Cormorant Garamond",serif;
+  --sans:"Inter","Noto Sans CJK SC","PingFang SC",system-ui,sans-serif;
+}
+
+/* 氛围层:顶部一束金晕(照抄 spec),钉在视口 */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(1000px 500px at 50% -10%,rgba(201,168,106,.10),transparent 70%)}
+#stage,header,#crumbbar{position:relative;z-index:1}
+
+/* 报头:分层入场一次(0.5/0.8/1.1s,1.6s 总长),字距拉开的衬线刊名 */
+header{background:transparent;border-bottom:1px solid var(--rule);padding:13px 22px;animation:noir-in 1.6s ease-out both}
+header .title{font-family:var(--serif);font-weight:500;font-size:21px;letter-spacing:.06em;color:var(--ink)}
+header .title::first-letter{color:var(--accent)}
+header .sub{font-family:var(--caps);letter-spacing:.3em;text-transform:uppercase;font-size:9.5px;color:var(--ink-3);animation:noir-in 1.6s .3s ease-out both}
+header button{font-family:var(--caps);letter-spacing:.22em;text-transform:uppercase;font-size:10.5px;color:var(--ink-2);animation:noir-in 1.6s .45s ease-out both}
+header #authBtn{border:1px solid var(--edge);padding:5px 14px}
+header #authBtn:hover{border-color:var(--accent);color:var(--gold-hi);background:none}
+@keyframes noir-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){header,header .sub,header button{animation:none!important}}
+
+/* 题条:Cinzel 眉标语法;当前词金 */
+#crumbbar{background:transparent;border-bottom:1px solid var(--hairline);animation:noir-in 1.6s .6s ease-out both}
+#crumbs{font-family:var(--caps);letter-spacing:.24em;text-transform:uppercase;font-size:10px;color:var(--ink-3)}
+#crumbs .cr.cur{color:var(--gold-hi)}
+#crumbbar button{font-family:var(--caps);letter-spacing:.2em;text-transform:uppercase;font-size:10px}
+.qbadge{font-family:var(--caps);letter-spacing:.18em;font-size:10px;border-color:var(--edge)}
+
+/* 三联屏:透明面板 + 白 6% 界线;留白是奢侈品,别省 */
+.mainpane,.lists,.preview{border:none;background:transparent}
+.mainpane{border-top:1px solid var(--rule)}
+.lists{border-top:1px solid var(--rule)}
+.preview{border-top:1px solid var(--rule)}
+#stage{padding:16px}
+.room{gap:16px}
+.splitter::before{width:1px;background:linear-gradient(to bottom,transparent,var(--accent-line),transparent)}
+.splitter:hover::before{background:var(--accent)}
+
+/* 页眉:小型大写眉标 + 竖金线收尾 */
+.lists .lhead,.preview .phead{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em;
+  font-size:9.5px;color:var(--ink-3);border-bottom:1px solid var(--hairline);padding:10px 14px}
+.preview .phead button.mini{font-family:var(--caps);letter-spacing:.14em;font-size:10.5px;color:var(--accent)}
+
+/* 列表:金线划界,当前项金字金发线 */
+.litem{border-left:none;padding:12px 14px}
+.litem+.litem{border-top:1px solid var(--hairline)}
+.litem:hover{background:rgba(201,168,106,.05)}
+.litem .lt{font-family:var(--serif);font-weight:500;font-size:16.5px;letter-spacing:.02em}
+.litem .lm{font-family:var(--caps);text-transform:uppercase;letter-spacing:.14em;font-size:9.5px}
+.litem .k{background:none;border:1px solid var(--edge);color:var(--ink-2);font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.12em;padding:1px 6px}
+.litem.sel{border-left:2px solid var(--accent);padding-left:12px;background:transparent}
+.litem.sel .lt{color:var(--gold-hi)}
+
+/* 正文:Inter 300 暖白 15.5/1.8;词头衬线抬高 */
+.content .ctext{padding:26px 32px}
+.content .ctext.serif{font-family:var(--serif);font-size:17.5px;line-height:1.85}
+.msg .txt{font-family:var(--serif);font-size:17.5px;line-height:1.85;max-width:34em;font-weight:500}
+.msg .txt,.expbody{color:var(--ink)}
+.expbody{font-family:var(--serif);font-size:16.5px;line-height:1.85;max-width:34em;font-weight:500}
+.msg .who{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em;font-size:9.5px;color:var(--ink-3)}
+.msg.user .who{color:var(--accent)}
+/* 追问 = 引言:斜体衬线,金重点 */
+.qa{border-left:none;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);
+    padding:14px 0;margin-top:18px;max-width:30em}
+.qa .q{font-family:var(--serif);font-style:italic;font-size:16.5px;color:var(--gold-hi)}
+.qa .q::before{content:"✦ ";color:var(--accent);font-style:normal;font-size:13px}
+.qa .a{font-family:var(--sans);font-weight:300;font-size:14.5px;color:var(--ink-2);margin-top:6px}
+
+/* 输入:1px 金线框,hover 填金反黑,字距 .24em→.3em */
+.inputrow{border-top:1px solid var(--hairline);background:transparent;padding:14px 18px}
+.inputrow input{background:transparent;border:1px solid var(--edge);color:var(--ink);font-family:var(--sans);font-weight:300}
+.inputrow input:focus{outline:none;border-color:var(--accent)}
+.inputrow button{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.24em;font-weight:400;transition:all .35s}
+.inputrow button:hover{background:var(--accent);color:#0a0a0b;letter-spacing:.3em}
+:root[data-theme="light"] .inputrow button:hover{color:#f4f1e9}
+
+/* 弹层:1px 金线框 */
+#bubble,.icard,.acard,#coach{background:var(--surface);border:1px solid var(--edge);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+:root[data-theme="light"] #bubble,:root[data-theme="light"] .icard,
+:root[data-theme="light"] .acard,:root[data-theme="light"] #coach{box-shadow:0 20px 60px rgba(26,24,21,.15)}
+#bubble .bterm{font-family:var(--serif);font-style:italic;font-size:14.5px}
+#bubble button{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.2em;font-size:11px}
+#bubble button:hover{background:var(--accent);color:#0a0a0b}
+.acard .primary,.srow .primary{background:transparent;border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--caps);letter-spacing:.24em;font-weight:400}
+.acard .primary:hover,.srow .primary:hover{background:var(--accent);color:#0a0a0b}
+.icard h1{font-family:var(--serif);font-weight:400;font-size:40px;letter-spacing:.04em}
+.icard .slogan{font-family:var(--serif);font-style:italic;color:var(--gold-hi)}
+.blank h2{font-family:var(--serif);font-weight:400;letter-spacing:.01em;font-size:clamp(30px,3.4vw,44px)}
+.blank .lede{font-family:var(--sans);font-weight:300}
+.blank .kicker{font-family:var(--caps);text-transform:uppercase;letter-spacing:.3em}
+.blank .kicker::before{background:var(--accent);width:30px}
+mark.hl{background:var(--select);border-bottom:1px solid var(--accent)}
+#toast{font-family:var(--caps);letter-spacing:.2em;text-transform:uppercase;font-size:11px;
+  background:var(--surface);color:var(--gold-hi);border:1px solid var(--edge)}
+:root[data-theme="light"] #toast{color:#f4f1e9;background:#1a1815;border-color:#1a1815}
+
 </style>
-<link rel="stylesheet" href="/skins/jia.css" data-skin-for="swiss" disabled>
-<link rel="stylesheet" href="/skins/yi.css" data-skin-for="noir" disabled>
-<link rel="stylesheet" href="/skins/bing.css" data-skin-for="docs" disabled>
-<script>/* 评审:按 html[data-skin] 启用对应皮肤表(定稿后连同三份 skin 一起删) */
-(function(){var v=document.documentElement.getAttribute("data-skin")||"";
-document.querySelectorAll("link[data-skin-for]").forEach(function(l){l.disabled=(l.getAttribute("data-skin-for")!==v);});})();</script>
 </head>
 <body>
 <header>
@@ -2032,27 +2150,5 @@ else boot();
 })();
 </script>
 
-<div id="skinPick" title="视觉方案评审切换器(定稿后删除)" style="position:fixed;left:10px;bottom:10px;z-index:200;display:flex;gap:0;font:12px/1 -apple-system,'PingFang SC',sans-serif;opacity:.9;pointer-events:none">
-  <button data-skin-pick="" style="pointer-events:auto;padding:5px 9px;border:1px solid var(--hairline);background:var(--surface);color:var(--ink-2);cursor:pointer">现行</button><button data-skin-pick="swiss" style="pointer-events:auto;padding:5px 9px;border:1px solid var(--hairline);border-left:none;background:var(--surface);color:var(--ink-2);cursor:pointer">瑞士</button><button data-skin-pick="noir" style="pointer-events:auto;padding:5px 9px;border:1px solid var(--hairline);border-left:none;background:var(--surface);color:var(--ink-2);cursor:pointer">黑金</button><button data-skin-pick="docs" style="pointer-events:auto;padding:5px 9px;border:1px solid var(--hairline);border-left:none;background:var(--surface);color:var(--ink-2);cursor:pointer">文档</button>
-</div>
-<script>(function(){
-  var box=document.getElementById("skinPick"); if(!box) return;
-  function applySkin(v){
-    document.querySelectorAll("link[data-skin-for]").forEach(function(l){
-      l.disabled=(l.getAttribute("data-skin-for")!==v);});}
-  function mark(){ var cur=document.documentElement.getAttribute("data-skin")||"";
-    applySkin(cur);
-    box.querySelectorAll("[data-skin-pick]").forEach(function(b){
-      b.style.color="var(--accent)"; b.style.fontWeight="";
-      if((b.getAttribute("data-skin-pick")||"")===cur) b.style.fontWeight="700"; else b.style.color="var(--ink-2)"; });}
-  box.addEventListener("click",function(e){
-    var b=e.target.closest("[data-skin-pick]"); if(!b) return;
-    var v=b.getAttribute("data-skin-pick")||"";
-    if(v) document.documentElement.setAttribute("data-skin",v);
-    else document.documentElement.removeAttribute("data-skin");
-    try{ if(v) localStorage.setItem("wendi-skin",v); else localStorage.removeItem("wendi-skin"); }catch(err){}
-    mark();});
-  mark();
-})();</script>
 </body>
 </html>

@@ -16,7 +16,11 @@
    视觉契约见 docs/adr/0001：纸底 + 近黑墨 + 单一编辑红 + 发丝线 + 方角；
    亮默认；主题三态（跟随系统 / 亮 / 暗）见 ADR 0001「修订 · 2026-10-16」。
 
-   2026-10-18 修订 · 羊皮纸（parchment）
+   2026-10-25 修订 · 黑金（luxury-noir 承接,来源 design-library/styles/luxury-noir.md,
+   用户从 design-picks 亲选;ADR 0002)——羊皮纸/暖炭墨退役,见 git 历史。
+   亮=暖金白(本壳首定义),暗=noir 原生近黑;金是唯一强调色,只给线/字/当前态。
+
+   2026-10-18 修订 · 羊皮纸（parchment,已退役)
    ------------------------------------
    这一轮只动「色温 / 纸面四阶 / 纸纹」，尺寸、排版、组件形态一律未改。
      · 亮色从「新闻纸米白」往「陈年羊皮纸」推：更暖、更旧、带米褐，四阶仍克制（L* +3.1 / +3.1）；
@@ -36,43 +40,29 @@
      亮色序：paper-deep < surface-2 < paper < surface。
      层级要“肉眼可辨但克制”：paper↔surface 约 1.08，不当成发光玻璃。
      ink-3 只给 12.5px 及以下的提示字，必须在 paper / paper-deep / surface 上都过 4.5。
-     羊皮纸调：纸色带米褐（比新闻纸更黄更旧），墨色略偏暖棕而不是纯黑，
-     红仍是唯一的强调色（朱膘 / 印泥那一挂，饱和但略沉）。 */
-  --paper:#f4ead6; --paper-deep:#ede1ca; --surface:#fbf3e3; --surface-2:#efe3cd;
-  --ink:#191510; --ink-2:#4b4234; --ink-3:#61553f;
-  --rule:#191510; --hairline:#d3c6ab;
-  --accent:#a5281c; --accent-wash:rgba(165,40,28,.09); --accent-line:rgba(165,40,28,.42);
+     黑金·暖金白（luxury-noir 的亮色变体，本壳 2026-10-25 首定义）：
+     纸是暖金白，墨是暖黑，金是唯一强调色——金只给线、字与当前态，禁止大面积填充。 */
+  --paper:#f4f1e9; --paper-deep:#ede9de; --surface:#faf8f1; --surface-2:#eae5d7;
+  --ink:#1a1815; --ink-2:#57503f; --ink-3:#847b64;
+  --rule:rgba(26,24,21,.2); --hairline:rgba(26,24,21,.1);
+  --accent:#a07d3f; --accent-wash:rgba(160,125,63,.08); --accent-line:rgba(160,125,63,.45);
+  --gold-hi:#7a5f2a;
   /* 划词选区：比 hover 的 accent-wash 更实一点（划词是本产品的主交互，选区必须一眼看见） */
-  --select:rgba(165,40,28,.17);
-  --ok:#2f6355; --warn:#86600f; --err:#8f2317;
-  --slab-bg:#1b160e; --slab-fg:#f6efdf; --slab-line:rgba(246,239,223,.18);
-  --scrim:rgba(25,21,16,.55);
-  --float:0 6px 18px rgba(25,21,16,.16);
-  --noise:rgba(74,56,31,.05);           /* 旧 4px 点阵的兜底色（纸纹已改用 --paper-tex） */
-  --edge:rgba(25,21,16,.28); --edge-hot:rgba(165,40,28,.85);
-  --serif:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",Georgia,serif;
-  --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif;
-  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",Consolas,monospace;
+  --select:rgba(160,125,63,.15);
+  --ok:#5f7f62; --warn:#8a6f2e; --err:#a04a3a;
+  --slab-bg:#1a1815; --slab-fg:#eae6dd; --slab-line:rgba(160,125,63,.3);
+  --scrim:rgba(26,24,21,.5);
+  --float:0 10px 30px rgba(26,24,21,.18);
+  --noise:transparent;
+  --edge:rgba(160,125,63,.4); --edge-hot:rgba(160,125,63,.9);
+  --serif:"Cormorant Garamond","LXGW WenKai","Songti SC","Noto Serif CJK SC",Georgia,serif;
+  --caps:"Cinzel","Cormorant Garamond",serif;
+  --sans:"Inter","Noto Sans CJK SC","PingFang SC",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 
-  /* —— 纸纹（parchment）——
-     --paper-tex 是一整串 background-image 图层，--paper-tex-size 与它逐层对齐（7 层）。
-     图层自顶向下：
-       1–2  颗粒：两层错频的柔边细点（3px / 5px），点与点几乎相接，
-            读作纸面的“雾面”而不是格子（硬边点阵在 1x 下会显成网点，故一律柔边 + 低 alpha）；
-       3–7  云斑：五团大尺度、低对比的暖褐晕，圆心故意放到视口外（-8% / 108% / 112%），
-            让整屏只落在渐变的中段 —— 这样看不到任何“椭圆边界”，只有纸浆厚薄不均的透光差。
-            位置固定（配 background-attachment:fixed），滚动时纸不动。
-     原则：单层 alpha ≤ .055，多层叠加的最坏处也只把背景压暗约 7%，
-     墨水对比度预算（ink-3 实测仍 > 5）留有余量。 */
-  --paper-tex:
-    radial-gradient(circle, rgba(84,62,32,.030) .6px, transparent 1.4px),
-    radial-gradient(circle, rgba(84,62,32,.020) .5px, transparent 1.2px),
-    radial-gradient(70vw 56vw at -8% -12%, rgba(122,90,46,.055), rgba(122,90,46,0) 100%),
-    radial-gradient(64vw 52vw at 108% 8%,  rgba(158,118,62,.045), rgba(158,118,62,0) 100%),
-    radial-gradient(78vw 62vw at 22% 112%, rgba(98,70,34,.052),  rgba(98,70,34,0) 100%),
-    radial-gradient(40vw 34vw at 72% 64%,  rgba(176,142,88,.030), rgba(176,142,88,0) 100%),
-    radial-gradient(26vw 20vw at 42% 32%,  rgba(120,88,44,.020), rgba(120,88,44,0) 100%);
-  --paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+  /* —— 纸纹：黑金无纹理——留白与金线就是全部质感,任何底纹都是噪音 —— */
+  --paper-tex:none;
+  --paper-tex-size:auto;
 
   /* —— 暗色真源：暗色的具体色值【只在这一处出现】——
      下面的「暗色映射」两块只做「公共 token 名 → --dk-*」的改名，不含色值。
@@ -97,28 +87,21 @@
      红 on surface-2 4.63（≥4.5）、on paper 5.65；纸白压红（按钮 hover 反白）5.65。
      --rule 刻意比 --ink 低一档（L*90）：暗底上 1px 纯纸白线会发眩，压一点仍是「墨线」。
      inset 的 slab 仍比纸更黑（#0f0d09），保持亮色里「墨条」的语义。 */
-  --dk-paper:#1a1712; --dk-paper-deep:#121009; --dk-surface:#24211b; --dk-surface-2:#2c2822;
-  --dk-ink:#f4ead6; --dk-ink-2:#c6bfb1; --dk-ink-3:#a8a092;
-  --dk-rule:#e8e2d4; --dk-hairline:#4a443a;
-  --dk-accent:#fb5a40; --dk-accent-wash:rgba(251,90,64,.13); --dk-accent-line:rgba(251,90,64,.46);
-  --dk-select:rgba(251,90,64,.26);
-  --dk-ok:#7fb8a4; --dk-warn:#e2b968; --dk-err:#ff8070;
-  --dk-slab-bg:#0f0d09; --dk-slab-fg:#f4ead6; --dk-slab-line:rgba(244,234,214,.14);
-  --dk-scrim:rgba(8,7,5,.66);
-  --dk-float:0 6px 18px rgba(0,0,0,.55);
-  --dk-noise:rgba(244,234,214,.03);
-  --dk-edge:rgba(244,234,214,.28); --dk-edge-hot:rgba(251,90,64,.92);
-  /* 暗色纸纹：亮斑是“灯还照着的纸”，暗斑是“吃墨更深的纸”。
-     暗色里亮斑会吃掉浅墨的对比，所以亮斑单层压到 ≤ .03，暗斑反而可以到 .16。 */
-  --dk-paper-tex:
-    radial-gradient(circle, rgba(255,236,200,.018) .6px, transparent 1.4px),
-    radial-gradient(circle, rgba(0,0,0,.055) .5px, transparent 1.2px),
-    radial-gradient(72vw 58vw at -6% -10%, rgba(255,214,150,.034), rgba(255,214,150,0) 100%),
-    radial-gradient(66vw 54vw at 106% 12%, rgba(255,230,185,.022), rgba(255,230,185,0) 100%),
-    radial-gradient(80vw 64vw at 20% 112%, rgba(0,0,0,.13),          rgba(0,0,0,0) 100%),
-    radial-gradient(42vw 36vw at 74% 64%,  rgba(0,0,0,.07),          rgba(0,0,0,0) 100%),
-    radial-gradient(28vw 22vw at 46% 36%,  rgba(255,220,165,.016), rgba(255,220,165,0) 100%);
-  --dk-paper-tex-size:3px 3px,5px 5px,auto,auto,auto,auto,auto;
+  --dk-paper:#0a0a0b; --dk-paper-deep:#0d0d0f; --dk-surface:#121214; --dk-surface-2:#17171a;
+  --dk-ink:#eae6dd; --dk-ink-2:#9b968a; --dk-ink-3:#6a6558;
+  --dk-rule:rgba(234,230,221,.16); --dk-hairline:rgba(234,230,221,.09);
+  --dk-accent:#c9a86a; --dk-accent-wash:rgba(201,168,106,.09); --dk-accent-line:rgba(201,168,106,.42);
+  --dk-select:rgba(201,168,106,.17);
+  --dk-ok:#7fa08a; --dk-warn:#d0a95c; --dk-err:#c9705f;
+  --dk-slab-bg:#111113; --dk-slab-fg:#d6d1c4; --dk-slab-line:rgba(201,168,106,.22);
+  --dk-scrim:rgba(0,0,0,.66);
+  --dk-float:0 10px 30px rgba(0,0,0,.6);
+  --dk-noise:transparent;
+  --dk-edge:rgba(201,168,106,.3); --dk-edge-hot:rgba(201,168,106,.85);
+  --dk-gold-hi:#e8d3a2;
+  /* 暗色纸纹:none(同亮色,黑金无纹理) */
+  --dk-paper-tex:none;
+  --dk-paper-tex-size:auto;
 
   /* —— 层级（z-index）：全站命名层级，页面里不要再写裸数字 ——
      递增顺序即"谁压在谁上面"。原生 <dialog> 在 top layer，z-index 对它是兜底；
@@ -238,128 +221,3 @@ html body{
    --dk-edge:rgba(236,229,214,.28); --dk-edge-hot:rgba(215,106,95,.9);
    ===================================================================================== */
 
-/* =====================================================================================
-   视觉方案候选层 · 第四轮(来源:design-picks.md 用户亲选 × design-library spec)
-   -------------------------------------------------------------------------------------
-   swiss  = styles/swiss-grid.md(瑞士国际主义,亮即主张;暗=整页反相)
-   noir   = styles/luxury-noir.md(黑金奢华,暗为原色;亮=暖金白变体)
-   docs   = styles/docs-minimal.md(文档站极简,白底灰阶蓝点睛)
-   token 色板照抄 spec;组件规则在 /skins/{jia,yi,bing}.css。
-   ===================================================================================== */
-
-/* ——— 瑞士国际主义:白底黑字一点红 —— */
-[data-skin="swiss"]{
-  --paper:#ffffff; --paper-deep:#f7f7f7; --surface:#ffffff; --surface-2:#f2f2f2;
-  --ink:#111111; --ink-2:#666666; --ink-3:#8a8a8a;
-  --rule:#111111; --hairline:#e3e3e3;
-  --accent:#e30613; --accent-wash:rgba(227,6,19,.05); --accent-line:rgba(227,6,19,.55);
-  --select:rgba(227,6,19,.10);
-  --ok:#1a7f37; --warn:#b25e00; --err:#c22a1e;
-  --slab-bg:#111111; --slab-fg:#ffffff; --slab-line:#111111;
-  --scrim:rgba(17,17,17,.5); --float:0 8px 24px rgba(17,17,17,.14);
-  --noise:transparent; --edge:rgba(17,17,17,.35); --edge-hot:#e30613;
-  --paper-tex:none; --paper-tex-size:auto;
-}
-[data-skin="swiss"][data-theme="dark"]{
-  --paper:#111111; --paper-deep:#0c0c0c; --surface:#161616; --surface-2:#1d1d1d;
-  --ink:#f2f2f2; --ink-2:#a3a3a3; --ink-3:#7a7a7a;
-  --rule:#f2f2f2; --hairline:#2c2c2c;
-  --accent:#e30613; --accent-wash:rgba(227,6,19,.10); --accent-line:rgba(227,6,19,.6);
-  --select:rgba(227,6,19,.18);
-  --ok:#4a9e63; --warn:#d08a2e; --err:#e04a3a;
-  --slab-bg:#f2f2f2; --slab-fg:#111111; --slab-line:#f2f2f2;
-  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
-  --noise:transparent; --edge:rgba(242,242,242,.4); --edge-hot:#e30613;
-}
-@media (prefers-color-scheme: dark){
-  [data-skin="swiss"]:not([data-theme="light"]){
-  --paper:#111111; --paper-deep:#0c0c0c; --surface:#161616; --surface-2:#1d1d1d;
-  --ink:#f2f2f2; --ink-2:#a3a3a3; --ink-3:#7a7a7a;
-  --rule:#f2f2f2; --hairline:#2c2c2c;
-  --accent:#e30613; --accent-wash:rgba(227,6,19,.10); --accent-line:rgba(227,6,19,.6);
-  --select:rgba(227,6,19,.18);
-  --ok:#4a9e63; --warn:#d08a2e; --err:#e04a3a;
-  --slab-bg:#f2f2f2; --slab-fg:#111111; --slab-line:#f2f2f2;
-  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
-  --noise:transparent; --edge:rgba(242,242,242,.4); --edge-hot:#e30613;
-  }
-}
-
-/* ——— 黑金奢华:黑底金线,让视线慢下来(暗为原色;亮=暖金白变体) —— */
-[data-skin="noir"]{
-  --paper:#0a0a0b; --paper-deep:#0d0d0f; --surface:#121214; --surface-2:#17171a;
-  --ink:#eae6dd; --ink-2:#9b968a; --ink-3:#6a6558;
-  --rule:rgba(234,230,221,.16); --hairline:rgba(234,230,221,.09);
-  --accent:#c9a86a; --accent-wash:rgba(201,168,106,.09); --accent-line:rgba(201,168,106,.42);
-  --select:rgba(201,168,106,.17);
-  --ok:#7fa08a; --warn:#c9a86a; --err:#c9705f;
-  --slab-bg:#111113; --slab-fg:#d6d1c4; --slab-line:rgba(201,168,106,.22);
-  --scrim:rgba(0,0,0,.66); --float:0 10px 30px rgba(0,0,0,.6);
-  --noise:transparent; --edge:rgba(201,168,106,.30); --edge-hot:rgba(201,168,106,.85);
-  --gold-hi:#e8d3a2;
-  --paper-tex:none; --paper-tex-size:auto;
-}
-[data-skin="noir"][data-theme="light"]{
-  --paper:#f4f1e9; --paper-deep:#ede9de; --surface:#faf8f1; --surface-2:#eae5d7;
-  --ink:#1a1815; --ink-2:#57503f; --ink-3:#847b64;
-  --rule:rgba(26,24,21,.2); --hairline:rgba(26,24,21,.1);
-  --accent:#a07d3f; --accent-wash:rgba(160,125,63,.08); --accent-line:rgba(160,125,63,.45);
-  --select:rgba(160,125,63,.15);
-  --ok:#5f7f62; --warn:#8a6f2e; --err:#a04a3a;
-  --slab-bg:#1a1815; --slab-fg:#eae6dd; --slab-line:rgba(160,125,63,.3);
-  --scrim:rgba(26,24,21,.5); --float:0 10px 30px rgba(26,24,21,.18);
-  --noise:transparent; --edge:rgba(160,125,63,.4); --edge-hot:rgba(160,125,63,.9);
-  --gold-hi:#7a5f2a;
-}
-@media (prefers-color-scheme: light){
-  [data-skin="noir"]:not([data-theme="dark"]){
-  --paper:#f4f1e9; --paper-deep:#ede9de; --surface:#faf8f1; --surface-2:#eae5d7;
-  --ink:#1a1815; --ink-2:#57503f; --ink-3:#847b64;
-  --rule:rgba(26,24,21,.2); --hairline:rgba(26,24,21,.1);
-  --accent:#a07d3f; --accent-wash:rgba(160,125,63,.08); --accent-line:rgba(160,125,63,.45);
-  --select:rgba(160,125,63,.15);
-  --ok:#5f7f62; --warn:#8a6f2e; --err:#a04a3a;
-  --slab-bg:#1a1815; --slab-fg:#eae6dd; --slab-line:rgba(160,125,63,.3);
-  --scrim:rgba(26,24,21,.5); --float:0 10px 30px rgba(26,24,21,.18);
-  --noise:transparent; --edge:rgba(160,125,63,.4); --edge-hot:rgba(160,125,63,.9);
-  --gold-hi:#7a5f2a;
-  }
-}
-
-/* ——— 文档站极简:白底灰阶,蓝只给链接与当前态 —— */
-[data-skin="docs"]{
-  --paper:#ffffff; --paper-deep:#fafafb; --surface:#ffffff; --surface-2:#f6f7f9;
-  --ink:#18191a; --ink-2:#5c5f66; --ink-3:#8b8e96;
-  --rule:#e6e7eb; --hairline:#e6e7eb;
-  --accent:#2f6feb; --accent-wash:rgba(47,111,235,.07); --accent-line:rgba(47,111,235,.45);
-  --select:rgba(47,111,235,.12);
-  --ok:#1a7f37; --warn:#8a6a1a; --err:#c22a1e;
-  --slab-bg:#f6f7f9; --slab-fg:#24262b; --slab-line:#e6e7eb;
-  --scrim:rgba(24,25,26,.45); --float:0 8px 24px rgba(24,25,26,.12);
-  --noise:transparent; --edge:#d5d7dc; --edge-hot:#2f6feb;
-  --paper-tex:none; --paper-tex-size:auto;
-}
-[data-skin="docs"][data-theme="dark"]{
-  --paper:#0f1011; --paper-deep:#141519; --surface:#131417; --surface-2:#1a1c1f;
-  --ink:#e8e9eb; --ink-2:#a0a3ab; --ink-3:#6b6e76;
-  --rule:#26282c; --hairline:#26282c;
-  --accent:#6ea3f5; --accent-wash:rgba(110,163,245,.10); --accent-line:rgba(110,163,245,.45);
-  --select:rgba(110,163,245,.16);
-  --ok:#4a9e63; --warn:#c9a35c; --err:#e0685c;
-  --slab-bg:#1a1c1f; --slab-fg:#e8e9eb; --slab-line:#26282c;
-  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
-  --noise:transparent; --edge:#33363c; --edge-hot:#6ea3f5;
-}
-@media (prefers-color-scheme: dark){
-  [data-skin="docs"]:not([data-theme="light"]){
-  --paper:#0f1011; --paper-deep:#141519; --surface:#131417; --surface-2:#1a1c1f;
-  --ink:#e8e9eb; --ink-2:#a0a3ab; --ink-3:#6b6e76;
-  --rule:#26282c; --hairline:#26282c;
-  --accent:#6ea3f5; --accent-wash:rgba(110,163,245,.10); --accent-line:rgba(110,163,245,.45);
-  --select:rgba(110,163,245,.16);
-  --ok:#4a9e63; --warn:#c9a35c; --err:#e0685c;
-  --slab-bg:#1a1c1f; --slab-fg:#e8e9eb; --slab-line:#26282c;
-  --scrim:rgba(0,0,0,.6); --float:0 8px 24px rgba(0,0,0,.5);
-  --noise:transparent; --edge:#33363c; --edge-hot:#6ea3f5;
-  }
-}
